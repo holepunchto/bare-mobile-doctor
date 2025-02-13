@@ -9,18 +9,14 @@ IPC.on('data', (data) => {
   console.log('Worklet received:', data)
   try {
     const message = JSON.parse(data)
-    console.log('Parsed message:', message)
-    
     switch (message.type) {
       case 'ping':
         console.log('Handling ping')
         IPC.write(JSON.stringify({
           type: 'pong',
-          timestamp: new Date().toISOString(),
           echo: message.data
         }))
         break
-        
       case 'echo':
         console.log('Handling echo')
         IPC.write(JSON.stringify({
@@ -28,7 +24,6 @@ IPC.on('data', (data) => {
           data: message.data
         }))
         break
-        
       case 'compute':
         console.log('Starting computation')
         let result = 0
@@ -37,11 +32,10 @@ IPC.on('data', (data) => {
         }
         console.log('Computation complete')
         IPC.write(JSON.stringify({
-          type: 'compute_result',
+          type: 'compute',
           result
         }))
         break
-        
       default:
         console.log('Unknown message type:', message.type)
     }
@@ -49,7 +43,7 @@ IPC.on('data', (data) => {
     console.error('Error in worklet:', err)
     IPC.write(JSON.stringify({
       type: 'error',
-      error: err.message
+      message: err.message
     }))
   }
 })

@@ -1,17 +1,40 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native'
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Pressable } from 'react-native'
 import { worklet } from '../index'
 
 interface TestResult {
-  name: string
-  status: 'success' | 'error'
-  message: string
-  timestamp: string
+  type: string
+  [key: string]: any  // For other properties that vary by type
+}
+
+const testPayloads = {
+  ping: {
+    type: 'ping',
+    data: 'test ping',
+    assert: (response: TestResult) => 
+      response.type === 'pong' && response.echo === 'test ping'
+  },
+  echo: {
+    type: 'echo', 
+    data: 'A'.repeat(1000),
+    assert: (response: TestResult) => 
+      response.type === 'echo_response' && response.data === 'A'.repeat(1000)
+  },
+  compute: {
+    type: 'compute',
+    iterations: 1000000,
+    assert: (response: TestResult) => typeof response.result === 'number'
+  },
+  invalid: {
+    payload: 'invalid json{',
+    assert: (response: TestResult) => response.type === 'error'
+  }
 }
 
 export function IPCTests() {
   const [results, setResults] = useState<TestResult[]>([])
   const [running, setRunning] = useState(false)
+  const [expandedResults, setExpandedResults] = useState<number[]>([])
 
   useEffect(() => {
     const { IPC } = worklet
@@ -20,14 +43,8 @@ export function IPCTests() {
     IPC.on('data', (data: string) => {
       console.log('RN received:', data)
       try {
-        const response = JSON.parse(data)
-        console.log('Parsed response:', response)
-        const result: TestResult = {
-          name: `Response: ${response.type}`,
-          status: response.error ? 'error' : 'success',
-          message: JSON.stringify(response, null, 2),
-          timestamp: new Date().toISOString()
-        }
+        const result = JSON.parse(data)
+        console.log('Parsed response:', result)
         setResults(prev => [...prev, result])
       } catch (err) {
         console.error('Failed to parse response:', err)
@@ -40,28 +57,30 @@ export function IPCTests() {
     setResults([])
     const { IPC } = worklet
 
-    // Test 1: Basic ping
-    IPC.write(JSON.stringify({
-      type: 'ping',
-      data: 'test ping'
-    }))
-
-    // Test 2: Echo large string
-    IPC.write(JSON.stringify({
-      type: 'echo',
-      data: 'A'.repeat(1000)
-    }))
-
-    // Test 3: Heavy computation
-    IPC.write(JSON.stringify({
-      type: 'compute',
-      iterations: 1000000
-    }))
-
-    // Test 4: Invalid message
-    IPC.write('invalid json{')
+    IPC.write(JSON.stringify(testPayloads.ping))
+    IPC.write(JSON.stringify(testPayloads.echo))
+    IPC.write(JSON.stringify(testPayloads.compute))
+    IPC.write(testPayloads.invalid)
 
     setRunning(false)
+  }
+
+  const getTestForResponse = (result: TestResult) => {
+    switch (result.type) {
+      case 'pong': return testPayloads.ping
+      case 'echo_response': return testPayloads.echo
+      case 'compute': return testPayloads.compute
+      case 'error': return testPayloads.invalid
+      default: return null
+    }
+  }
+
+  const toggleResult = (index: number) => {
+    setExpandedResults(prev => 
+      prev.includes(index) 
+        ? prev.filter(i => i !== index)
+        : [...prev, index]
+    )
   }
 
   return (
@@ -77,19 +96,36 @@ export function IPCTests() {
       </TouchableOpacity>
 
       <ScrollView style={styles.results}>
-        {results.map((result, index) => (
-          <View 
-            key={index} 
-            style={[
-              styles.resultItem,
-              result.status === 'error' && styles.errorResult
-            ]}
-          >
-            <Text style={styles.resultName}>{result.name}</Text>
-            <Text style={styles.resultMessage}>{result.message}</Text>
-            <Text style={styles.timestamp}>{result.timestamp}</Text>
-          </View>
-        ))}
+        {results.map((result, index) => {
+          const test = getTestForResponse(result)
+          const assertionPassed = test?.assert ? test.assert(result) : false
+          const isExpanded = expandedResults.includes(index)
+
+          return (
+            <Pressable 
+              key={index} 
+              style={[
+                styles.resultItem,
+                !assertionPassed && styles.errorResult
+              ]}
+              onPress={() => toggleResult(index)}
+            >
+              <Text style={styles.resultName}>Response: {result.type}</Text>
+              {isExpanded && (
+                <Text style={styles.resultMessage}>
+                  {JSON.stringify(result, null, 2)}
+                </Text>
+              )}
+              <Text style={[
+                styles.assertResult,
+                assertionPassed ? styles.assertPassed : styles.assertFailed
+              ]}>
+                {assertionPassed ? '✓ Test passed' : '✗ Test failed'}
+                <Text style={styles.toggleHint}> (tap to {isExpanded ? 'hide' : 'show'} details)</Text>
+              </Text>
+            </Pressable>
+          )
+        })}
       </ScrollView>
     </>
   )
@@ -136,5 +172,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginTop: 5,
+  },
+  assertResult: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginTop: 5,
+  },
+  assertPassed: {
+    color: '#4caf50',
+  },
+  assertFailed: {
+    color: '#f44336',
+  },
+  toggleHint: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: 'normal',
   },
 })
