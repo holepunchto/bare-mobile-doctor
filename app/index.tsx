@@ -1,20 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Text, View, TouchableOpacity, StyleSheet } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
+import { source } from './worklet.js'
 
 const worklet = new Worklet()
-
-const source = `
-const { IPC } = BareKit
-
-IPC.setEncoding('utf8')
-IPC.on('data', (data) => {
-  console.log('Received data:', data)
-  if (data === 'ping') {
-    IPC.write('Hello from Bare at ' + new Date().toLocaleString())
-  }
-})
-`
 
 export default function() {
   const [response, setResponse] = useState<string | null>(null)
