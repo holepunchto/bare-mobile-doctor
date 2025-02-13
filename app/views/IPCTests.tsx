@@ -33,10 +33,10 @@ const testPayloads = {
 
 export function IPCTests() {
   const [results, setResults] = useState<TestResult[]>([])
-  const [running, setRunning] = useState(false)
   const [expandedResults, setExpandedResults] = useState<number[]>([])
 
   useEffect(() => {
+    console.log('Starting IPC tests')
     const { IPC } = worklet
     IPC.setEncoding('utf8')
     
@@ -53,16 +53,14 @@ export function IPCTests() {
   }, [])
 
   const runTests = async () => {
-    setRunning(true)
-    setResults([])
     const { IPC } = worklet
 
-    IPC.write(JSON.stringify(testPayloads.ping))
-    IPC.write(JSON.stringify(testPayloads.echo))
-    IPC.write(JSON.stringify(testPayloads.compute))
-    IPC.write(testPayloads.invalid)
-
-    setRunning(false)
+    for (let i = 0; i < 100; i++) {
+      IPC.write(JSON.stringify(testPayloads.ping))
+      IPC.write(JSON.stringify(testPayloads.echo))
+      IPC.write(JSON.stringify(testPayloads.compute))
+      IPC.write(testPayloads.invalid)
+    }
   }
 
   const getTestForResponse = (result: TestResult) => {
@@ -86,14 +84,16 @@ export function IPCTests() {
   return (
     <>
       <TouchableOpacity 
-        style={[styles.button, running && styles.buttonDisabled]} 
+        style={styles.button}
         onPress={runTests}
-        disabled={running}
       >
         <Text style={styles.buttonText}>
-          {running ? 'Running Tests...' : 'Run IPC Tests'}
+          {'Send 400 IPC messages'}
         </Text>
       </TouchableOpacity>
+      <Text style={styles.stats}>
+        Tests: {results.length}
+      </Text>
 
       <ScrollView style={styles.results}>
         {results.map((result, index) => {
@@ -188,5 +188,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     fontWeight: 'normal',
+  },
+  stats: {
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 20,
   },
 })
