@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "Bare",
-    "slug": "bare-expo",
+    "name": "BareDoctor",
+    "slug": "bare-doctor",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "to.holepunch.bare.expo",
+    "scheme": "to.holepunch.bare.doctor",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "automatic",
     "splash": {
@@ -14,14 +14,14 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "to.holepunch.bare.expo"
+      "bundleIdentifier": "to.holepunch.bare.doctor"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "to.holepunch.bare.expo"
+      "package": "to.holepunch.bare.doctor"
     },
     "plugins": [
       ["expo-router"],

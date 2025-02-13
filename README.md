@@ -10,6 +10,8 @@ Start by installing the dependencies:
 npm install
 ```
 
+> Be sure to have `patchelf` binary installed.
+
 When finished, you can run the app on either iOS or Android.
 
 ### iOS

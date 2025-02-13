@@ -1,7 +1,7 @@
 {
   "private": true,
-  "name": "bare-expo",
-  "description": "Example of embedding Bare in an Expo application",
+  "name": "bare-mobile-doctor",
+  "description": "Doctor application for Bare on mobile",
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
@@ -10,14 +10,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/holepunchto/bare-expo.git"
+    "url": "git+https://github.com/holepunchto/bare-mobile-doctor.git"
   },
   "author": "Holepunch",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/holepunchto/bare-expo/issues"
+    "url": "https://github.com/holepunchto/bare-mobile-doctor/issues"
   },
-  "homepage": "https://github.com/holepunchto/bare-expo#readme",
+  "homepage": "https://github.com/holepunchto/bare-mobile-doctor#readme",
   "dependencies": {
     "events": "^3.3.0",
     "expo": "^52.0.17",
