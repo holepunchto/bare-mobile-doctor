@@ -1,6 +1,6 @@
-# Bare on Expo
+# 🩺 Bare Mobile Doctor!
 
-Example of embedding Bare in an Expo application using <https://github.com/holepunchto/react-native-bare-kit>.
+The Bare doctor application for mobile.
 
 ## Usage
 
