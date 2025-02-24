@@ -1,132 +1,61 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Pressable } from 'react-native'
+import { Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { worklet } from '../index'
 
-interface TestResult {
-  type: string
-  [key: string]: any  // For other properties that vary by type
-}
-
-const testPayloads = {
-  ping: {
-    type: 'ping',
-    data: 'test ping',
-    assert: (response: TestResult) => 
-      response.type === 'pong' && response.echo === 'test ping'
-  },
-  echo: {
-    type: 'echo', 
-    data: 'A'.repeat(1000),
-    assert: (response: TestResult) => 
-      response.type === 'echo_response' && response.data === 'A'.repeat(1000)
-  },
-  compute: {
-    type: 'compute',
-    iterations: 1000000,
-    assert: (response: TestResult) => typeof response.result === 'number'
-  },
-  invalid: {
-    payload: 'invalid json{',
-    assert: (response: TestResult) => response.type === 'error'
-  }
-}
-
 export function IPCTests() {
-  const [results, setResults] = useState<TestResult[]>([])
-  const [expandedResults, setExpandedResults] = useState<number[]>([])
+  const [isRunning, setIsRunning] = useState(false)
+  const [messagesSent, setMessagesSent] = useState(0)
+  const [messagesReceived, setMessagesReceived] = useState(0)
 
   useEffect(() => {
-    console.log('Starting IPC tests')
     const { IPC } = worklet
     IPC.setEncoding('utf8')
-    
+
     IPC.on('data', (data: string) => {
-      console.log('RN received:', data)
       try {
-        const result = JSON.parse(data)
-        console.log('Parsed response:', result)
-        setResults(prev => [...prev, result])
+        const messages = data.split('\n').filter(Boolean)
+        setMessagesReceived(prev => prev + messages.length);
       } catch (err) {
         console.error('Failed to parse response:', err)
       }
     })
   }, [])
 
+  useEffect(() => {
+    if (messagesReceived >= 10000) {
+      setIsRunning(false)
+    }
+  }, [messagesReceived])
+
   const runTests = async () => {
+    if (isRunning) return
+    setIsRunning(true)
+    setMessagesSent(0)
+    setMessagesReceived(0)
+
     const { IPC } = worklet
 
-    for (let i = 0; i < 100; i++) {
-      IPC.write(JSON.stringify(testPayloads.ping))
-      IPC.write(JSON.stringify(testPayloads.echo))
-      IPC.write(JSON.stringify(testPayloads.compute))
-      IPC.write(testPayloads.invalid)
+    for (let i = 0; i < 10000; i++) {
+      IPC.write(`Hello world ${i}` + '\n')
+      setMessagesSent(prev => prev + 1)
     }
   }
 
-  const getTestForResponse = (result: TestResult) => {
-    switch (result.type) {
-      case 'pong': return testPayloads.ping
-      case 'echo_response': return testPayloads.echo
-      case 'compute': return testPayloads.compute
-      case 'error': return testPayloads.invalid
-      default: return null
-    }
-  }
-
-  const toggleResult = (index: number) => {
-    setExpandedResults(prev => 
-      prev.includes(index) 
-        ? prev.filter(i => i !== index)
-        : [...prev, index]
-    )
-  }
 
   return (
     <>
-      <TouchableOpacity 
-        style={styles.button}
+      <TouchableOpacity
+        style={isRunning ? [styles.button, styles.buttonDisabled] : styles.button}
         onPress={runTests}
+        disabled={isRunning}
       >
         <Text style={styles.buttonText}>
-          {'Send 400 IPC messages'}
+          {'Send 10k IPC messages'}
         </Text>
       </TouchableOpacity>
       <Text style={styles.stats}>
-        Tests: {results.length}
+        Sent: {messagesSent} | Received: {messagesReceived}
       </Text>
-
-      <ScrollView style={styles.results}>
-        {results.map((result, index) => {
-          const test = getTestForResponse(result)
-          const assertionPassed = test?.assert ? test.assert(result) : false
-          const isExpanded = expandedResults.includes(index)
-
-          return (
-            <Pressable 
-              key={index} 
-              style={[
-                styles.resultItem,
-                !assertionPassed && styles.errorResult
-              ]}
-              onPress={() => toggleResult(index)}
-            >
-              <Text style={styles.resultName}>Response: {result.type}</Text>
-              {isExpanded && (
-                <Text style={styles.resultMessage}>
-                  {JSON.stringify(result, null, 2)}
-                </Text>
-              )}
-              <Text style={[
-                styles.assertResult,
-                assertionPassed ? styles.assertPassed : styles.assertFailed
-              ]}>
-                {assertionPassed ? '✓ Test passed' : '✗ Test failed'}
-                <Text style={styles.toggleHint}> (tap to {isExpanded ? 'hide' : 'show'} details)</Text>
-              </Text>
-            </Pressable>
-          )
-        })}
-      </ScrollView>
     </>
   )
 }
@@ -147,47 +76,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',
-  },
-  results: {
-    flex: 1,
-  },
-  resultItem: {
-    padding: 10,
-    borderRadius: 8,
-    backgroundColor: '#f0f0f0',
-    marginBottom: 10,
-  },
-  errorResult: {
-    backgroundColor: '#ffebee',
-  },
-  resultName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 5,
-  },
-  resultMessage: {
-    fontSize: 14,
-  },
-  timestamp: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 5,
-  },
-  assertResult: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginTop: 5,
-  },
-  assertPassed: {
-    color: '#4caf50',
-  },
-  assertFailed: {
-    color: '#f44336',
-  },
-  toggleHint: {
-    fontSize: 12,
-    color: '#666',
-    fontWeight: 'normal',
   },
   stats: {
     fontSize: 16,
