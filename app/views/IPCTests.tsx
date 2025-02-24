@@ -14,10 +14,7 @@ export function IPCTests() {
   useEffect(() => {
     worklet.start('app.js', `
     console.log('Worklet started')
-
-    BareKit.IPC.setEncoding('utf8')
     BareKit.IPC.on('data', (data) => { BareKit.IPC.write(data) })
-
     console.log('Worklet setup complete')
     `)
 
@@ -60,7 +57,6 @@ export function IPCTests() {
       setMessagesSent(prev => prev + 1)
     }
   }
-
 
   return (
     <>
@@ -111,3 +107,4 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 })
+
