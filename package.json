@@ -6,7 +6,8 @@
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "gen:udx": "npx bare-pack --out app/views/udx/udx.bundle.js bare/udx.js --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked"
   },
   "repository": {
     "type": "git",
@@ -19,6 +20,7 @@
   },
   "homepage": "https://github.com/holepunchto/bare-mobile-doctor#readme",
   "dependencies": {
+    "bare-assert": "^1.0.2",
     "events": "^3.3.0",
     "expo": "^52.0.17",
     "expo-build-properties": "^0.13.1",
@@ -30,7 +32,8 @@
     "react-dom": "^18.3.1",
     "react-native": "^0.76.3",
     "react-native-bare-kit": "^0.5.0",
-    "react-native-safe-area-context": "^5.1.0"
+    "react-native-safe-area-context": "^5.1.0",
+    "udx-native": "^1.17.4"
   },
   "devDependencies": {
     "@types/react": "^18.3.1",
