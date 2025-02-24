@@ -13,16 +13,15 @@ export function TabNavigator({ modules, activeModule, onChangeModule }: Props) {
       {modules.map((module) => (
         <TouchableOpacity
           key={module}
-          style={[
-            styles.tab,
-            activeModule === module && styles.activeTab
-          ]}
+          style={[styles.tab, activeModule === module && styles.activeTab]}
           onPress={() => onChangeModule(module)}
         >
-          <Text style={[
-            styles.tabText,
-            activeModule === module && styles.activeTabText
-          ]}>
+          <Text
+            style={[
+              styles.tabText,
+              activeModule === module && styles.activeTabText
+            ]}
+          >
             {module}
           </Text>
         </TouchableOpacity>
@@ -37,24 +36,23 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     borderRadius: 8,
     backgroundColor: '#f0f0f0',
-    padding: 4,
+    padding: 4
   },
   tab: {
     flex: 1,
     paddingVertical: 8,
     alignItems: 'center',
-    borderRadius: 6,
+    borderRadius: 6
   },
   activeTab: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#007AFF'
   },
   tabText: {
     fontSize: 14,
-    color: '#666',
+    color: '#666'
   },
   activeTabText: {
     color: 'white',
-    fontWeight: '600',
-  },
+    fontWeight: '600'
+  }
 })
-
