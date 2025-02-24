@@ -1,23 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { View, StyleSheet } from 'react-native'
-import { Worklet } from 'react-native-bare-kit'
-import { source } from './worklet.js'
 import { TabNavigator } from './components/TabNavigator'
 import { IPCTests } from './views/IPCTests'
 import { UDXTests } from './views/UDXTests'
 import { SodiumTests } from './views/SodiumTests'
 
-export const worklet = new Worklet()
-
 export type TestModule = 'IPC' | 'UDX' | 'Sodium'
 
 export default function() {
   const [activeModule, setActiveModule] = useState<TestModule>('IPC')
-
-  useEffect(() => {
-    console.log('Starting worklet')
-    worklet.start('/app.js', source)
-  }, [])
 
   const renderContent = () => {
     switch (activeModule) {
@@ -32,8 +23,8 @@ export default function() {
 
   return (
     <View style={styles.container}>
-      <TabNavigator 
-        modules={['IPC', 'UDX', 'Sodium']} 
+      <TabNavigator
+        modules={['IPC', 'UDX', 'Sodium']}
         activeModule={activeModule}
         onChangeModule={setActiveModule}
       />
