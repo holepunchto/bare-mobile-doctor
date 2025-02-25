@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
 
-const worklet = new Worklet()
-
 export function IPCTests() {
+  const worklet = React.useRef(new Worklet()).current
   const [isRunning, setIsRunning] = useState(false)
   const [messagesSent, setMessagesSent] = useState(0)
   const [messagesReceived, setMessagesReceived] = useState(0)
@@ -34,7 +33,7 @@ export function IPCTests() {
     })
 
     return () => {
-      worklet.terminate()
+      if (worklet.terminate) worklet.terminate()
     }
   }, [])
 
