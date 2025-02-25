@@ -29,8 +29,10 @@ function TestResult({ testName, hasSucceeded, isRunning }: TestResultProps) {
 
 export function UDXTests() {
   const [isRunning, setIsRunning] = React.useState(false)
-  const [socketTestsHasSucceeded, setSocketTestsHasSucceeded] = React.useState(null)
-  const [streamTestsHasSucceeded, setStreamTestsHasSucceeded] = React.useState(null)
+  const [socketTestsHasSucceeded, setSocketTestsHasSucceeded] =
+    React.useState(null)
+  const [streamTestsHasSucceeded, setStreamTestsHasSucceeded] =
+    React.useState(null)
   const worklet = React.useRef(new Worklet()).current
 
   useEffect(() => {
@@ -43,7 +45,7 @@ export function UDXTests() {
         const messages = data.split('\n').filter(Boolean)
 
         messages.forEach((message) => {
-          const jsonMessage = JSON.parse(message);
+          const jsonMessage = JSON.parse(message)
           if (jsonMessage.type === 'socket') {
             setSocketTestsHasSucceeded(jsonMessage.hasSucceeded)
           }
@@ -66,8 +68,8 @@ export function UDXTests() {
   const runTests = () => {
     const { IPC } = worklet
     setIsRunning(true)
-    IPC.write('stream');
-    IPC.write('socket');
+    IPC.write('stream')
+    IPC.write('socket')
   }
 
   return (
@@ -77,15 +79,25 @@ export function UDXTests() {
         onPress={runTests}
         disabled={isRunning}
       >
-        <Text style={styles.buttonText}>{isRunning ? 'Running...' : 'Run UDX Tests'}</Text>
+        <Text style={styles.buttonText}>
+          {isRunning ? 'Running...' : 'Run UDX Tests'}
+        </Text>
       </TouchableOpacity>
 
       <View style={styles.resultsContainer}>
         <Text style={styles.resultTitle}>Test Results</Text>
-        <TestResult testName="Socket Tests" hasSucceeded={socketTestsHasSucceeded} isRunning={isRunning} />
-        <TestResult testName="Stream Tests" hasSucceeded={streamTestsHasSucceeded} isRunning={isRunning} />
+        <TestResult
+          testName='Socket Tests'
+          hasSucceeded={socketTestsHasSucceeded}
+          isRunning={isRunning}
+        />
+        <TestResult
+          testName='Stream Tests'
+          hasSucceeded={streamTestsHasSucceeded}
+          isRunning={isRunning}
+        />
       </View>
-    </View >
+    </View>
   )
 }
 
@@ -96,18 +108,18 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     width: '100%',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 20
   },
   buttonDisabled: {
-    backgroundColor: '#B0B0B0',
+    backgroundColor: '#B0B0B0'
   },
   buttonText: {
     color: '#FFF',
-    fontWeight: 'bold',
+    fontWeight: 'bold'
   },
   neutral: {
     color: '#666',
-    fontWeight: 'bold',
+    fontWeight: 'bold'
   },
   resultsContainer: {
     width: '100%',
@@ -118,34 +130,33 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 3
   },
   resultTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 10,
-    textAlign: 'center',
+    textAlign: 'center'
   },
   resultItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 5,
+    paddingVertical: 5
   },
   testName: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '500'
   },
   success: {
     color: '#28A745',
-    fontWeight: 'bold',
+    fontWeight: 'bold'
   },
   error: {
     color: '#DC3545',
-    fontWeight: 'bold',
+    fontWeight: 'bold'
   },
   pending: {
     color: '#FFA500',
-    fontWeight: 'bold',
-  },
-});
-
+    fontWeight: 'bold'
+  }
+})

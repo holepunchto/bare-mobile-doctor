@@ -1,10 +1,10 @@
 console.log('Worklet started')
 const UDX = require('udx-native')
 const b4a = require('b4a')
-const assert = require('bare-assert');
+const assert = require('bare-assert')
 
 BareKit.IPC.setEncoding('utf8')
-BareKit.IPC.on('data', function(data) {
+BareKit.IPC.on('data', function (data) {
   if (data === 'socket') {
     socketTest()
       .then(() => BareKit.IPC.write(result('socket', true)))
@@ -14,7 +14,7 @@ BareKit.IPC.on('data', function(data) {
       .then(() => BareKit.IPC.write(result('stream', true)))
       .catch((e) => BareKit.IPC.write(result('stream', false, e.message)))
   }
-});
+})
 
 function socketTest() {
   const u = new UDX()
@@ -22,7 +22,7 @@ function socketTest() {
   const b = u.createSocket()
 
   return new Promise((resolve, reject) => {
-    b.on('message', function(message) {
+    b.on('message', function (message) {
       try {
         assert(message.toString() === 'hello')
         resolve(true)
@@ -51,7 +51,7 @@ function streamTest() {
   b.connect(socket, 1, socket.address().port)
 
   return new Promise((resolve, reject) => {
-    a.on('data', async function(data) {
+    a.on('data', async function (data) {
       try {
         assert(data.toString() === 'hello')
         a.destroy()
@@ -69,6 +69,8 @@ function streamTest() {
   })
 }
 
-function result(type, hasSucceeded, message = null) { return JSON.stringify({ type, hasSucceeded, message }) + '\n' }
+function result(type, hasSucceeded, message = null) {
+  return JSON.stringify({ type, hasSucceeded, message }) + '\n'
+}
 
 console.log('Worklet setup complete')

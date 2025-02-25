@@ -7,7 +7,7 @@ import { SodiumTests } from './views/SodiumTests'
 
 export type TestModule = 'IPC' | 'UDX' | 'Sodium'
 
-export default function() {
+export default function () {
   const [activeModule, setActiveModule] = useState<TestModule>('IPC')
 
   const renderContent = () => {
