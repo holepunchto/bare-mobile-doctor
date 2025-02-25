@@ -33,7 +33,7 @@ export function IPCTests() {
     })
 
     return () => {
-      worklet.terminate()
+      if (worklet.terminate) worklet.terminate()
     }
   }, [])
 

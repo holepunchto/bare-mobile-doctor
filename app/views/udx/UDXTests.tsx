@@ -2,7 +2,30 @@ import React, { useEffect } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
 
-const source = require('./udx.bundle');
+const source = require('./udx.bundle')
+
+interface TestResultProps {
+  testName: string
+  hasSucceeded: boolean | null
+  isRunning: boolean
+}
+
+function TestResult({ testName, hasSucceeded, isRunning }: TestResultProps) {
+  return (
+    <View style={styles.resultItem}>
+      <Text style={styles.testName}>{testName}:</Text>
+      {isRunning ? (
+        <Text style={styles.pending}>⏳ Pending...</Text>
+      ) : hasSucceeded === null ? (
+        <Text style={styles.neutral}>-</Text>
+      ) : hasSucceeded ? (
+        <Text style={styles.success}>✅ Passed</Text>
+      ) : (
+        <Text style={styles.error}>❌ Failed</Text>
+      )}
+    </View>
+  )
+}
 
 export function UDXTests() {
   const [isRunning, setIsRunning] = React.useState(false)
@@ -36,78 +59,93 @@ export function UDXTests() {
     })
 
     return () => {
-      worklet.terminate()
+      if (worklet.terminate) worklet.terminate()
     }
   }, [])
 
-  const runSocketTests = () => {
-    const { IPC } = worklet
-    setIsRunning(true)
-    IPC.write('socket');
-  }
-
-  const runStreamTests = () => {
+  const runTests = () => {
     const { IPC } = worklet
     setIsRunning(true)
     IPC.write('stream');
+    IPC.write('socket');
   }
-
 
   return (
     <View>
       <TouchableOpacity
-        style={
-          isRunning ? [styles.button, styles.buttonDisabled] : styles.button
-        }
-        onPress={runSocketTests}
+        style={[styles.button, isRunning && styles.buttonDisabled]}
+        onPress={runTests}
         disabled={isRunning}
       >
-        <Text style={styles.buttonText}>{'Run Socket Tests'}</Text>
+        <Text style={styles.buttonText}>{isRunning ? 'Running...' : 'Run UDX Tests'}</Text>
       </TouchableOpacity>
-      <TouchableOpacity
-        style={
-          isRunning ? [styles.button, styles.buttonDisabled] : styles.button
-        }
-        onPress={runStreamTests}
-        disabled={isRunning}
-      >
-        <Text style={styles.buttonText}>{'Run Stream Tests'}</Text>
-      </TouchableOpacity>
-      {socketTestsHasSucceeded !== null && (
-        <Text style={styles.stats}>
-          {socketTestsHasSucceeded ? 'Socket tests succeeded' : 'Socket tests failed'}
-        </Text>
-      )}
-      {streamTestsHasSucceeded !== null && (
-        <Text style={styles.stats}>
-          {streamTestsHasSucceeded ? 'Stream tests succeeded' : 'Stream tests failed'}
-        </Text>
-      )}
-    </View>
+
+      <View style={styles.resultsContainer}>
+        <Text style={styles.resultTitle}>Test Results</Text>
+        <TestResult testName="Socket Tests" hasSucceeded={socketTestsHasSucceeded} isRunning={isRunning} />
+        <TestResult testName="Stream Tests" hasSucceeded={streamTestsHasSucceeded} isRunning={isRunning} />
+      </View>
+    </View >
   )
 }
 
 const styles = StyleSheet.create({
   button: {
     backgroundColor: '#007AFF',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginBottom: 20
+    padding: 12,
+    borderRadius: 5,
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 20,
   },
   buttonDisabled: {
-    opacity: 0.5
+    backgroundColor: '#B0B0B0',
   },
   buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center'
+    color: '#FFF',
+    fontWeight: 'bold',
   },
-  stats: {
-    fontSize: 16,
-    fontWeight: '600',
+  neutral: {
+    color: '#666',
+    fontWeight: 'bold',
+  },
+  resultsContainer: {
+    width: '100%',
+    padding: 15,
+    backgroundColor: '#FFF',
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  resultTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
     textAlign: 'center',
-    marginBottom: 20
-  }
-})
+  },
+  resultItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 5,
+  },
+  testName: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  success: {
+    color: '#28A745',
+    fontWeight: 'bold',
+  },
+  error: {
+    color: '#DC3545',
+    fontWeight: 'bold',
+  },
+  pending: {
+    color: '#FFA500',
+    fontWeight: 'bold',
+  },
+});
+
