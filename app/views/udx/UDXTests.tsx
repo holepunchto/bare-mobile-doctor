@@ -7,6 +7,7 @@ const source = require('./udx.bundle');
 export function UDXTests() {
   const [isRunning, setIsRunning] = React.useState(false)
   const [socketTestsHasSucceeded, setSocketTestsHasSucceeded] = React.useState(null)
+  const [streamTestsHasSucceeded, setStreamTestsHasSucceeded] = React.useState(null)
   const worklet = React.useRef(new Worklet()).current
 
   useEffect(() => {
@@ -22,6 +23,9 @@ export function UDXTests() {
           const jsonMessage = JSON.parse(message);
           if (jsonMessage.type === 'socket') {
             setSocketTestsHasSucceeded(jsonMessage.hasSucceeded)
+          }
+          if (jsonMessage.type === 'stream') {
+            setStreamTestsHasSucceeded(jsonMessage.hasSucceeded)
           }
         })
       } catch (err) {
@@ -42,6 +46,12 @@ export function UDXTests() {
     IPC.write('socket');
   }
 
+  const runStreamTests = () => {
+    const { IPC } = worklet
+    setIsRunning(true)
+    IPC.write('stream');
+  }
+
 
   return (
     <View>
@@ -54,9 +64,23 @@ export function UDXTests() {
       >
         <Text style={styles.buttonText}>{'Run Socket Tests'}</Text>
       </TouchableOpacity>
+      <TouchableOpacity
+        style={
+          isRunning ? [styles.button, styles.buttonDisabled] : styles.button
+        }
+        onPress={runStreamTests}
+        disabled={isRunning}
+      >
+        <Text style={styles.buttonText}>{'Run Stream Tests'}</Text>
+      </TouchableOpacity>
       {socketTestsHasSucceeded !== null && (
         <Text style={styles.stats}>
           {socketTestsHasSucceeded ? 'Socket tests succeeded' : 'Socket tests failed'}
+        </Text>
+      )}
+      {streamTestsHasSucceeded !== null && (
+        <Text style={styles.stats}>
+          {streamTestsHasSucceeded ? 'Stream tests succeeded' : 'Stream tests failed'}
         </Text>
       )}
     </View>

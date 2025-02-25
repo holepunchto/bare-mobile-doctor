@@ -20,6 +20,7 @@
   },
   "homepage": "https://github.com/holepunchto/bare-mobile-doctor#readme",
   "dependencies": {
+    "b4a": "^1.6.7",
     "bare-assert": "^1.0.2",
     "events": "^3.3.0",
     "expo": "^52.0.17",
