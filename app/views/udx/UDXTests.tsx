@@ -27,6 +27,20 @@ function TestResult({ testName, hasSucceeded, isRunning }: TestResultProps) {
   )
 }
 
+const ErrorList = ({ errors }: { errors: string[] }) => {
+  if (!errors || errors.length === 0) return null
+
+  return (
+    <View style={styles.errorContainer}>
+      {errors.map((error: any, index: any) => (
+        <Text key={index} style={styles.errorText}>
+          • {error}
+        </Text>
+      ))}
+    </View>
+  )
+}
+
 export function UDXTests() {
   const [isRunning, setIsRunning] = React.useState(false)
   const [socketTestsHasSucceeded, setSocketTestsHasSucceeded] =
@@ -34,6 +48,7 @@ export function UDXTests() {
   const [streamTestsHasSucceeded, setStreamTestsHasSucceeded] =
     React.useState(null)
   const worklet = React.useRef(new Worklet()).current
+  const [errors, setErrors] = React.useState<string[]>([])
 
   useEffect(() => {
     worklet.start('udx.bundle', source)
@@ -48,9 +63,15 @@ export function UDXTests() {
           const jsonMessage = JSON.parse(message)
           if (jsonMessage.type === 'socket') {
             setSocketTestsHasSucceeded(jsonMessage.hasSucceeded)
+            if (!jsonMessage.hasSucceeded && jsonMessage.message) {
+              setErrors((errors) => [...errors, jsonMessage.message])
+            }
           }
           if (jsonMessage.type === 'stream') {
             setStreamTestsHasSucceeded(jsonMessage.hasSucceeded)
+            if (!jsonMessage.hasSucceeded && jsonMessage.message) {
+              setErrors((errors) => [...errors, jsonMessage.message])
+            }
           }
         })
       } catch (err) {
@@ -97,6 +118,7 @@ export function UDXTests() {
           isRunning={isRunning}
         />
       </View>
+      <ErrorList errors={errors} />
     </View>
   )
 }
@@ -158,5 +180,13 @@ const styles = StyleSheet.create({
   pending: {
     color: '#FFA500',
     fontWeight: 'bold'
+  },
+  errorContainer: {
+    marginTop: 5,
+    paddingLeft: 10
+  },
+  errorText: {
+    color: '#DC3545',
+    fontSize: 14
   }
 })
