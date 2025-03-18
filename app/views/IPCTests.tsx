@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { Text, TouchableOpacity, StyleSheet, View } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
 
 export function IPCTests() {
@@ -9,14 +9,42 @@ export function IPCTests() {
   const [messagesReceived, setMessagesReceived] = useState(0)
   const [startTime, setStartTime] = useState(0)
   const [timeElapsed, setTimeElapsed] = useState(0)
+  const [numCalls, setNumCalls] = useState(10000)
+  const [workType, setWorkType] = useState('intensive')
 
   useEffect(() => {
     worklet.start(
       'app.js',
       `
-    console.log('Worklet started')
-    BareKit.IPC.on('data', (data) => { BareKit.IPC.write(data) })
-    console.log('Worklet setup complete')
+      console.log('Worklet started')
+      BareKit.IPC.on('data', (data) => {
+        // Select computation type based on received data
+        function heavyMathLoad(iterations) {
+            let sum = 0
+            for (let i = 0; i < iterations; i++) {
+                sum += Math.sin(i) * Math.cos(i) * Math.tan(i);
+            }
+            return sum
+        }
+
+        function basicWork() {
+            return 42; // Simple operation
+        }
+
+        const messages = data.toString().split('-').filter(Boolean)
+        messages.forEach((message) => {
+          const payload = JSON.parse(message);
+          if (payload.workType === "intensive") {
+              heavyMathLoad(1e7)
+          } else {
+              basicWork()
+          }
+
+          BareKit.IPC.write(message + '-');
+        })
+      });
+
+      console.log('Worklet setup complete');
     `
     )
 
@@ -25,7 +53,8 @@ export function IPCTests() {
 
     IPC.on('data', (data: string) => {
       try {
-        const messages = data.split('\n').filter(Boolean)
+        const messages = data.split('-').filter(Boolean)
+        console.log('messages received', messages)
         setMessagesReceived((prev) => prev + messages.length)
       } catch (err) {
         console.error('Failed to parse response:', err)
@@ -38,7 +67,7 @@ export function IPCTests() {
   }, [])
 
   useEffect(() => {
-    if (messagesReceived >= 10000) {
+    if (messagesReceived >= numCalls) {
       setIsRunning(false)
       setTimeElapsed(Date.now() - startTime)
     }
@@ -54,14 +83,44 @@ export function IPCTests() {
     const { IPC } = worklet
 
     setStartTime(Date.now())
-    for (let i = 0; i < 10000; i++) {
-      IPC.write(`Hello world ${i}` + '\n')
+    for (let i = 0; i < numCalls; i++) {
+      IPC.write(JSON.stringify({ msg: `Hello world ${i}`, workType }) + '-')
       setMessagesSent((prev) => prev + 1)
     }
   }
 
   return (
     <>
+      <View style={styles.controls}>
+        {[1, 10, 100, 1000, 10000].map((value) => (
+          <TouchableOpacity
+            key={value}
+            style={[
+              styles.optionButton,
+              numCalls === value && styles.selectedOption
+            ]}
+            onPress={() => setNumCalls(value)}
+          >
+            <Text style={styles.optionText}>{value}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={styles.controls}>
+        {['basic', 'intensive'].map((type) => (
+          <TouchableOpacity
+            key={type}
+            style={[
+              styles.optionButton,
+              workType === type && styles.selectedOption
+            ]}
+            onPress={() => setWorkType(type)}
+          >
+            <Text style={styles.optionText}>{type.toUpperCase()}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <TouchableOpacity
         style={
           isRunning ? [styles.button, styles.buttonDisabled] : styles.button
@@ -69,8 +128,11 @@ export function IPCTests() {
         onPress={runTests}
         disabled={isRunning}
       >
-        <Text style={styles.buttonText}>{'Send 10k IPC messages'}</Text>
+        <Text style={styles.buttonText}>
+          {`Send ${numCalls} IPC messages (${workType})`}
+        </Text>
       </TouchableOpacity>
+
       <Text style={styles.stats}>
         Sent: {messagesSent} | Received: {messagesReceived}
       </Text>
@@ -82,12 +144,33 @@ export function IPCTests() {
 }
 
 const styles = StyleSheet.create({
+  controls: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 10
+  },
+  optionButton: {
+    backgroundColor: '#ccc',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 6,
+    marginHorizontal: 5
+  },
+  selectedOption: {
+    backgroundColor: '#007AFF'
+  },
+  optionText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600'
+  },
   button: {
     backgroundColor: '#007AFF',
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 8,
-    marginBottom: 20
+    marginBottom: 20,
+    alignSelf: 'center'
   },
   buttonDisabled: {
     opacity: 0.5
