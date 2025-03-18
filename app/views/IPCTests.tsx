@@ -9,8 +9,8 @@ export function IPCTests() {
   const [messagesReceived, setMessagesReceived] = useState(0)
   const [startTime, setStartTime] = useState(0)
   const [timeElapsed, setTimeElapsed] = useState(0)
-  const [numCalls, setNumCalls] = useState(10000) // Default: 10k
-  const [workType, setWorkType] = useState('intensive') // Default: intensive
+  const [numCalls, setNumCalls] = useState(10000)
+  const [workType, setWorkType] = useState('intensive')
 
   useEffect(() => {
     worklet.start(
@@ -92,7 +92,6 @@ export function IPCTests() {
   return (
     <>
       <View style={styles.controls}>
-        {/* Number of calls selection */}
         {[1, 10, 100, 1000, 10000].map((value) => (
           <TouchableOpacity
             key={value}
@@ -108,7 +107,6 @@ export function IPCTests() {
       </View>
 
       <View style={styles.controls}>
-        {/* Work type selection */}
         {['basic', 'intensive'].map((type) => (
           <TouchableOpacity
             key={type}
