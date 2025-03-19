@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { View, StyleSheet } from 'react-native'
 import TabNavigator from './components/TabNavigator'
-import IPCTests from './views/IPCTests'
+import IPCTests from './views/ipc/IPCTests'
 import UDXTests from './views/udx/UDXTests'
 import SodiumTests from './views/SodiumTests'
 
