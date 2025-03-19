@@ -3,6 +3,7 @@
     "name": "BareDoctor",
     "slug": "bare-doctor",
     "version": "1.0.0",
+    "newArchEnabled": true,
     "orientation": "portrait",
     "scheme": "to.holepunch.bare.doctor",
     "icon": "./assets/images/icon.png",

@@ -7,7 +7,7 @@ interface Props {
   onChangeModule: (module: TestModule) => void
 }
 
-export function TabNavigator({ modules, activeModule, onChangeModule }: Props) {
+export default function TabNavigator({ modules, activeModule, onChangeModule }: Props) {
   return (
     <View style={styles.tabContainer}>
       {modules.map((module) => (

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Text, TouchableOpacity, StyleSheet, View } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
 
-export function IPCTests() {
+export default function IPCTests() {
   const worklet = React.useRef(new Worklet()).current
   const [isRunning, setIsRunning] = useState(false)
   const [messagesSent, setMessagesSent] = useState(0)
