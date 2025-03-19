@@ -4,6 +4,11 @@ import { Worklet } from 'react-native-bare-kit'
 
 const source = require('./ipc.bundle')
 
+const formatTime = (ms) => {
+  const date = new Date(ms);
+  return `${date.getUTCMinutes()}m ${date.getUTCSeconds()}s ${date.getUTCMilliseconds()}ms`;
+};
+
 export default function IPCTests() {
   const worklet = React.useRef(new Worklet()).current
   const [isRunning, setIsRunning] = useState(false)
@@ -106,7 +111,7 @@ export default function IPCTests() {
         Sent: {messagesSent} | Received: {messagesReceived}
       </Text>
       {timeElapsed > 0 && (
-        <Text style={styles.stats}>Time elapsed: {timeElapsed}ms</Text>
+        <Text style={styles.stats}>Time elapsed: {formatTime(timeElapsed)}</Text>
       )}
     </>
   )
