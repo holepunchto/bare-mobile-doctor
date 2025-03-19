@@ -41,7 +41,7 @@ const ErrorList = ({ errors }: { errors: string[] }) => {
   )
 }
 
-export function UDXTests() {
+export default function UDXTests() {
   const [isRunning, setIsRunning] = React.useState(false)
   const [socketTestsHasSucceeded, setSocketTestsHasSucceeded] =
     React.useState(null)
