@@ -1,21 +1,19 @@
 const sodium = require('sodium-native')
 
 console.log('Worklet started')
+
 BareKit.IPC.on('data', (data) => {
   function heavyMathLoad(iterations) {
-    let sum = 0
+    let acc = ''
 
-    // Do heavy math
     for (let i = 0; i < iterations; i++) {
-      sum += Math.sin(i) * Math.cos(i) * Math.tan(i);
+      const buf = Buffer.from('Hello, World!')
+      const out = Buffer.alloc(sodium.crypto_generichash_BYTES)
+      sodium.crypto_generichash(out, buf)
+      acc += out.toString('hex').slice(0, 2)
     }
 
-    // Do some hashing
-    const buf = Buffer.from('Hello, World!')
-    const out = Buffer.alloc(sodium.crypto_generichash_BYTES)
-    sodium.crypto_generichash(out, buf)
-
-    return sum + out.toString('hex')
+    return acc
   }
 
   function basicWork() {
@@ -26,7 +24,7 @@ BareKit.IPC.on('data', (data) => {
   messages.forEach((message) => {
     const payload = JSON.parse(message);
     if (payload.workType === "intensive") {
-      heavyMathLoad(1e7)
+      heavyMathLoad(100_000)
     } else {
       basicWork()
     }
