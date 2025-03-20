@@ -17,7 +17,7 @@ export default function IPCTests() {
   const [startTime, setStartTime] = useState(0)
   const [timeElapsed, setTimeElapsed] = useState(0)
   const [numCalls, setNumCalls] = useState(10)
-  const [workType, setWorkType] = useState('intensive')
+  const [workType, setWorkType] = useState('native')
 
   useEffect(() => {
     worklet.start('ipc.bundle', source)
@@ -81,7 +81,7 @@ export default function IPCTests() {
       </View>
 
       <View style={styles.controls}>
-        {['basic', 'intensive'].map((type) => (
+        {['basic', 'native', 'fastcall', 'crypto'].map((type) => (
           <TouchableOpacity
             key={type}
             style={[
