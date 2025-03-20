@@ -1,30 +1,51 @@
 const sodium = require('sodium-native')
+const { set } = require('quickbit-native')
+const Buffer = require('bare-buffer')
 
 console.log('Worklet started')
 
+function basicWork() {
+  return 42;
+}
+
+function doCryptoWork(iterations) {
+  let acc = ''
+
+  for (let i = 0; i < iterations; i++) {
+    const buf = Buffer.from('Hello, World!')
+    const out = Buffer.alloc(sodium.crypto_generichash_BYTES)
+    sodium.crypto_generichash(out, buf)
+    acc += out.toString('hex').slice(0, 2)
+  }
+
+  return acc
+}
+
+function doNativeWork(iterations) {
+  for (let i = 0; i < iterations; i++) {
+    const field = Buffer.alloc(256)
+    set(field, 1000)
+  }
+}
+
+function doFatCalls(iterations) {
+  const buf1 = Buffer.alloc(256)
+  const buf2 = Buffer.alloc(256)
+  for (let i = 0; i < iterations; i++) {
+    buf1.compare(buf2);
+  }
+}
+
 BareKit.IPC.on('data', (data) => {
-  function heavyMathLoad(iterations) {
-    let acc = ''
-
-    for (let i = 0; i < iterations; i++) {
-      const buf = Buffer.from('Hello, World!')
-      const out = Buffer.alloc(sodium.crypto_generichash_BYTES)
-      sodium.crypto_generichash(out, buf)
-      acc += out.toString('hex').slice(0, 2)
-    }
-
-    return acc
-  }
-
-  function basicWork() {
-    return 42;
-  }
-
   const messages = data.toString().split('-').filter(Boolean)
   messages.forEach((message) => {
     const payload = JSON.parse(message);
-    if (payload.workType === "intensive") {
-      heavyMathLoad(100_000)
+    if (payload.workType === "crypto") {
+      doCryptoWork(100_000)
+    } else if (payload.workType === "native") {
+      doNativeWork(100_000)
+    } else if (payload.workType === "fastcall") {
+      doFatCalls(100_000)
     } else {
       basicWork()
     }
