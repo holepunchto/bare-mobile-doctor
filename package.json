@@ -8,7 +8,8 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "gen:udx": "npx bare-pack --out app/views/udx/udx.bundle.js bare/udx.js --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
-    "gen:hyperdb": "npx bare-pack --out app/views/hyperdb/hyperdb.bundle.js bare/hyperdb/hyperdb.mjs --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked"
+    "gen:hyperdb": "npx bare-pack --out app/views/hyperdb/hyperdb.bundle.js bare/hyperdb/hyperdb.mjs --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
+    "gen:ipc": "npx bare-pack --out app/views/ipc/ipc.bundle.js bare/ipc.js --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked"
   },
   "repository": {
     "type": "git",
@@ -37,6 +38,7 @@
     "react-native": "^0.76.3",
     "react-native-bare-kit": "^0.6.1",
     "react-native-safe-area-context": "^5.1.0",
+    "sodium-native": "^4.3.3",
     "udx-native": "^1.17.4"
   },
   "devDependencies": {

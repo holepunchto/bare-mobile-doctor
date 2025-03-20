@@ -2,51 +2,25 @@ import React, { useState, useEffect } from 'react'
 import { Text, TouchableOpacity, StyleSheet, View } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
 
-export function IPCTests() {
+const source = require('./ipc.bundle')
+
+const formatTime = (ms) => {
+  const date = new Date(ms);
+  return `${date.getUTCMinutes()}m ${date.getUTCSeconds()}s ${date.getUTCMilliseconds()}ms`;
+};
+
+export default function IPCTests() {
   const worklet = React.useRef(new Worklet()).current
   const [isRunning, setIsRunning] = useState(false)
   const [messagesSent, setMessagesSent] = useState(0)
   const [messagesReceived, setMessagesReceived] = useState(0)
   const [startTime, setStartTime] = useState(0)
   const [timeElapsed, setTimeElapsed] = useState(0)
-  const [numCalls, setNumCalls] = useState(10000)
+  const [numCalls, setNumCalls] = useState(10)
   const [workType, setWorkType] = useState('intensive')
 
   useEffect(() => {
-    worklet.start(
-      'app.js',
-      `
-      console.log('Worklet started')
-      BareKit.IPC.on('data', (data) => {
-        // Select computation type based on received data
-        function heavyMathLoad(iterations) {
-            let sum = 0
-            for (let i = 0; i < iterations; i++) {
-                sum += Math.sin(i) * Math.cos(i) * Math.tan(i);
-            }
-            return sum
-        }
-
-        function basicWork() {
-            return 42; // Simple operation
-        }
-
-        const messages = data.toString().split('-').filter(Boolean)
-        messages.forEach((message) => {
-          const payload = JSON.parse(message);
-          if (payload.workType === "intensive") {
-              heavyMathLoad(1e7)
-          } else {
-              basicWork()
-          }
-
-          BareKit.IPC.write(message + '-');
-        })
-      });
-
-      console.log('Worklet setup complete');
-    `
-    )
+    worklet.start('ipc.bundle', source)
 
     const { IPC } = worklet
     IPC.setEncoding('utf8')
@@ -137,7 +111,7 @@ export function IPCTests() {
         Sent: {messagesSent} | Received: {messagesReceived}
       </Text>
       {timeElapsed > 0 && (
-        <Text style={styles.stats}>Time elapsed: {timeElapsed}ms</Text>
+        <Text style={styles.stats}>Time elapsed: {formatTime(timeElapsed)}</Text>
       )}
     </>
   )
