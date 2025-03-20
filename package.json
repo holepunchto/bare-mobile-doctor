@@ -7,7 +7,8 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "gen:udx": "npx bare-pack --out app/views/udx/udx.bundle.js bare/udx.js --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked"
+    "gen:udx": "npx bare-pack --out app/views/udx/udx.bundle.js bare/udx.js --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
+    "gen:hyperdb": "npx bare-pack --out app/views/hyperdb/hyperdb.bundle.js bare/hyperdb/hyperdb.mjs --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked"
   },
   "repository": {
     "type": "git",
@@ -29,6 +30,8 @@
     "expo-linking": "^7.0.3",
     "expo-router": "^4.0.11",
     "expo-system-ui": "^4.0.5",
+    "hyperdb": "^4.9.4",
+    "hyperschema": "^1.10.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-native": "^0.76.3",
