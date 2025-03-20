@@ -9,7 +9,7 @@ import {
 import { Worklet } from 'react-native-bare-kit'
 const source = require('./hyperdb.bundle')
 
-export function HyperdbTests() {
+export default function HyperdbTests() {
   const worklet = React.useRef(new Worklet()).current
   const [isRunning, setIsRunning] = useState(false)
   const [recordsSent, setRecordsSent] = useState(0)

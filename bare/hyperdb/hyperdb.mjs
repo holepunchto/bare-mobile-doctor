@@ -12,29 +12,27 @@ BareKit.IPC.on('data', async (data) => {
   let id = 0
 
   const message = data.toString()
-  console.log('BARELY: ', message)
   const payload = JSON.parse(message)
   if (payload.workType === 'intensive') {
-    console.log('BARELY INTENSIVE')
     for (let i = 0; i < payload.recordsAmount; i++) {
+      const timestamp = Math.floor(Date.now() / 1000)
       await local.insert('@hyperdb-example/user', {
         id: i + 1,
-        name: `data-${i + 1}`
+        name: `data-${i + 1}-${timestamp}`
       })
       await local.flush() // Persist changes
       id++
     }
   } else {
     for (let i = 0; i < payload.recordsAmount; i++) {
+      const timestamp = Math.floor(Date.now() / 1000)
       await local.insert('@hyperdb-example/user', {
         id: i + 1,
-        name: `data-${i + 1}`
+        name: `data-${i + 1}-${timestamp}`
       })
       id++
     }
-    console.log('BARELY INSERTTED')
     await local.flush() // Flush only once after writing all the records
-    console.log('BARELY FLUSHED')
   }
   let result = await local.find(
     '@hyperdb-example/user',
@@ -42,13 +40,9 @@ BareKit.IPC.on('data', async (data) => {
     { limit: 1 }
   ) // list only one due to limit
   result = await result.toArray()
-  console.log('BARELY RESULT: ', result)
   await local.close() // close the db
-  console.log('BARELY CLOSED')
-  console.log('BARELY: ', result)
   BareKit.IPC.write(JSON.stringify(result))
 })
 
-console.log('Hyperdb setup complete')
 
 //run and debug in console

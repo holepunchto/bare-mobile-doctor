@@ -4,7 +4,7 @@ import TabNavigator from './components/TabNavigator'
 import IPCTests from './views/ipc/IPCTests'
 import UDXTests from './views/udx/UDXTests'
 import SodiumTests from './views/SodiumTests'
-import { HyperdbTests } from './views/hyperdb/HyperdbTests'        
+import HyperdbTests from './views/hyperdb/HyperdbTests'
 
 export type TestModule = 'IPC' | 'UDX' | 'Sodium' | 'Hyperdb'
 
