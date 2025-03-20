@@ -81,7 +81,7 @@ export default function IPCTests() {
       </View>
 
       <View style={styles.controls}>
-        {['basic', 'native', 'crypto'].map((type) => (
+        {['basic', 'native', 'fastcall', 'crypto'].map((type) => (
           <TouchableOpacity
             key={type}
             style={[

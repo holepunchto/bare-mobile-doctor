@@ -1,7 +1,12 @@
 const sodium = require('sodium-native')
-const { get, set, findFirst } = require('quickbit-native')
+const { set } = require('quickbit-native')
+const Buffer = require('bare-buffer')
 
 console.log('Worklet started')
+
+function basicWork() {
+  return 42;
+}
 
 function doCryptoWork(iterations) {
   let acc = ''
@@ -16,14 +21,18 @@ function doCryptoWork(iterations) {
   return acc
 }
 
-function basicWork() {
-  return 42;
-}
-
 function doNativeWork(iterations) {
   for (let i = 0; i < iterations; i++) {
     const field = Buffer.alloc(256)
     set(field, 1000)
+  }
+}
+
+function doFatCalls(iterations) {
+  const buf1 = Buffer.alloc(256)
+  const buf2 = Buffer.alloc(256)
+  for (let i = 0; i < iterations; i++) {
+    buf1.compare(buf2);
   }
 }
 
@@ -33,8 +42,10 @@ BareKit.IPC.on('data', (data) => {
     const payload = JSON.parse(message);
     if (payload.workType === "crypto") {
       doCryptoWork(100_000)
-    } if (payload.workType === "native") {
+    } else if (payload.workType === "native") {
       doNativeWork(100_000)
+    } else if (payload.workType === "fastcall") {
+      doFatCalls(100_000)
     } else {
       basicWork()
     }
