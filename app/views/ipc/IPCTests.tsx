@@ -4,7 +4,7 @@ import { Worklet } from 'react-native-bare-kit'
 
 const source = require('./ipc.bundle')
 
-const formatTime = (ms) => {
+const formatTime = (ms: number) => {
   const date = new Date(ms);
   return `${date.getUTCMinutes()}m ${date.getUTCSeconds()}s ${date.getUTCMilliseconds()}ms`;
 };
@@ -15,9 +15,9 @@ export default function IPCTests() {
   const [messagesSent, setMessagesSent] = useState(0)
   const [messagesReceived, setMessagesReceived] = useState(0)
   const [startTime, setStartTime] = useState(0)
-  const [timeElapsed, setTimeElapsed] = useState(0)
+  const [timeElapsed, setTimeElapsed] = useState({})
   const [numCalls, setNumCalls] = useState(10)
-  const [workType, setWorkType] = useState('native')
+  const [modes, setModes] = useState(['basic'])
 
   useEffect(() => {
     worklet.start('ipc.bundle', source)
@@ -42,23 +42,59 @@ export default function IPCTests() {
 
   useEffect(() => {
     if (messagesReceived >= numCalls) {
-      setIsRunning(false)
-      setTimeElapsed(Date.now() - startTime)
+      const mode = modes.at(0)
+      console.log('finsihed test', mode)
+      if (mode) {
+        setTimeElapsed((prev) => ({
+          ...prev,
+          [mode]: Date.now() - startTime
+        }))
+        toggleMode(mode)
+      }
     }
   }, [messagesReceived])
+
+  useEffect(() => {
+    if (isRunning) {
+      if (modes.length > 0) {
+        console.log('running next test')
+        setMessagesReceived(0)
+        setMessagesSent(0)
+        setStartTime(0)
+        runNextTest()
+      } else {
+        console.log('all tests finished')
+        setIsRunning(false)
+        setMessagesReceived(0)
+        setMessagesSent(0)
+        setStartTime(0)
+      }
+    }
+  }, [modes])
 
   const runTests = async () => {
     if (isRunning) return
     setIsRunning(true)
     setMessagesSent(0)
     setMessagesReceived(0)
-    setTimeElapsed(0)
+    setTimeElapsed({})
 
+    runNextTest()
+  }
+
+  const toggleMode = (mode: string) => {
+    setModes((prev) =>
+      prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode]
+    )
+  }
+
+  const runNextTest = () => {
     const { IPC } = worklet
-
+    const mode = modes[0]
+    console.log('running test', mode)
     setStartTime(Date.now())
     for (let i = 0; i < numCalls; i++) {
-      IPC.write(JSON.stringify({ msg: `Hello world ${i}`, workType }) + '-')
+      IPC.write(JSON.stringify({ msg: `Hello world ${i}`, workType: mode }) + '-')
       setMessagesSent((prev) => prev + 1)
     }
   }
@@ -86,9 +122,9 @@ export default function IPCTests() {
             key={type}
             style={[
               styles.optionButton,
-              workType === type && styles.selectedOption
+              modes.includes(type) && styles.selectedOption
             ]}
-            onPress={() => setWorkType(type)}
+            onPress={() => toggleMode(type)}
           >
             <Text style={styles.optionText}>{type.toUpperCase()}</Text>
           </TouchableOpacity>
@@ -103,16 +139,18 @@ export default function IPCTests() {
         disabled={isRunning}
       >
         <Text style={styles.buttonText}>
-          {`Send ${numCalls} IPC messages (${workType})`}
+          {`Send ${numCalls} IPC messages`}
         </Text>
       </TouchableOpacity>
 
       <Text style={styles.stats}>
         Sent: {messagesSent} | Received: {messagesReceived}
       </Text>
-      {timeElapsed > 0 && (
-        <Text style={styles.stats}>Time elapsed: {formatTime(timeElapsed)}</Text>
-      )}
+      {Object.entries(timeElapsed).map(([mode, time], index) => (
+        <Text key={index} style={styles.stats}>
+          {`Mode: ${mode} - Iter: ${numCalls} - Time: ${formatTime(time)}`}
+        </Text>
+      ))}
     </>
   )
 }
