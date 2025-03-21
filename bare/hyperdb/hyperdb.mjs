@@ -53,7 +53,6 @@ BareKit.IPC.on('data', async (data) => {
     })
 
     const swarm1 = localSwarm.join(topic)
-    await swarm1.flushed() // finish joining the swarm
 
     // Storage for second peer
     const remoteCorestore = new Corestore(path + '/remote.db')
@@ -70,12 +69,11 @@ BareKit.IPC.on('data', async (data) => {
     })
 
     const swarm2 = remoteSwarm.join(topic)
-    await swarm2.flushed()
 
     // A watcher can watch when the database has updated
-    const watcher = remote.db.watch()
+    const watcher = local.db.watch()
     watcher.on('update', async () => {
-      let result = await remote.find(
+      let result = await local.find(
         '@hyperdb-example/user',
         { reverse: true },
         { limit: 1 }
