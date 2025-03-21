@@ -75,7 +75,7 @@ BareKit.IPC.on('data', async (data) => {
     // A watcher can watch when the database has updated
     const watcher = remote.db.watch()
     watcher.on('update', async () => {
-      let result = await local.find(
+      let result = await remote.find(
         '@hyperdb-example/user',
         { reverse: true },
         { limit: 1 }
