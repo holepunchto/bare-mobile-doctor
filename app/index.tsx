@@ -4,8 +4,9 @@ import TabNavigator from './components/TabNavigator'
 import IPCTests from './views/ipc/IPCTests'
 import UDXTests from './views/udx/UDXTests'
 import SodiumTests from './views/SodiumTests'
+import HyperdbTests from './views/hyperdb/HyperdbTests'
 
-export type TestModule = 'IPC' | 'UDX' | 'Sodium'
+export type TestModule = 'IPC' | 'UDX' | 'Sodium' | 'Hyperdb'
 
 export default function() {
   const [activeModule, setActiveModule] = useState<TestModule>('IPC')
@@ -18,13 +19,15 @@ export default function() {
         return <UDXTests />
       case 'Sodium':
         return <SodiumTests />
+      case 'Hyperdb':
+        return <HyperdbTests />
     }
   }
 
   return (
     <View style={styles.container}>
       <TabNavigator
-        modules={['IPC', 'UDX', 'Sodium']}
+        modules={['IPC', 'UDX', 'Sodium', 'Hyperdb']}
         activeModule={activeModule}
         onChangeModule={setActiveModule}
       />
