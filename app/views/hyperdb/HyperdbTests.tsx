@@ -79,7 +79,7 @@ export default function HyperdbTests() {
       </View>
 
       <View style={styles.controls}>
-        {['basic', 'intensive', 'hyperbee'].map((type) => (
+        {['basic', 'intensive', 'hyperbee', 'hyperbee-local'].map((type) => (
           <TouchableOpacity
             key={type}
             style={[
