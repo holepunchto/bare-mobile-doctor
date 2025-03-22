@@ -9,15 +9,20 @@ import {
 import { Worklet } from 'react-native-bare-kit'
 const source = require('./hyperdb.bundle')
 
+const formatTime = (ms: number) => {
+  const date = new Date(ms);
+  return `${date.getUTCMinutes()}m ${date.getUTCSeconds()}s ${date.getUTCMilliseconds()}ms`;
+};
+
 export default function HyperdbTests() {
   const worklet = React.useRef(new Worklet()).current
   const [isRunning, setIsRunning] = useState(false)
   const [recordsSent, setRecordsSent] = useState(0)
   const [recordsReceived, setRecordsReceived] = useState(0)
   const [startTime, setStartTime] = useState(0)
-  const [timeElapsed, setTimeElapsed] = useState(0)
-  const [numCalls, setNumCalls] = useState(10000)
-  const [workType, setWorkType] = useState('basic') // Default to 'basic'
+  const [timeElapsed, setTimeElapsed] = useState({})
+  const [numCalls, setNumCalls] = useState(1000)
+  const [modes, setModes] = useState(['basic'])
 
   useEffect(() => {
     worklet.start('hyperdb.bundle', source, [Platform.OS])
@@ -27,9 +32,9 @@ export default function HyperdbTests() {
 
     IPC.on('data', (data: string) => {
       try {
-        let message = JSON.parse(data)[0].id
-        console.log('Records created', message)
-        setRecordsReceived((prev) => message)
+        let records = JSON.parse(data)[0].id
+        console.log('Records created', records)
+        setRecordsReceived((prev) => prev + records)
       } catch (err) {
         console.error('Failed to parse response:', err)
       }
@@ -42,23 +47,58 @@ export default function HyperdbTests() {
 
   useEffect(() => {
     if (recordsReceived >= numCalls) {
-      setIsRunning(false)
-      setTimeElapsed(Date.now() - startTime)
+      const mode = modes.at(0)
+      if (mode) {
+        setTimeElapsed((prev) => ({
+          ...prev,
+          [mode]: Date.now() - startTime
+        }))
+        toggleMode(mode)
+      }
     }
   }, [recordsReceived])
+
+  useEffect(() => {
+    if (isRunning) {
+      if (modes.length > 0) {
+        console.log('running next test')
+        setRecordsReceived(0)
+        setRecordsSent(0)
+        setStartTime(0)
+        runNextTest()
+      } else {
+        console.log('all tests finished')
+        setIsRunning(false)
+        setRecordsReceived(0)
+        setRecordsSent(0)
+        setStartTime(0)
+      }
+    }
+  }, [modes])
 
   const runTests = async () => {
     if (isRunning) return
     setIsRunning(true)
     setRecordsSent(0)
     setRecordsReceived(0)
-    setTimeElapsed(0)
+    setTimeElapsed({})
 
+    runNextTest()
+  }
+
+  const runNextTest = () => {
     const { IPC } = worklet
-
+    const mode = modes[0]
+    console.log('running test', mode)
     setStartTime(Date.now())
-    IPC.write(JSON.stringify({ recordsAmount: numCalls, workType })) // Send workType
+    IPC.write(JSON.stringify({ recordsAmount: numCalls, workType: mode }))
     setRecordsSent((prev) => numCalls)
+  }
+
+  const toggleMode = (mode: string) => {
+    setModes((prev) =>
+      prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode]
+    )
   }
 
   return (
@@ -84,9 +124,9 @@ export default function HyperdbTests() {
             key={type}
             style={[
               styles.optionButton,
-              workType === type && styles.selectedOption
+              modes.includes(type) && styles.selectedOption
             ]}
-            onPress={() => setWorkType(type)}
+            onPress={() => toggleMode(type)}
           >
             <Text style={styles.optionText}>{type.toUpperCase()}</Text>
           </TouchableOpacity>
@@ -101,16 +141,19 @@ export default function HyperdbTests() {
         disabled={isRunning}
       >
         <Text style={styles.buttonText}>
-          {`Create ${numCalls} records (${workType})`}
+          {`Create ${numCalls} records`}
         </Text>
       </TouchableOpacity>
 
       <Text style={styles.stats}>
         Sent: {recordsSent} | Records Created: {recordsReceived}
       </Text>
-      {timeElapsed > 0 && (
-        <Text style={styles.stats}>Time elapsed: {timeElapsed}ms</Text>
-      )}
+
+      {Object.entries(timeElapsed).map(([mode, time], index) => (
+        <Text key={index} style={styles.stats}>
+          {`Mode: ${mode} - Iter: ${numCalls} - Time: ${formatTime(time)}`}
+        </Text>
+      ))}
     </>
   )
 }
