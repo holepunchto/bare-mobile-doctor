@@ -59,7 +59,7 @@ BareKit.IPC.on('data', async (data) => {
     const swarm1 = localSwarm.join(topic)
 
     // Storage for second peer
-    const remoteCorestore = new Corestore(path + `/${time()}/local.db`)
+    const remoteCorestore = new Corestore(path + `/${time()}/remote.db`)
     // Use the first peer's bootstrap key to create this hypercore
     const b = remoteCorestore.get({ key: bootstrapKey })
 
