@@ -37,8 +37,8 @@ BareKit.IPC.on("data", async (data) => {
       { limit: 1 },
     ); // list only one due to limit
     result = await result.toArray();
-    await local.close(); // close the db
     BareKit.IPC.write(JSON.stringify(result));
+    await local.close(); // close the db
   } else if (payload.workType === "hyperbee") {
     const topic = Buffer.alloc(32).fill(time());
     const localCorestore = new Corestore(path + `/${time()}/local.db`);
@@ -123,8 +123,8 @@ BareKit.IPC.on("data", async (data) => {
     result = await result.toArray();
 
     if (result[0].id === payload.recordsAmount) {
-      await localCorestore.close();
       BareKit.IPC.write(JSON.stringify(result));
+      await localCorestore.close();
     }
   } else if (payload.workType === "basic") {
     for (let i = 0; i < payload.recordsAmount; i++) {
@@ -141,7 +141,7 @@ BareKit.IPC.on("data", async (data) => {
       { limit: 1 },
     );
     result = await result.toArray();
-    await local.close();
     BareKit.IPC.write(JSON.stringify(result));
+    await local.close();
   }
 });
