@@ -5,8 +5,9 @@ import IPCTests from './views/ipc/IPCTests'
 import UDXTests from './views/udx/UDXTests'
 import SodiumTests from './views/SodiumTests'
 import HyperdbTests from './views/hyperdb/HyperdbTests'
+import HypercoreTests from "./views/hypercore/HypercoreTests";
 
-export type TestModule = 'IPC' | 'UDX' | 'Sodium' | 'Hyperdb'
+export type TestModule = 'IPC' | 'UDX' | 'Sodium' | 'Hyperdb' | 'Hypercore'
 
 export default function() {
   const [activeModule, setActiveModule] = useState<TestModule>('IPC')
@@ -21,13 +22,15 @@ export default function() {
         return <SodiumTests />
       case 'Hyperdb':
         return <HyperdbTests />
+      case 'Hypercore':
+        return <HypercoreTests />
     }
   }
 
   return (
     <View style={styles.container}>
       <TabNavigator
-        modules={['IPC', 'UDX', 'Sodium', 'Hyperdb']}
+        modules={['IPC', 'UDX', 'Sodium', 'Hyperdb', 'Hypercore']}
         activeModule={activeModule}
         onChangeModule={setActiveModule}
       />

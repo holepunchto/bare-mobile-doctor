@@ -25,7 +25,9 @@
       "package": "to.holepunch.bare.doctor"
     },
     "plugins": [
-      ["expo-router"],
+      [
+        "expo-router"
+      ],
       [
         "expo-build-properties",
         {
