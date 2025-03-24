@@ -65,6 +65,7 @@ BareKit.IPC.on('data', async (data) => {
       localCorestore.replicate(conn) // replicate local core across all peers
     })
     const swarm1 = localSwarm.join(topic)
+    await swarm1.flushed()
 
     // Storage for second peer
     const remoteCorestore = new Corestore(path + `/${time()}/remote.db`)
@@ -82,8 +83,7 @@ BareKit.IPC.on('data', async (data) => {
     const swarm2 = remoteSwarm.join(topic)
 
     // Watch for db updates
-    const watcher = remote.db.watch()
-    watcher.on('update', async () => {
+    async function remoteOnChange() {
       let result = await remote.find(
         '@hyperdb-example/user',
         { reverse: true },
@@ -98,7 +98,8 @@ BareKit.IPC.on('data', async (data) => {
         await swarm1.destroy()
         await swarm2.destroy()
       }
-    })
+    }
+    remote.watch(remoteOnChange)
   } else if (payload.workType === 'hyperbee-local') {
     const localCorestore = new Corestore(path + `/${time()}/local.db`)
 
