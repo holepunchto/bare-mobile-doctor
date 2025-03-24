@@ -5,9 +5,9 @@ import { Worklet } from 'react-native-bare-kit'
 const source = require('./ipc.bundle')
 
 const formatTime = (ms: number) => {
-  const date = new Date(ms);
-  return `${date.getUTCMinutes()}m ${date.getUTCSeconds()}s ${date.getUTCMilliseconds()}ms`;
-};
+  const date = new Date(ms)
+  return `${date.getUTCMinutes()}m ${date.getUTCSeconds()}s ${date.getUTCMilliseconds()}ms`
+}
 
 export default function IPCTests() {
   const worklet = React.useRef(new Worklet()).current
@@ -94,7 +94,9 @@ export default function IPCTests() {
     console.log('running test', mode)
     setStartTime(Date.now())
     for (let i = 0; i < numCalls; i++) {
-      IPC.write(JSON.stringify({ msg: `Hello world ${i}`, workType: mode }) + '-')
+      IPC.write(
+        JSON.stringify({ msg: `Hello world ${i}`, workType: mode }) + '-'
+      )
       setMessagesSent((prev) => prev + 1)
     }
   }
@@ -138,9 +140,7 @@ export default function IPCTests() {
         onPress={runTests}
         disabled={isRunning}
       >
-        <Text style={styles.buttonText}>
-          {`Send ${numCalls} IPC messages`}
-        </Text>
+        <Text style={styles.buttonText}>{`Send ${numCalls} IPC messages`}</Text>
       </TouchableOpacity>
 
       <Text style={styles.stats}>

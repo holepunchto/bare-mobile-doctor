@@ -10,9 +10,9 @@ import { Worklet } from 'react-native-bare-kit'
 const source = require('./hyperdb.bundle')
 
 const formatTime = (ms: number) => {
-  const date = new Date(ms);
-  return `${date.getUTCMinutes()}m ${date.getUTCSeconds()}s ${date.getUTCMilliseconds()}ms`;
-};
+  const date = new Date(ms)
+  return `${date.getUTCMinutes()}m ${date.getUTCSeconds()}s ${date.getUTCMilliseconds()}ms`
+}
 
 export default function HyperdbTests() {
   const worklet = React.useRef(new Worklet()).current
@@ -140,9 +140,7 @@ export default function HyperdbTests() {
         onPress={runTests}
         disabled={isRunning}
       >
-        <Text style={styles.buttonText}>
-          {`Create ${numCalls} records`}
-        </Text>
+        <Text style={styles.buttonText}>{`Create ${numCalls} records`}</Text>
       </TouchableOpacity>
 
       <Text style={styles.stats}>

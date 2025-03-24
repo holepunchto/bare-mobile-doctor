@@ -5,6 +5,7 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
+    "test": "prettier . --check",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "gen:udx": "npx bare-pack --out app/views/udx/udx.bundle.js bare/udx.js --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
@@ -49,7 +50,7 @@
   },
   "devDependencies": {
     "@types/react": "^18.3.1",
-    "prettier": "^3.3.3",
+    "prettier": "^3.5.3",
     "prettier-config-standard": "^7.0.0",
     "typescript": "^5.3.3"
   }
