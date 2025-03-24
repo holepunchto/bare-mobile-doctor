@@ -5,7 +5,7 @@ const Buffer = require('bare-buffer')
 console.log('Worklet started')
 
 function basicWork() {
-  return 42;
+  return 42
 }
 
 function doCryptoWork(iterations) {
@@ -32,26 +32,26 @@ function doFatCalls(iterations) {
   const buf1 = Buffer.alloc(256)
   const buf2 = Buffer.alloc(256)
   for (let i = 0; i < iterations; i++) {
-    buf1.compare(buf2);
+    buf1.compare(buf2)
   }
 }
 
 BareKit.IPC.on('data', (data) => {
   const messages = data.toString().split('-').filter(Boolean)
   messages.forEach((message) => {
-    const payload = JSON.parse(message);
-    if (payload.workType === "crypto") {
+    const payload = JSON.parse(message)
+    if (payload.workType === 'crypto') {
       doCryptoWork(100_000)
-    } else if (payload.workType === "native") {
+    } else if (payload.workType === 'native') {
       doNativeWork(100_000)
-    } else if (payload.workType === "fastcall") {
+    } else if (payload.workType === 'fastcall') {
       doFatCalls(100_000)
     } else {
       basicWork()
     }
 
-    BareKit.IPC.write(message + '-');
+    BareKit.IPC.write(message + '-')
   })
-});
+})
 
-console.log('Worklet setup complete');
+console.log('Worklet setup complete')

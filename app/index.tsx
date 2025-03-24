@@ -5,11 +5,11 @@ import IPCTests from './views/ipc/IPCTests'
 import UDXTests from './views/udx/UDXTests'
 import SodiumTests from './views/SodiumTests'
 import HyperdbTests from './views/hyperdb/HyperdbTests'
-import HypercoreTests from "./views/hypercore/HypercoreTests";
+import HypercoreTests from './views/hypercore/HypercoreTests'
 
 export type TestModule = 'IPC' | 'UDX' | 'Sodium' | 'Hyperdb' | 'Hypercore'
 
-export default function() {
+export default function () {
   const [activeModule, setActiveModule] = useState<TestModule>('IPC')
 
   const renderContent = () => {
