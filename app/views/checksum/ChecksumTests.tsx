@@ -10,8 +10,6 @@ const source = require('./checksum.bundle')
 export default function ChecksumTests() {
   const worklet = React.useRef(new Worklet()).current
   const [isRunning, setIsRunning] = useState(false)
-  // const [startTime, setStartTime] = useState(0)
-  // const [timeElapsed, setTimeElapsed] = useState(0)
 
   useEffect(() => {
     if (!isRunning) return
