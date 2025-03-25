@@ -33,7 +33,7 @@ export default function() {
   return (
     <View style={styles.container}>
       <TabNavigator
-        modules={['IPC', 'UDX', 'Sodium', 'Hyperdb', 'Checksum']}
+        modules={['IPC', 'UDX', 'Sodium', 'Hyperdb', 'Hypercore', 'Checksum']}
         activeModule={activeModule}
         onChangeModule={setActiveModule}
       />
