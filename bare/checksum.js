@@ -49,14 +49,17 @@ BareKit.IPC.on('data', (data) => {
 
     const sentHash = computeHash(sentChunks)
     const recvHash = computeHash(recvChunks)
+    const success = sentHash === recvHash
 
     console.log('[Worklet] Sent hash:', sentHash)
     console.log('[Worklet] Recv hash:', recvHash)
-    console.log('[Worklet] Checksums match:', sentHash === recvHash)
+    console.log('[Worklet] Checksums match:', success)
 
     sentChunks = []
     recvChunks = []
     received = 0
+
+    BareKit.IPC.write(Buffer.from(success ? 'done' : 'fail'))
   }
 })
 

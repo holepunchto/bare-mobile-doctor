@@ -7,10 +7,16 @@ import {
 import { Worklet } from 'react-native-bare-kit'
 const source = require('./checksum.bundle')
 
+function isSuccessCode(data: Uint8Array) {
+  return data[0] === 100 && data[1] === 111 && data[2] === 110 && data[3] === 101
+}
+
 export default function ChecksumTests() {
   const worklet = React.useRef(new Worklet()).current
   const [isRunning, setIsRunning] = useState(false)
-  // const [hasSucceeded, setHasSucceeded] = useState(false)
+  const [hasSucceeded, setHasSucceeded] = useState(false)
+  const [timeElapsed, setTimeElapsed] = useState(0)
+  const [startTime, setStartTime] = useState(0)
 
   useEffect(() => {
     if (!isRunning) return
@@ -19,7 +25,13 @@ export default function ChecksumTests() {
 
     const { IPC } = worklet
     IPC.on('data', (data: any) => {
-      IPC.write(data)
+      if (data.length === 4) {
+        setHasSucceeded(isSuccessCode(data))
+        setIsRunning(false)
+        setTimeElapsed(Date.now() - startTime)
+      } else {
+        IPC.write(data)
+      }
     })
 
     return () => {
@@ -30,6 +42,7 @@ export default function ChecksumTests() {
   const runTests = () => {
     if (isRunning) return
     setIsRunning(true)
+    setStartTime(Date.now())
   }
 
   return (
@@ -46,11 +59,11 @@ export default function ChecksumTests() {
         </Text>
       </TouchableOpacity>
 
-      {/* {timeElapsed > 0 && ( */}
-      {/*   <Text style={styles.stats}> */}
-      {/*     Time elapsed: {timeElapsed}ms | Succeeded: {hasSucceeded ? '✅' : '❌'} */}
-      {/*   </Text> */}
-      {/* )} */}
+      {timeElapsed > 0 && (
+        <Text style={styles.stats}>
+          Time elapsed: {timeElapsed}ms | Succeeded: {hasSucceeded ? '✅' : '❌'}
+        </Text>
+      )}
     </>
   )
 }
