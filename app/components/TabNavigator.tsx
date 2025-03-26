@@ -37,16 +37,18 @@ export default function TabNavigator({
 const styles = StyleSheet.create({
   tabContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     marginBottom: 20,
     borderRadius: 8,
-    backgroundColor: '#f0f0f0',
-    padding: 4
+    justifyContent: 'center',
+
   },
   tab: {
-    flex: 1,
     paddingVertical: 8,
-    alignItems: 'center',
-    borderRadius: 6
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    margin: 4,
+    backgroundColor: '#f0f0f0',
   },
   activeTab: {
     backgroundColor: '#007AFF'
