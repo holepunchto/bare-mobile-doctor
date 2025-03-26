@@ -12,7 +12,6 @@ function isSuccessCode(data: Uint8Array) {
 }
 
 export default function ChecksumTests() {
-  const worklet = React.useRef(new Worklet()).current
   const [isRunning, setIsRunning] = useState(false)
   const [hasSucceeded, setHasSucceeded] = useState(false)
   const [timeElapsed, setTimeElapsed] = useState(0)
@@ -21,14 +20,17 @@ export default function ChecksumTests() {
   useEffect(() => {
     if (!isRunning) return
 
+    const worklet = new Worklet()
     worklet.start('checksum.bundle', source)
 
+    console.log('worklet', worklet)
     const { IPC } = worklet
     IPC.on('data', (data: any) => {
       if (data.length === 4) {
         setHasSucceeded(isSuccessCode(data))
         setIsRunning(false)
         setTimeElapsed(Date.now() - startTime)
+        worklet.terminate()
       } else {
         IPC.write(data)
       }
@@ -59,7 +61,7 @@ export default function ChecksumTests() {
         </Text>
       </TouchableOpacity>
 
-      {timeElapsed > 0 && (
+      {(timeElapsed > 0 && !isRunning) && (
         <Text style={styles.stats}>
           Time elapsed: {timeElapsed}ms | Succeeded: {hasSucceeded ? '✅' : '❌'}
         </Text>
