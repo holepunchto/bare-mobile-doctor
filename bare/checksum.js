@@ -2,7 +2,7 @@ const sodium = require('sodium-native')
 
 console.log('Worklet started')
 
-let size_received = 0
+let receivedSize = 0
 let sentChunks = []
 let recvChunks = []
 
@@ -21,9 +21,6 @@ function computeHash(chunks) {
 }
 
 function startTest() {
-  sentChunks = []
-  recvChunks = []
-
   const chunkSize = 1024 * 1024 // 1MB
   const totalChunks = 250
   const chunk = Buffer.alloc(chunkSize)
@@ -48,18 +45,14 @@ function endTest() {
   console.log('[Worklet] Recv hash:', recvHash)
   console.log('[Worklet] Checksums match:', success)
 
-  sentChunks = []
-  recvChunks = []
-  size_received = 0
-
   BareKit.IPC.write(Buffer.from(success ? 'done' : 'fail'))
 }
 
 BareKit.IPC.on('data', (data) => {
   recvChunks.push(data)
-  size_received += data.length
+  receivedSize += data.length
 
-  if (size_received === 1024 * 1024 * 250) endTest()
+  if (receivedSize === 1024 * 1024 * 250) endTest()
 })
 
 console.log('Worklet setup complete')
