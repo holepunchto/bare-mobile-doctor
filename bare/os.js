@@ -3,9 +3,9 @@ const ptop = require('process-top')
 BareKit.IPC.setEncoding('utf8')
 BareKit.IPC.on('data', function(data) {
   let message = JSON.parse(data)
-  if (message.op = 'get-stats') {
+  if (message.type) {
     const top = ptop()
-
-    BareKit.IPC.write(JSON.stringify(top.cpu()))
+    const res = message.type === 'cpu' ? top.cpu() : top.memory()
+    BareKit.IPC.write(JSON.stringify(res))
   }
 })

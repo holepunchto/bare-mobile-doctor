@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react'
 import {
   Text,
@@ -13,10 +12,8 @@ const source = require('./os.bundle')
 export default function HypercoreTests() {
   const worklet = React.useRef(new Worklet()).current
   const [isRunning, setIsRunning] = useState(false)
-  const [stats, setStats] = useState({})
-  const [startTime, setStartTime] = useState(0)
-  const [timeElapsed, setTimeElapsed] = useState(0)
-  const [numCalls, setNumCalls] = useState(10000)
+  const [stats, setStats] = useState(null)
+  const [type, setType] = useState('cpu')
 
   useEffect(() => {
     worklet.start('os.bundle', source, [Platform.OS])
@@ -28,7 +25,7 @@ export default function HypercoreTests() {
       try {
         let message = JSON.parse(data)
         setStats(message)
-        setTimeElapsed(Date.now() - startTime)
+        setIsRunning(false)
       } catch (err) {
         console.error('Failed to parse response:', err)
       }
@@ -39,32 +36,23 @@ export default function HypercoreTests() {
     }
   }, [])
 
-  useEffect(() => {
-    console.log(stats)
-  }, [stats])
-
   const runTests = async () => {
     if (isRunning) return
     setIsRunning(true)
-    setTimeElapsed(0)
-
-    const { IPC } = worklet
-
-    setStartTime(Date.now())
-    IPC.write(JSON.stringify({ op: "get-stats" }))
+    worklet.IPC.write(JSON.stringify({ type }))
   }
 
   return (
     <>
       <View style={styles.controls}>
-        {[1, 10, 100, 1000, 10000].map((value) => (
+        {['cpu', 'memory'].map((value) => (
           <TouchableOpacity
             key={value}
             style={[
               styles.optionButton,
-              numCalls === value && styles.selectedOption
+              type === value && styles.selectedOption
             ]}
-            onPress={() => setNumCalls(value)}
+            onPress={() => setType(value)}
           >
             <Text style={styles.optionText}>{value}</Text>
           </TouchableOpacity>
@@ -79,16 +67,21 @@ export default function HypercoreTests() {
         disabled={isRunning}
       >
         <Text style={styles.buttonText}>
-          Get worklet stats
+          Get {type.toUpperCase()} stats
         </Text>
       </TouchableOpacity>
 
-      <Text style={styles.stats}>
-        Stats: {JSON.stringify(stats, null, 2)}
-      </Text>
-      {timeElapsed > 0 && (
-        <Text style={styles.stats}>Time elapsed: {timeElapsed}ms</Text>
-      )}
+      {(stats && typeof stats === 'object') &&
+        <>
+          <Text style={styles.header}>Worklet Stats</Text>
+          {Object.entries(stats).map(([key, value]) => (
+            <View key={key} style={styles.row}>
+              <Text style={styles.key}>{key}</Text>
+              <Text style={styles.value}>{String(value)}</Text>
+            </View>
+          ))}
+        </>
+      }
     </>
   )
 }
@@ -131,12 +124,28 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center'
   },
-  stats: {
-    fontSize: 16,
+  header: {
+    fontSize: 20,
     fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 20
-  }
+    marginBottom: 12,
+  },
+  row: {
+    flexDirection: 'row',
+    paddingVertical: 8,
+    borderBottomColor: '#eee',
+    borderBottomWidth: 1,
+    justifyContent: 'space-between',
+  },
+  key: {
+    fontWeight: '500',
+    fontSize: 14,
+    color: '#333',
+  },
+  value: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'right',
+  },
 })
 
 
