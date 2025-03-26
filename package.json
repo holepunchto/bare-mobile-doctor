@@ -12,7 +12,8 @@
     "gen:hyperdb": "npx bare-pack --out app/views/hyperdb/hyperdb.bundle.js bare/hyperdb/hyperdb.mjs --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
     "gen:ipc": "npx bare-pack --out app/views/ipc/ipc.bundle.js bare/ipc.js --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
     "gen:hypercore": "npx bare-pack --out app/views/hypercore/hypercore.bundle.js bare/hypercore.mjs --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
-    "bundle": "npm run gen:udx && npm run gen:hyperdb && npm run gen:ipc && npm run gen:hypercore"
+    "gen:os": "npx bare-pack --out app/views/os/os.bundle.js bare/os.js --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
+    "bundle": "npm run gen:udx && npm run gen:hyperdb && npm run gen:ipc && npm run gen:hypercore && npm run gen:os"
   },
   "repository": {
     "type": "git",
@@ -39,6 +40,7 @@
     "hyperdb": "^4.9.4",
     "hyperschema": "^1.10.4",
     "hyperswarm": "^4.10.1",
+    "process-top": "^1.3.0",
     "quickbit-native": "^2.3.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
