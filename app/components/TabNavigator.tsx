@@ -40,15 +40,14 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     marginBottom: 20,
     borderRadius: 8,
-    justifyContent: 'center',
-
+    justifyContent: 'center'
   },
   tab: {
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 6,
     margin: 4,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#f0f0f0'
   },
   activeTab: {
     backgroundColor: '#007AFF'

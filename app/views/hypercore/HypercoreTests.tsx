@@ -17,7 +17,6 @@ export default function HypercoreTests() {
   const [startTime, setStartTime] = useState(0)
   const [timeElapsed, setTimeElapsed] = useState(0)
   const [numCalls, setNumCalls] = useState(10000)
-  const [workType, setWorkType] = useState('basic') // Default to 'basic'
 
   useEffect(() => {
     worklet.start('hypercore.bundle', source, [Platform.OS])
@@ -57,7 +56,7 @@ export default function HypercoreTests() {
     const { IPC } = worklet
 
     setStartTime(Date.now())
-    IPC.write(JSON.stringify({ recordsAmount: numCalls, workType })) // Send workType
+    IPC.write(JSON.stringify({ recordsAmount: numCalls, workType: 'basic' })) // Send workType
     setRecordsSent((prev) => numCalls)
   }
 
@@ -78,21 +77,6 @@ export default function HypercoreTests() {
         ))}
       </View>
 
-      <View style={styles.controls}>
-        {['basic'].map((type) => (
-          <TouchableOpacity
-            key={type}
-            style={[
-              styles.optionButton,
-              workType === type && styles.selectedOption
-            ]}
-            onPress={() => setWorkType(type)}
-          >
-            <Text style={styles.optionText}>{type.toUpperCase()}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
       <TouchableOpacity
         style={
           isRunning ? [styles.button, styles.buttonDisabled] : styles.button
@@ -100,9 +84,7 @@ export default function HypercoreTests() {
         onPress={runTests}
         disabled={isRunning}
       >
-        <Text style={styles.buttonText}>
-          {`Create ${numCalls} records (${workType})`}
-        </Text>
+        <Text style={styles.buttonText}>{`Create ${numCalls} records`}</Text>
       </TouchableOpacity>
 
       <Text style={styles.stats}>

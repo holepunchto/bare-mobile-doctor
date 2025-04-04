@@ -66,12 +66,10 @@ export default function HypercoreTests() {
         onPress={runTests}
         disabled={isRunning}
       >
-        <Text style={styles.buttonText}>
-          Get {type.toUpperCase()} stats
-        </Text>
+        <Text style={styles.buttonText}>Get {type.toUpperCase()} stats</Text>
       </TouchableOpacity>
 
-      {(stats && typeof stats === 'object') &&
+      {stats && typeof stats === 'object' && (
         <>
           <Text style={styles.header}>Worklet Stats</Text>
           {Object.entries(stats).map(([key, value]) => (
@@ -81,7 +79,7 @@ export default function HypercoreTests() {
             </View>
           ))}
         </>
-      }
+      )}
     </>
   )
 }
@@ -127,25 +125,23 @@ const styles = StyleSheet.create({
   header: {
     fontSize: 20,
     fontWeight: '600',
-    marginBottom: 12,
+    marginBottom: 12
   },
   row: {
     flexDirection: 'row',
     paddingVertical: 8,
     borderBottomColor: '#eee',
     borderBottomWidth: 1,
-    justifyContent: 'space-between',
+    justifyContent: 'space-between'
   },
   key: {
     fontWeight: '500',
     fontSize: 14,
-    color: '#333',
+    color: '#333'
   },
   value: {
     fontSize: 14,
     color: '#666',
-    textAlign: 'right',
-  },
+    textAlign: 'right'
+  }
 })
-
-
