@@ -84,9 +84,7 @@ export default function HypercoreTests() {
         onPress={runTests}
         disabled={isRunning}
       >
-        <Text style={styles.buttonText}>
-          {`Create ${numCalls} records`}
-        </Text>
+        <Text style={styles.buttonText}>{`Create ${numCalls} records`}</Text>
       </TouchableOpacity>
 
       <Text style={styles.stats}>

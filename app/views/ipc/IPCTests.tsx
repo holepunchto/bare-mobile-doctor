@@ -18,7 +18,7 @@ export default function IPCTests() {
   const [timeElapsed, setTimeElapsed] = useState({})
   const [numCalls, setNumCalls] = useState(10)
   const [modes, setModes] = useState(['basic'])
-  const isButtonDisabled = isRunning || modes.length === 0;
+  const isButtonDisabled = isRunning || modes.length === 0
 
   useEffect(() => {
     worklet.start('ipc.bundle', source)
@@ -136,7 +136,9 @@ export default function IPCTests() {
 
       <TouchableOpacity
         style={
-          isButtonDisabled ? [styles.button, styles.buttonDisabled] : styles.button
+          isButtonDisabled
+            ? [styles.button, styles.buttonDisabled]
+            : styles.button
         }
         onPress={runTests}
         disabled={isButtonDisabled}

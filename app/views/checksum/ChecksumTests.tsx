@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react'
-import {
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-} from 'react-native'
+import { Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
 const source = require('./checksum.bundle')
 
 function isSuccessCode(data: Uint8Array) {
-  return data[0] === 100 && data[1] === 111 && data[2] === 110 && data[3] === 101
+  return (
+    data[0] === 100 && data[1] === 111 && data[2] === 110 && data[3] === 101
+  )
 }
 
 export default function ChecksumTests() {
@@ -56,14 +54,13 @@ export default function ChecksumTests() {
         onPress={runTests}
         disabled={isRunning}
       >
-        <Text style={styles.buttonText}>
-          {`Run checksum tests`}
-        </Text>
+        <Text style={styles.buttonText}>{`Run checksum tests`}</Text>
       </TouchableOpacity>
 
-      {(timeElapsed > 0 && !isRunning) && (
+      {timeElapsed > 0 && !isRunning && (
         <Text style={styles.stats}>
-          Time elapsed: {timeElapsed}ms | Succeeded: {hasSucceeded ? '✅' : '❌'}
+          Time elapsed: {timeElapsed}ms | Succeeded:{' '}
+          {hasSucceeded ? '✅' : '❌'}
         </Text>
       )}
     </>

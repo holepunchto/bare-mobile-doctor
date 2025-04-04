@@ -9,9 +9,16 @@ import HypercoreTests from './views/hypercore/HypercoreTests'
 import OSTests from './views/os/OSTests'
 import ChecksumTests from './views/checksum/ChecksumTests'
 
-export type TestModule = 'IPC' | 'UDX' | 'Sodium' | 'Hyperdb' | 'Hypercore' | 'Checksum' | 'OS'
+export type TestModule =
+  | 'IPC'
+  | 'UDX'
+  | 'Sodium'
+  | 'Hyperdb'
+  | 'Hypercore'
+  | 'Checksum'
+  | 'OS'
 
-export default function() {
+export default function () {
   const [activeModule, setActiveModule] = useState<TestModule>('IPC')
 
   const renderContent = () => {
@@ -36,7 +43,15 @@ export default function() {
   return (
     <View style={styles.container}>
       <TabNavigator
-        modules={['IPC', 'UDX', 'Sodium', 'Hyperdb', 'Hypercore', 'Checksum', 'OS']}
+        modules={[
+          'IPC',
+          'UDX',
+          'Sodium',
+          'Hyperdb',
+          'Hypercore',
+          'Checksum',
+          'OS'
+        ]}
         activeModule={activeModule}
         onChangeModule={setActiveModule}
       />

@@ -23,7 +23,7 @@ export default function HyperdbTests() {
   const [timeElapsed, setTimeElapsed] = useState({})
   const [numCalls, setNumCalls] = useState(1000)
   const [modes, setModes] = useState(['basic'])
-  const isButtonDisabled = isRunning || modes.length === 0;
+  const isButtonDisabled = isRunning || modes.length === 0
 
   useEffect(() => {
     worklet.start('hyperdb.bundle', source, [Platform.OS])
@@ -136,7 +136,9 @@ export default function HyperdbTests() {
 
       <TouchableOpacity
         style={
-          isButtonDisabled ? [styles.button, styles.buttonDisabled] : styles.button
+          isButtonDisabled
+            ? [styles.button, styles.buttonDisabled]
+            : styles.button
         }
         onPress={runTests}
         disabled={isButtonDisabled}
