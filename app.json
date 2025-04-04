@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "newArchEnabled": true,
     "orientation": "portrait",
-    "scheme": "to.holepunch.bare.doctor",
+    "scheme": "to.holepunch.bare.doctor.mobile",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "automatic",
     "splash": {
@@ -15,14 +15,14 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "to.holepunch.bare.doctor"
+      "bundleIdentifier": "to.holepunch.bare.doctor.mobile"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "to.holepunch.bare.doctor"
+      "package": "to.holepunch.bare.doctor.mobile",
     },
     "plugins": [
       ["expo-router"],
