@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import {
-  Text,
   TouchableOpacity,
   StyleSheet,
   View,
-  Platform
+  Platform,
 } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
+import ThemedText from '../../components/ThemedText'
 const source = require('./os.bundle')
 
 export default function HypercoreTests() {
@@ -54,7 +54,7 @@ export default function HypercoreTests() {
             ]}
             onPress={() => setType(value)}
           >
-            <Text style={styles.optionText}>{value}</Text>
+            <ThemedText style={styles.optionText}>{value}</ThemedText>
           </TouchableOpacity>
         ))}
       </View>
@@ -66,16 +66,16 @@ export default function HypercoreTests() {
         onPress={runTests}
         disabled={isRunning}
       >
-        <Text style={styles.buttonText}>Get {type.toUpperCase()} stats</Text>
+        <ThemedText style={styles.buttonText}>Get {type.toUpperCase()} stats</ThemedText>
       </TouchableOpacity>
 
       {stats && typeof stats === 'object' && (
         <>
-          <Text style={styles.header}>Worklet Stats</Text>
+          <ThemedText style={[styles.header]}>Worklet Stats</ThemedText>
           {Object.entries(stats).map(([key, value]) => (
             <View key={key} style={styles.row}>
-              <Text style={styles.key}>{key}</Text>
-              <Text style={styles.value}>{String(value)}</Text>
+              <ThemedText style={styles.key}>{key}</ThemedText>
+              <ThemedText style={styles.value}>{String(value)}</ThemedText>
             </View>
           ))}
         </>

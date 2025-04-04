@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Text, TouchableOpacity, StyleSheet, View } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
+import ThemedText from '../../components/ThemedText'
 
 const source = require('./ipc.bundle')
 
@@ -146,13 +147,13 @@ export default function IPCTests() {
         <Text style={styles.buttonText}>{`Send ${numCalls} IPC messages`}</Text>
       </TouchableOpacity>
 
-      <Text style={styles.stats}>
+      <ThemedText style={styles.stats}>
         Sent: {messagesSent} | Received: {messagesReceived}
-      </Text>
+      </ThemedText>
       {Object.entries(timeElapsed).map(([mode, time], index) => (
-        <Text key={index} style={styles.stats}>
+        <ThemedText key={index} style={styles.stats}>
           {`Mode: ${mode} - Iter: ${numCalls} - Time: ${formatTime(time)}`}
-        </Text>
+        </ThemedText>
       ))}
     </>
   )
