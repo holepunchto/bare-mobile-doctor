@@ -1,9 +1,10 @@
-import { View, Text, StyleSheet } from 'react-native'
+import { View, StyleSheet } from 'react-native'
+import ThemedText from '../components/ThemedText'
 
 export default function SodiumTests() {
   return (
     <View style={styles.container}>
-      <Text>Sodium Native tests coming soon...</Text>
+      <ThemedText>Sodium Native tests coming soon...</ThemedText>
     </View>
   )
 }

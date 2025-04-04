@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import {
-  Text,
   TouchableOpacity,
   StyleSheet,
   View,
   Platform
 } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
+import ThemedText from '../../components/ThemedText'
 const source = require('./hyperdb.bundle')
 
 const formatTime = (ms: number) => {
@@ -114,7 +114,7 @@ export default function HyperdbTests() {
             ]}
             onPress={() => setNumCalls(value)}
           >
-            <Text style={styles.optionText}>{value}</Text>
+            <ThemedText style={styles.optionText}>{value}</ThemedText>
           </TouchableOpacity>
         ))}
       </View>
@@ -129,7 +129,7 @@ export default function HyperdbTests() {
             ]}
             onPress={() => toggleMode(type)}
           >
-            <Text style={styles.optionText}>{type.toUpperCase()}</Text>
+            <ThemedText style={styles.optionText}>{type.toUpperCase()}</ThemedText>
           </TouchableOpacity>
         ))}
       </View>
@@ -143,17 +143,17 @@ export default function HyperdbTests() {
         onPress={runTests}
         disabled={isButtonDisabled}
       >
-        <Text style={styles.buttonText}>{`Create ${numCalls} records`}</Text>
+        <ThemedText style={styles.buttonText}>{`Create ${numCalls} records`}</ThemedText>
       </TouchableOpacity>
 
-      <Text style={styles.stats}>
+      <ThemedText style={[styles.stats]}>
         Sent: {recordsSent} | Records Created: {recordsReceived}
-      </Text>
+      </ThemedText>
 
       {Object.entries(timeElapsed).map(([mode, time], index) => (
-        <Text key={index} style={styles.stats}>
+        <ThemedText key={index} style={[styles.stats]}>
           {`Mode: ${mode} - Iter: ${numCalls} - Time: ${formatTime(time)}`}
-        </Text>
+        </ThemedText>
       ))}
     </>
   )

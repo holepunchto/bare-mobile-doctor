@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import {
-  Text,
   TouchableOpacity,
   StyleSheet,
   View,
   Platform
 } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
+import ThemedText from '../../components/ThemedText'
 const source = require('./hypercore.bundle')
 
 export default function HypercoreTests() {
@@ -72,7 +72,7 @@ export default function HypercoreTests() {
             ]}
             onPress={() => setNumCalls(value)}
           >
-            <Text style={styles.optionText}>{value}</Text>
+            <ThemedText style={styles.optionText}>{value}</ThemedText>
           </TouchableOpacity>
         ))}
       </View>
@@ -84,14 +84,14 @@ export default function HypercoreTests() {
         onPress={runTests}
         disabled={isRunning}
       >
-        <Text style={styles.buttonText}>{`Create ${numCalls} records`}</Text>
+        <ThemedText style={styles.buttonText}>{`Create ${numCalls} records`}</ThemedText>
       </TouchableOpacity>
 
-      <Text style={styles.stats}>
+      <ThemedText style={styles.stats}>
         Sent: {recordsSent} | Records Created: {recordsReceived}
-      </Text>
+      </ThemedText>
       {timeElapsed > 0 && (
-        <Text style={styles.stats}>Time elapsed: {timeElapsed}ms</Text>
+        <ThemedText style={styles.stats}>Time elapsed: {timeElapsed}ms</ThemedText>
       )}
     </>
   )

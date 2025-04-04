@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { TouchableOpacity, StyleSheet } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
+import ThemedText from '../../components/ThemedText'
 const source = require('./checksum.bundle')
 
 function isSuccessCode(data: Uint8Array) {
@@ -54,14 +55,14 @@ export default function ChecksumTests() {
         onPress={runTests}
         disabled={isRunning}
       >
-        <Text style={styles.buttonText}>{`Run checksum tests`}</Text>
+        <ThemedText style={styles.buttonText}>{`Run checksum tests`}</ThemedText>
       </TouchableOpacity>
 
       {timeElapsed > 0 && !isRunning && (
-        <Text style={styles.stats}>
+        <ThemedText style={styles.stats}>
           Time elapsed: {timeElapsed}ms | Succeeded:{' '}
           {hasSucceeded ? '✅' : '❌'}
-        </Text>
+        </ThemedText>
       )}
     </>
   )
