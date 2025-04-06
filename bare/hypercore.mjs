@@ -6,10 +6,10 @@ function time() {
   return Math.floor(Date.now() / 1000)
 }
 
-const path =
-  Bare.argv[0] === 'android'
-    ? '/data/data/to.holepunch.bare.doctor/bare-mobile-doctor'
-    : './tmp/bare-mobile-doctor'
+let path = Bare.argv[0]
+if (path.includes('file://')) {
+  path = path.replace('file://', '')
+}
 
 BareKit.IPC.on('data', async (data) => {
   const core = new Hypercore(path + `/${time()}`)

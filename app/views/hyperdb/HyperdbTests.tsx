@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react'
 import {
   TouchableOpacity,
   StyleSheet,
-  View,
-  Platform
+  View
 } from 'react-native'
+import useBareDir from '../../hooks/useBareDir'
 import { Worklet } from 'react-native-bare-kit'
 import ThemedText from '../../components/ThemedText'
 const source = require('./hyperdb.bundle')
@@ -26,20 +26,25 @@ export default function HyperdbTests() {
   const isButtonDisabled = isRunning || modes.length === 0
 
   useEffect(() => {
-    worklet.start('hyperdb.bundle', source, [Platform.OS])
+    const setup = async () => {
+      const bareDir = await useBareDir()
+      worklet.start('hyperdb.bundle', source, [bareDir])
 
-    const { IPC } = worklet
-    IPC.setEncoding('utf8')
+      const { IPC } = worklet
+      IPC.setEncoding('utf8')
 
-    IPC.on('data', (data: string) => {
-      try {
-        let records = JSON.parse(data)[0].id
-        console.log('Records created', records)
-        setRecordsReceived((prev) => prev + records)
-      } catch (err) {
-        console.error('Failed to parse response:', err)
-      }
-    })
+      IPC.on('data', (data: string) => {
+        try {
+          let records = JSON.parse(data)[0].id
+          console.log('Records created', records)
+          setRecordsReceived((prev) => prev + records)
+        } catch (err) {
+          console.error('Failed to parse response:', err)
+        }
+      })
+    }
+
+    setup()
 
     return () => {
       if (worklet.terminate) worklet.terminate()

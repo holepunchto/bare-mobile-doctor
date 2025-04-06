@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react'
 import {
   TouchableOpacity,
   StyleSheet,
-  View,
-  Platform
+  View
 } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
 import ThemedText from '../../components/ThemedText'
+import useBareDir from '../../hooks/useBareDir'
 const source = require('./hypercore.bundle')
 
 export default function HypercoreTests() {
@@ -19,20 +19,25 @@ export default function HypercoreTests() {
   const [numCalls, setNumCalls] = useState(10000)
 
   useEffect(() => {
-    worklet.start('hypercore.bundle', source, [Platform.OS])
+    const setup = async () => {
+      const bareDir = await useBareDir();
+      worklet.start('hypercore.bundle', source, [bareDir])
 
-    const { IPC } = worklet
-    IPC.setEncoding('utf8')
+      const { IPC } = worklet
+      IPC.setEncoding('utf8')
 
-    IPC.on('data', (data: string) => {
-      try {
-        let message = JSON.parse(data).records
-        console.log('Records created', message)
-        setRecordsReceived((prev) => message)
-      } catch (err) {
-        console.error('Failed to parse response:', err)
-      }
-    })
+      IPC.on('data', (data: string) => {
+        try {
+          let message = JSON.parse(data).records
+          console.log('Records created', message)
+          setRecordsReceived(() => message)
+        } catch (err) {
+          console.error('Failed to parse response:', err)
+        }
+      })
+    }
+
+    setup()
 
     return () => {
       if (worklet.terminate) worklet.terminate()
