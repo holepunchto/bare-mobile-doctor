@@ -28,7 +28,7 @@ export default function HyperdbTests() {
   useEffect(() => {
     const setup = async () => {
       const bareDir = await useBareDir()
-      worklet.start('hyperdb.bundle', source, [bareDir.replace('file://', '')])
+      worklet.start('hyperdb.bundle', source, [bareDir])
 
       const { IPC } = worklet
       IPC.setEncoding('utf8')

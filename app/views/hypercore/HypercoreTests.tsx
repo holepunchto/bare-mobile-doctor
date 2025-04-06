@@ -21,7 +21,7 @@ export default function HypercoreTests() {
   useEffect(() => {
     const setup = async () => {
       const bareDir = await useBareDir();
-      worklet.start('hypercore.bundle', source, [bareDir.replace('file://', '')])
+      worklet.start('hypercore.bundle', source, [bareDir])
 
       const { IPC } = worklet
       IPC.setEncoding('utf8')
