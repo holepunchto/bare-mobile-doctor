@@ -49,7 +49,8 @@
     "react-native-bare-kit": "^0.6.1",
     "react-native-safe-area-context": "^5.1.0",
     "sodium-native": "^4.3.3",
-    "udx-native": "^1.17.4"
+    "udx-native": "^1.17.4",
+    "expo-file-system": "~18.0.12"
   },
   "devDependencies": {
     "@types/react": "^18.3.1",
