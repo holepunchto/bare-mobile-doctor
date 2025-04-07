@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { TouchableOpacity, StyleSheet } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
+
 import ThemedText from '../../components/ThemedText'
+import { formatTime } from '../../utils/date'
+
 const source = require('./checksum.bundle')
 
 function isSuccessCode(data: Uint8Array) {
@@ -60,7 +63,7 @@ export default function ChecksumTests() {
 
       {timeElapsed > 0 && !isRunning && (
         <ThemedText style={styles.stats}>
-          Time elapsed: {timeElapsed}ms | Succeeded:{' '}
+          Time elapsed: {formatTime(timeElapsed)} | Succeeded:{' '}
           {hasSucceeded ? '✅' : '❌'}
         </ThemedText>
       )}
