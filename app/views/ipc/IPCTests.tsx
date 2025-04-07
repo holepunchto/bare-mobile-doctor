@@ -63,7 +63,6 @@ export default function IPCTests() {
         console.log('running next test')
         setMessagesReceived(0)
         setMessagesSent(0)
-        startTimer()
         runNextTest()
       } else {
         console.log('all tests finished')

@@ -71,7 +71,6 @@ export default function HyperdbTests() {
         console.log('running next test')
         setRecordsReceived(0)
         setRecordsSent(0)
-        startTimer()
         runNextTest()
       } else {
         console.log('all tests finished')
