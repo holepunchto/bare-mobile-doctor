@@ -8,6 +8,7 @@ import { Worklet } from 'react-native-bare-kit'
 
 import ThemedText from '../../components/ThemedText'
 import useBareDir from '../../hooks/useBareDir'
+import usePerf from '../../hooks/usePerf'
 import { formatTime } from '../../utils/date'
 
 const source = require('./hypercore.bundle')
@@ -17,8 +18,7 @@ export default function HypercoreTests() {
   const [isRunning, setIsRunning] = useState(false)
   const [recordsSent, setRecordsSent] = useState(0)
   const [recordsReceived, setRecordsReceived] = useState(0)
-  const [startTime, setStartTime] = useState(0)
-  const [timeElapsed, setTimeElapsed] = useState(0)
+  const { start, stop, duration } = usePerf()
   const [numCalls, setNumCalls] = useState(10000)
 
   useEffect(() => {
@@ -50,7 +50,7 @@ export default function HypercoreTests() {
   useEffect(() => {
     if (recordsReceived >= numCalls) {
       setIsRunning(false)
-      setTimeElapsed(Date.now() - startTime)
+      stop(null)
     }
   }, [recordsReceived])
 
@@ -59,13 +59,12 @@ export default function HypercoreTests() {
     setIsRunning(true)
     setRecordsSent(0)
     setRecordsReceived(0)
-    setTimeElapsed(0)
 
     const { IPC } = worklet
 
-    setStartTime(Date.now())
-    IPC.write(JSON.stringify({ recordsAmount: numCalls, workType: 'basic' })) // Send workType
-    setRecordsSent((prev) => numCalls)
+    start()
+    IPC.write(JSON.stringify({ recordsAmount: numCalls, workType: 'basic' }))
+    setRecordsSent(numCalls)
   }
 
   return (
@@ -98,8 +97,8 @@ export default function HypercoreTests() {
       <ThemedText style={styles.stats}>
         Sent: {recordsSent} | Records Created: {recordsReceived}
       </ThemedText>
-      {timeElapsed > 0 && (
-        <ThemedText style={styles.stats}>Time elapsed: {formatTime(timeElapsed)}</ThemedText>
+      {duration && duration > 0 && (
+        <ThemedText style={styles.stats}>Time elapsed: {formatTime(duration)}</ThemedText>
       )}
     </>
   )
