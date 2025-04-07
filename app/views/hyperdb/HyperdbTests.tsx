@@ -7,6 +7,7 @@ import {
 import { Worklet } from 'react-native-bare-kit'
 
 import useBareDir from '../../hooks/useBareDir'
+import usePerf from '../../hooks/usePerf'
 import ThemedText from '../../components/ThemedText'
 import { formatTime } from '../../utils/date'
 
@@ -17,8 +18,8 @@ export default function HyperdbTests() {
   const [isRunning, setIsRunning] = useState(false)
   const [recordsSent, setRecordsSent] = useState(0)
   const [recordsReceived, setRecordsReceived] = useState(0)
-  const [startTime, setStartTime] = useState(0)
-  const [timeElapsed, setTimeElapsed] = useState({})
+  const { start, stop, duration } = usePerf()
+  const [timings, setTimings] = useState<Record<string, number>>({})
   const [numCalls, setNumCalls] = useState(1000)
   const [modes, setModes] = useState(['basic'])
   const isButtonDisabled = isRunning || modes.length === 0
@@ -53,11 +54,13 @@ export default function HyperdbTests() {
     if (recordsReceived >= numCalls) {
       const mode = modes.at(0)
       if (mode) {
-        setTimeElapsed((prev) => ({
-          ...prev,
-          [mode]: Date.now() - startTime
-        }))
-        toggleMode(mode)
+        stop((elapsedTime: number) => {
+          setTimings((prev) => ({
+            ...prev,
+            [mode]: elapsedTime
+          }))
+          toggleMode(mode)
+        })
       }
     }
   }, [recordsReceived])
@@ -68,14 +71,13 @@ export default function HyperdbTests() {
         console.log('running next test')
         setRecordsReceived(0)
         setRecordsSent(0)
-        setStartTime(0)
+        start()
         runNextTest()
       } else {
         console.log('all tests finished')
         setIsRunning(false)
         setRecordsReceived(0)
         setRecordsSent(0)
-        setStartTime(0)
       }
     }
   }, [modes])
@@ -85,7 +87,7 @@ export default function HyperdbTests() {
     setIsRunning(true)
     setRecordsSent(0)
     setRecordsReceived(0)
-    setTimeElapsed({})
+    setTimings({})
 
     runNextTest()
   }
@@ -94,9 +96,9 @@ export default function HyperdbTests() {
     const { IPC } = worklet
     const mode = modes[0]
     console.log('running test', mode)
-    setStartTime(Date.now())
+    start()
     IPC.write(JSON.stringify({ recordsAmount: numCalls, workType: mode }))
-    setRecordsSent((prev) => numCalls)
+    setRecordsSent(numCalls)
   }
 
   const toggleMode = (mode: string) => {
@@ -153,7 +155,7 @@ export default function HyperdbTests() {
         Sent: {recordsSent} | Records Created: {recordsReceived}
       </ThemedText>
 
-      {Object.entries(timeElapsed).map(([mode, time], index) => (
+      {Object.entries(timings).map(([mode, time], index) => (
         <ThemedText key={index} style={[styles.stats]}>
           {`Mode: ${mode} - Iter: ${numCalls} - Time: ${formatTime(time)}`}
         </ThemedText>
