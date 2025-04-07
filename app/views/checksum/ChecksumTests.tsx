@@ -4,6 +4,7 @@ import { Worklet } from 'react-native-bare-kit'
 
 import ThemedText from '../../components/ThemedText'
 import { formatTime } from '../../utils/date'
+import usePerf from '../../hooks/usePerf'
 
 const source = require('./checksum.bundle')
 
@@ -16,8 +17,7 @@ function isSuccessCode(data: Uint8Array) {
 export default function ChecksumTests() {
   const [isRunning, setIsRunning] = useState(false)
   const [hasSucceeded, setHasSucceeded] = useState(false)
-  const [timeElapsed, setTimeElapsed] = useState(0)
-  const [startTime, setStartTime] = useState(0)
+  const { start, stop, duration } = usePerf()
 
   useEffect(() => {
     if (!isRunning) return
@@ -31,7 +31,7 @@ export default function ChecksumTests() {
       if (data.length === 4) {
         setHasSucceeded(isSuccessCode(data))
         setIsRunning(false)
-        setTimeElapsed(Date.now() - startTime)
+        stop()
         worklet.terminate()
       } else {
         IPC.write(data)
@@ -46,7 +46,7 @@ export default function ChecksumTests() {
   const runTests = () => {
     if (isRunning) return
     setIsRunning(true)
-    setStartTime(Date.now())
+    start()
   }
 
   return (
@@ -61,9 +61,9 @@ export default function ChecksumTests() {
         <ThemedText style={styles.buttonText}>{`Run checksum tests`}</ThemedText>
       </TouchableOpacity>
 
-      {timeElapsed > 0 && !isRunning && (
+      {duration && duration > 0 && !isRunning && (
         <ThemedText style={styles.stats}>
-          Time elapsed: {formatTime(timeElapsed)} | Succeeded:{' '}
+          Time elapsed: {formatTime(duration)} | Succeeded:{' '}
           {hasSucceeded ? '✅' : '❌'}
         </ThemedText>
       )}
