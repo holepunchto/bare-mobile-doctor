@@ -18,7 +18,7 @@ export default function HyperdbTests() {
   const [isRunning, setIsRunning] = useState(false)
   const [recordsSent, setRecordsSent] = useState(0)
   const [recordsReceived, setRecordsReceived] = useState(0)
-  const { start, stop, duration } = usePerf()
+  const { start: startTimer, stop: stopTimer } = usePerf()
   const [timings, setTimings] = useState<Record<string, number>>({})
   const [numCalls, setNumCalls] = useState(1000)
   const [modes, setModes] = useState(['basic'])
@@ -54,10 +54,10 @@ export default function HyperdbTests() {
     if (recordsReceived >= numCalls) {
       const mode = modes.at(0)
       if (mode) {
-        stop((elapsedTime: number) => {
+        stopTimer((elapsed: number) => {
           setTimings((prev) => ({
             ...prev,
-            [mode]: elapsedTime
+            [mode]: elapsed
           }))
           toggleMode(mode)
         })
@@ -71,7 +71,7 @@ export default function HyperdbTests() {
         console.log('running next test')
         setRecordsReceived(0)
         setRecordsSent(0)
-        start()
+        startTimer()
         runNextTest()
       } else {
         console.log('all tests finished')
@@ -96,7 +96,7 @@ export default function HyperdbTests() {
     const { IPC } = worklet
     const mode = modes[0]
     console.log('running test', mode)
-    start()
+    startTimer()
     IPC.write(JSON.stringify({ recordsAmount: numCalls, workType: mode }))
     setRecordsSent(numCalls)
   }

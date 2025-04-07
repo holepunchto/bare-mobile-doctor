@@ -17,7 +17,7 @@ function isSuccessCode(data: Uint8Array) {
 export default function ChecksumTests() {
   const [isRunning, setIsRunning] = useState(false)
   const [hasSucceeded, setHasSucceeded] = useState(false)
-  const { start, stop, duration } = usePerf()
+  const { start: startTimer, stop: stopTimer, duration } = usePerf()
 
   useEffect(() => {
     if (!isRunning) return
@@ -31,7 +31,7 @@ export default function ChecksumTests() {
       if (data.length === 4) {
         setHasSucceeded(isSuccessCode(data))
         setIsRunning(false)
-        stop(null)
+        stopTimer(null)
         worklet.terminate()
       } else {
         IPC.write(data)
@@ -46,7 +46,7 @@ export default function ChecksumTests() {
   const runTests = () => {
     if (isRunning) return
     setIsRunning(true)
-    start()
+    startTimer()
   }
 
   return (

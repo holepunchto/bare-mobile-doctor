@@ -11,7 +11,7 @@ const source = require('./ipc.bundle')
 export default function IPCTests() {
   const worklet = React.useRef(new Worklet()).current
   const [isRunning, setIsRunning] = useState(false)
-  const { start, stop, duration } = usePerf()
+  const { start: startTimer, stop: stopTimer } = usePerf()
   const [timings, setTimings] = useState<Record<string, number>>({})
   const [messagesSent, setMessagesSent] = useState(0)
   const [messagesReceived, setMessagesReceived] = useState(0)
@@ -43,9 +43,8 @@ export default function IPCTests() {
   useEffect(() => {
     if (messagesReceived >= numCalls) {
       const mode = modes.at(0)
-      console.log('finsihed test', mode, 'duration', duration)
       if (mode) {
-        stop((elapsed: number) => {
+        stopTimer((elapsed: number) => {
           if (elapsed) {
             setTimings((prev) => ({
               ...prev,
@@ -64,7 +63,7 @@ export default function IPCTests() {
         console.log('running next test')
         setMessagesReceived(0)
         setMessagesSent(0)
-        start()
+        startTimer()
         runNextTest()
       } else {
         console.log('all tests finished')
@@ -95,7 +94,7 @@ export default function IPCTests() {
     const { IPC } = worklet
     const mode = modes[0]
     console.log('running test', mode)
-    start()
+    startTimer()
     for (let i = 0; i < numCalls; i++) {
       IPC.write(
         JSON.stringify({ msg: `Hello world ${i}`, workType: mode }) + '-'

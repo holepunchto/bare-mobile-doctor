@@ -18,7 +18,7 @@ export default function HypercoreTests() {
   const [isRunning, setIsRunning] = useState(false)
   const [recordsSent, setRecordsSent] = useState(0)
   const [recordsReceived, setRecordsReceived] = useState(0)
-  const { start, stop, duration } = usePerf()
+  const { start: startTimer, stop: stopTimer, duration } = usePerf()
   const [numCalls, setNumCalls] = useState(10000)
 
   useEffect(() => {
@@ -50,7 +50,9 @@ export default function HypercoreTests() {
   useEffect(() => {
     if (recordsReceived >= numCalls) {
       setIsRunning(false)
-      stop(null)
+      stopTimer((elapsed: number) => {
+        console.log('Time elapsed:', elapsed)
+      })
     }
   }, [recordsReceived])
 
@@ -62,7 +64,7 @@ export default function HypercoreTests() {
 
     const { IPC } = worklet
 
-    start()
+    startTimer()
     IPC.write(JSON.stringify({ recordsAmount: numCalls, workType: 'basic' }))
     setRecordsSent(numCalls)
   }
