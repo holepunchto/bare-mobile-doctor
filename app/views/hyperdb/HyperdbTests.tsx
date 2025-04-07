@@ -67,25 +67,26 @@ export default function HyperdbTests() {
 
   useEffect(() => {
     if (isRunning) {
+      resetMessages()
       if (modes.length > 0) {
         console.log('running next test')
-        setRecordsReceived(0)
-        setRecordsSent(0)
         runNextTest()
       } else {
         console.log('all tests finished')
         setIsRunning(false)
-        setRecordsReceived(0)
-        setRecordsSent(0)
       }
     }
   }, [modes])
 
-  const runTests = async () => {
-    if (isRunning) return
-    setIsRunning(true)
+  const resetMessages = () => {
     setRecordsSent(0)
     setRecordsReceived(0)
+  }
+
+  const runTests = async () => {
+    if (isRunning) return
+    resetMessages()
+    setIsRunning(true)
     setTimings({})
 
     runNextTest()

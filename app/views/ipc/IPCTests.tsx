@@ -59,25 +59,26 @@ export default function IPCTests() {
 
   useEffect(() => {
     if (isRunning) {
+      resetMessages()
       if (modes.length > 0) {
         console.log('running next test')
-        setMessagesReceived(0)
-        setMessagesSent(0)
         runNextTest()
       } else {
         console.log('all tests finished')
         setIsRunning(false)
-        setMessagesReceived(0)
-        setMessagesSent(0)
       }
     }
   }, [modes])
 
+  const resetMessages = () => {
+    setMessagesSent(0)
+    setMessagesReceived(0)
+  }
+
   const runTests = async () => {
     if (isRunning) return
     setIsRunning(true)
-    setMessagesSent(0)
-    setMessagesReceived(0)
+    resetMessages()
     setTimings({})
 
     runNextTest()
