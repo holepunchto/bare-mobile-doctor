@@ -5,8 +5,11 @@ import {
   View
 } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
+
 import ThemedText from '../../components/ThemedText'
 import useBareDir from '../../hooks/useBareDir'
+import { formatTime } from '../../utils/date'
+
 const source = require('./hypercore.bundle')
 
 export default function HypercoreTests() {
@@ -96,7 +99,7 @@ export default function HypercoreTests() {
         Sent: {recordsSent} | Records Created: {recordsReceived}
       </ThemedText>
       {timeElapsed > 0 && (
-        <ThemedText style={styles.stats}>Time elapsed: {timeElapsed}ms</ThemedText>
+        <ThemedText style={styles.stats}>Time elapsed: {formatTime(timeElapsed)}</ThemedText>
       )}
     </>
   )

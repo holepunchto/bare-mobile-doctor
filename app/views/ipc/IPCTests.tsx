@@ -1,14 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { Text, TouchableOpacity, StyleSheet, View } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
+
 import ThemedText from '../../components/ThemedText'
+import { formatTime } from '../../utils/date'
 
 const source = require('./ipc.bundle')
-
-const formatTime = (ms: number) => {
-  const date = new Date(ms)
-  return `${date.getUTCMinutes()}m ${date.getUTCSeconds()}s ${date.getUTCMilliseconds()}ms`
-}
 
 export default function IPCTests() {
   const worklet = React.useRef(new Worklet()).current

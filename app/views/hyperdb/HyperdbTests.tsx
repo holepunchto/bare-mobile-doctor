@@ -4,15 +4,13 @@ import {
   StyleSheet,
   View
 } from 'react-native'
-import useBareDir from '../../hooks/useBareDir'
 import { Worklet } from 'react-native-bare-kit'
-import ThemedText from '../../components/ThemedText'
-const source = require('./hyperdb.bundle')
 
-const formatTime = (ms: number) => {
-  const date = new Date(ms)
-  return `${date.getUTCMinutes()}m ${date.getUTCSeconds()}s ${date.getUTCMilliseconds()}ms`
-}
+import useBareDir from '../../hooks/useBareDir'
+import ThemedText from '../../components/ThemedText'
+import { formatTime } from '../../utils/date'
+
+const source = require('./hyperdb.bundle')
 
 export default function HyperdbTests() {
   const worklet = React.useRef(new Worklet()).current
