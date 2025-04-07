@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 
 interface UsePerfReturn {
   start: () => void;
-  stop: () => number | null;
+  stop: (cb: any) => number | null;
   duration: number | null;
 }
 
@@ -15,10 +15,15 @@ export default function usePerf(): UsePerfReturn {
     setDuration(null)
   }, []);
 
-  const stop = useCallback(() => {
+  const stop = useCallback((cb: any) => {
     if (startTimeRef.current === null) return null
     const elapsed = Date.now() - startTimeRef.current
-    setDuration(elapsed)
+    setDuration(() => {
+      if (cb) {
+        cb(elapsed)
+      }
+      return elapsed
+    })
     startTimeRef.current = null
     return elapsed
   }, []);

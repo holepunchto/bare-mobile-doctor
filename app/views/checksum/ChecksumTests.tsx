@@ -31,7 +31,7 @@ export default function ChecksumTests() {
       if (data.length === 4) {
         setHasSucceeded(isSuccessCode(data))
         setIsRunning(false)
-        stop()
+        stop(null)
         worklet.terminate()
       } else {
         IPC.write(data)
