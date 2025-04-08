@@ -1,21 +1,23 @@
 import React, { useState, useEffect } from 'react'
-import {
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-} from 'react-native'
+import { TouchableOpacity, StyleSheet } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
+
+import ThemedText from '../../components/ThemedText'
+import { formatTime } from '../../utils/date'
+import usePerf from '../../hooks/usePerf'
+
 const source = require('./checksum.bundle')
 
 function isSuccessCode(data: Uint8Array) {
-  return data[0] === 100 && data[1] === 111 && data[2] === 110 && data[3] === 101
+  return (
+    data[0] === 100 && data[1] === 111 && data[2] === 110 && data[3] === 101
+  )
 }
 
 export default function ChecksumTests() {
   const [isRunning, setIsRunning] = useState(false)
   const [hasSucceeded, setHasSucceeded] = useState(false)
-  const [timeElapsed, setTimeElapsed] = useState(0)
-  const [startTime, setStartTime] = useState(0)
+  const { start: startTimer, stop: stopTimer, duration } = usePerf()
 
   useEffect(() => {
     if (!isRunning) return
@@ -29,7 +31,7 @@ export default function ChecksumTests() {
       if (data.length === 4) {
         setHasSucceeded(isSuccessCode(data))
         setIsRunning(false)
-        setTimeElapsed(Date.now() - startTime)
+        stopTimer(null)
         worklet.terminate()
       } else {
         IPC.write(data)
@@ -44,7 +46,7 @@ export default function ChecksumTests() {
   const runTests = () => {
     if (isRunning) return
     setIsRunning(true)
-    setStartTime(Date.now())
+    startTimer()
   }
 
   return (
@@ -56,15 +58,14 @@ export default function ChecksumTests() {
         onPress={runTests}
         disabled={isRunning}
       >
-        <Text style={styles.buttonText}>
-          {`Run checksum tests`}
-        </Text>
+        <ThemedText style={styles.buttonText}>{`Run checksum tests`}</ThemedText>
       </TouchableOpacity>
 
-      {(timeElapsed > 0 && !isRunning) && (
-        <Text style={styles.stats}>
-          Time elapsed: {timeElapsed}ms | Succeeded: {hasSucceeded ? '✅' : '❌'}
-        </Text>
+      {duration && duration > 0 && !isRunning && (
+        <ThemedText style={styles.stats}>
+          Time elapsed: {formatTime(duration)} | Succeeded:{' '}
+          {hasSucceeded ? '✅' : '❌'}
+        </ThemedText>
       )}
     </>
   )

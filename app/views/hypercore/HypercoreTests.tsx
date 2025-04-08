@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react'
 import {
-  Text,
   TouchableOpacity,
   StyleSheet,
-  View,
-  Platform
+  View
 } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
+
+import ThemedText from '../../components/ThemedText'
+import useBareDir from '../../hooks/useBareDir'
+import usePerf from '../../hooks/usePerf'
+import { formatTime } from '../../utils/date'
+
 const source = require('./hypercore.bundle')
 
 export default function HypercoreTests() {
@@ -14,26 +18,29 @@ export default function HypercoreTests() {
   const [isRunning, setIsRunning] = useState(false)
   const [recordsSent, setRecordsSent] = useState(0)
   const [recordsReceived, setRecordsReceived] = useState(0)
-  const [startTime, setStartTime] = useState(0)
-  const [timeElapsed, setTimeElapsed] = useState(0)
+  const { start: startTimer, stop: stopTimer, duration } = usePerf()
   const [numCalls, setNumCalls] = useState(10000)
-  const [workType, setWorkType] = useState('basic') // Default to 'basic'
 
   useEffect(() => {
-    worklet.start('hypercore.bundle', source, [Platform.OS])
+    const setup = async () => {
+      const bareDir = await useBareDir();
+      worklet.start('hypercore.bundle', source, [bareDir])
 
-    const { IPC } = worklet
-    IPC.setEncoding('utf8')
+      const { IPC } = worklet
+      IPC.setEncoding('utf8')
 
-    IPC.on('data', (data: string) => {
-      try {
-        let message = JSON.parse(data).records
-        console.log('Records created', message)
-        setRecordsReceived((prev) => message)
-      } catch (err) {
-        console.error('Failed to parse response:', err)
-      }
-    })
+      IPC.on('data', (data: string) => {
+        try {
+          let message = JSON.parse(data).records
+          console.log('Records created', message)
+          setRecordsReceived(() => message)
+        } catch (err) {
+          console.error('Failed to parse response:', err)
+        }
+      })
+    }
+
+    setup()
 
     return () => {
       if (worklet.terminate) worklet.terminate()
@@ -43,7 +50,9 @@ export default function HypercoreTests() {
   useEffect(() => {
     if (recordsReceived >= numCalls) {
       setIsRunning(false)
-      setTimeElapsed(Date.now() - startTime)
+      stopTimer((elapsed: number) => {
+        console.log('Time elapsed:', elapsed)
+      })
     }
   }, [recordsReceived])
 
@@ -52,13 +61,12 @@ export default function HypercoreTests() {
     setIsRunning(true)
     setRecordsSent(0)
     setRecordsReceived(0)
-    setTimeElapsed(0)
 
     const { IPC } = worklet
 
-    setStartTime(Date.now())
-    IPC.write(JSON.stringify({ recordsAmount: numCalls, workType })) // Send workType
-    setRecordsSent((prev) => numCalls)
+    startTimer()
+    IPC.write(JSON.stringify({ recordsAmount: numCalls, workType: 'basic' }))
+    setRecordsSent(numCalls)
   }
 
   return (
@@ -73,22 +81,7 @@ export default function HypercoreTests() {
             ]}
             onPress={() => setNumCalls(value)}
           >
-            <Text style={styles.optionText}>{value}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <View style={styles.controls}>
-        {['basic'].map((type) => (
-          <TouchableOpacity
-            key={type}
-            style={[
-              styles.optionButton,
-              workType === type && styles.selectedOption
-            ]}
-            onPress={() => setWorkType(type)}
-          >
-            <Text style={styles.optionText}>{type.toUpperCase()}</Text>
+            <ThemedText style={styles.optionText}>{value}</ThemedText>
           </TouchableOpacity>
         ))}
       </View>
@@ -100,16 +93,14 @@ export default function HypercoreTests() {
         onPress={runTests}
         disabled={isRunning}
       >
-        <Text style={styles.buttonText}>
-          {`Create ${numCalls} records (${workType})`}
-        </Text>
+        <ThemedText style={styles.buttonText}>{`Create ${numCalls} records`}</ThemedText>
       </TouchableOpacity>
 
-      <Text style={styles.stats}>
+      <ThemedText style={styles.stats}>
         Sent: {recordsSent} | Records Created: {recordsReceived}
-      </Text>
-      {timeElapsed > 0 && (
-        <Text style={styles.stats}>Time elapsed: {timeElapsed}ms</Text>
+      </ThemedText>
+      {duration && duration > 0 && (
+        <ThemedText style={styles.stats}>Time elapsed: {formatTime(duration)}</ThemedText>
       )}
     </>
   )

@@ -2,22 +2,22 @@ import React, { useState, useEffect } from 'react'
 import { Text, TouchableOpacity, StyleSheet, View } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
 
-const source = require('./ipc.bundle')
+import ThemedText from '../../components/ThemedText'
+import { formatTime } from '../../utils/date'
+import usePerf from '../../hooks/usePerf'
 
-const formatTime = (ms: number) => {
-  const date = new Date(ms)
-  return `${date.getUTCMinutes()}m ${date.getUTCSeconds()}s ${date.getUTCMilliseconds()}ms`
-}
+const source = require('./ipc.bundle')
 
 export default function IPCTests() {
   const worklet = React.useRef(new Worklet()).current
   const [isRunning, setIsRunning] = useState(false)
+  const { start: startTimer, stop: stopTimer } = usePerf()
+  const [timings, setTimings] = useState<Record<string, number>>({})
   const [messagesSent, setMessagesSent] = useState(0)
   const [messagesReceived, setMessagesReceived] = useState(0)
-  const [startTime, setStartTime] = useState(0)
-  const [timeElapsed, setTimeElapsed] = useState({})
   const [numCalls, setNumCalls] = useState(10)
   const [modes, setModes] = useState(['basic'])
+  const isButtonDisabled = isRunning || modes.length === 0
 
   useEffect(() => {
     worklet.start('ipc.bundle', source)
@@ -43,41 +43,43 @@ export default function IPCTests() {
   useEffect(() => {
     if (messagesReceived >= numCalls) {
       const mode = modes.at(0)
-      console.log('finsihed test', mode)
       if (mode) {
-        setTimeElapsed((prev) => ({
-          ...prev,
-          [mode]: Date.now() - startTime
-        }))
-        toggleMode(mode)
+        stopTimer((elapsed: number) => {
+          if (elapsed) {
+            setTimings((prev) => ({
+              ...prev,
+              [mode]: elapsed
+            }))
+          }
+          toggleMode(mode)
+        })
       }
     }
   }, [messagesReceived])
 
   useEffect(() => {
     if (isRunning) {
+      resetMessages()
       if (modes.length > 0) {
         console.log('running next test')
-        setMessagesReceived(0)
-        setMessagesSent(0)
-        setStartTime(0)
         runNextTest()
       } else {
         console.log('all tests finished')
         setIsRunning(false)
-        setMessagesReceived(0)
-        setMessagesSent(0)
-        setStartTime(0)
       }
     }
   }, [modes])
 
+  const resetMessages = () => {
+    setMessagesSent(0)
+    setMessagesReceived(0)
+  }
+
   const runTests = async () => {
     if (isRunning) return
     setIsRunning(true)
-    setMessagesSent(0)
-    setMessagesReceived(0)
-    setTimeElapsed({})
+    resetMessages()
+    setTimings({})
 
     runNextTest()
   }
@@ -92,7 +94,7 @@ export default function IPCTests() {
     const { IPC } = worklet
     const mode = modes[0]
     console.log('running test', mode)
-    setStartTime(Date.now())
+    startTimer()
     for (let i = 0; i < numCalls; i++) {
       IPC.write(
         JSON.stringify({ msg: `Hello world ${i}`, workType: mode }) + '-'
@@ -135,21 +137,23 @@ export default function IPCTests() {
 
       <TouchableOpacity
         style={
-          isRunning ? [styles.button, styles.buttonDisabled] : styles.button
+          isButtonDisabled
+            ? [styles.button, styles.buttonDisabled]
+            : styles.button
         }
         onPress={runTests}
-        disabled={isRunning}
+        disabled={isButtonDisabled}
       >
         <Text style={styles.buttonText}>{`Send ${numCalls} IPC messages`}</Text>
       </TouchableOpacity>
 
-      <Text style={styles.stats}>
+      <ThemedText style={styles.stats}>
         Sent: {messagesSent} | Received: {messagesReceived}
-      </Text>
-      {Object.entries(timeElapsed).map(([mode, time], index) => (
-        <Text key={index} style={styles.stats}>
+      </ThemedText>
+      {Object.entries(timings).map(([mode, time], index) => (
+        <ThemedText key={index} style={styles.stats}>
           {`Mode: ${mode} - Iter: ${numCalls} - Time: ${formatTime(time)}`}
-        </Text>
+        </ThemedText>
       ))}
     </>
   )

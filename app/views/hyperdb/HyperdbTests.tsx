@@ -1,44 +1,49 @@
 import React, { useState, useEffect } from 'react'
 import {
-  Text,
   TouchableOpacity,
   StyleSheet,
-  View,
-  Platform
+  View
 } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
-const source = require('./hyperdb.bundle')
 
-const formatTime = (ms: number) => {
-  const date = new Date(ms)
-  return `${date.getUTCMinutes()}m ${date.getUTCSeconds()}s ${date.getUTCMilliseconds()}ms`
-}
+import useBareDir from '../../hooks/useBareDir'
+import usePerf from '../../hooks/usePerf'
+import ThemedText from '../../components/ThemedText'
+import { formatTime } from '../../utils/date'
+
+const source = require('./hyperdb.bundle')
 
 export default function HyperdbTests() {
   const worklet = React.useRef(new Worklet()).current
   const [isRunning, setIsRunning] = useState(false)
   const [recordsSent, setRecordsSent] = useState(0)
   const [recordsReceived, setRecordsReceived] = useState(0)
-  const [startTime, setStartTime] = useState(0)
-  const [timeElapsed, setTimeElapsed] = useState({})
+  const { start: startTimer, stop: stopTimer } = usePerf()
+  const [timings, setTimings] = useState<Record<string, number>>({})
   const [numCalls, setNumCalls] = useState(1000)
   const [modes, setModes] = useState(['basic'])
+  const isButtonDisabled = isRunning || modes.length === 0
 
   useEffect(() => {
-    worklet.start('hyperdb.bundle', source, [Platform.OS])
+    const setup = async () => {
+      const bareDir = await useBareDir()
+      worklet.start('hyperdb.bundle', source, [bareDir])
 
-    const { IPC } = worklet
-    IPC.setEncoding('utf8')
+      const { IPC } = worklet
+      IPC.setEncoding('utf8')
 
-    IPC.on('data', (data: string) => {
-      try {
-        let records = JSON.parse(data)[0].id
-        console.log('Records created', records)
-        setRecordsReceived((prev) => prev + records)
-      } catch (err) {
-        console.error('Failed to parse response:', err)
-      }
-    })
+      IPC.on('data', (data: string) => {
+        try {
+          let records = JSON.parse(data)[0].id
+          console.log('Records created', records)
+          setRecordsReceived((prev) => prev + records)
+        } catch (err) {
+          console.error('Failed to parse response:', err)
+        }
+      })
+    }
+
+    setup()
 
     return () => {
       if (worklet.terminate) worklet.terminate()
@@ -49,39 +54,40 @@ export default function HyperdbTests() {
     if (recordsReceived >= numCalls) {
       const mode = modes.at(0)
       if (mode) {
-        setTimeElapsed((prev) => ({
-          ...prev,
-          [mode]: Date.now() - startTime
-        }))
-        toggleMode(mode)
+        stopTimer((elapsed: number) => {
+          setTimings((prev) => ({
+            ...prev,
+            [mode]: elapsed
+          }))
+          toggleMode(mode)
+        })
       }
     }
   }, [recordsReceived])
 
   useEffect(() => {
     if (isRunning) {
+      resetMessages()
       if (modes.length > 0) {
         console.log('running next test')
-        setRecordsReceived(0)
-        setRecordsSent(0)
-        setStartTime(0)
         runNextTest()
       } else {
         console.log('all tests finished')
         setIsRunning(false)
-        setRecordsReceived(0)
-        setRecordsSent(0)
-        setStartTime(0)
       }
     }
   }, [modes])
 
-  const runTests = async () => {
-    if (isRunning) return
-    setIsRunning(true)
+  const resetMessages = () => {
     setRecordsSent(0)
     setRecordsReceived(0)
-    setTimeElapsed({})
+  }
+
+  const runTests = async () => {
+    if (isRunning) return
+    resetMessages()
+    setIsRunning(true)
+    setTimings({})
 
     runNextTest()
   }
@@ -90,9 +96,9 @@ export default function HyperdbTests() {
     const { IPC } = worklet
     const mode = modes[0]
     console.log('running test', mode)
-    setStartTime(Date.now())
+    startTimer()
     IPC.write(JSON.stringify({ recordsAmount: numCalls, workType: mode }))
-    setRecordsSent((prev) => numCalls)
+    setRecordsSent(numCalls)
   }
 
   const toggleMode = (mode: string) => {
@@ -113,7 +119,7 @@ export default function HyperdbTests() {
             ]}
             onPress={() => setNumCalls(value)}
           >
-            <Text style={styles.optionText}>{value}</Text>
+            <ThemedText style={styles.optionText}>{value}</ThemedText>
           </TouchableOpacity>
         ))}
       </View>
@@ -128,29 +134,31 @@ export default function HyperdbTests() {
             ]}
             onPress={() => toggleMode(type)}
           >
-            <Text style={styles.optionText}>{type.toUpperCase()}</Text>
+            <ThemedText style={styles.optionText}>{type.toUpperCase()}</ThemedText>
           </TouchableOpacity>
         ))}
       </View>
 
       <TouchableOpacity
         style={
-          isRunning ? [styles.button, styles.buttonDisabled] : styles.button
+          isButtonDisabled
+            ? [styles.button, styles.buttonDisabled]
+            : styles.button
         }
         onPress={runTests}
-        disabled={isRunning}
+        disabled={isButtonDisabled}
       >
-        <Text style={styles.buttonText}>{`Create ${numCalls} records`}</Text>
+        <ThemedText style={styles.buttonText}>{`Create ${numCalls} records`}</ThemedText>
       </TouchableOpacity>
 
-      <Text style={styles.stats}>
+      <ThemedText style={[styles.stats]}>
         Sent: {recordsSent} | Records Created: {recordsReceived}
-      </Text>
+      </ThemedText>
 
-      {Object.entries(timeElapsed).map(([mode, time], index) => (
-        <Text key={index} style={styles.stats}>
+      {Object.entries(timings).map(([mode, time], index) => (
+        <ThemedText key={index} style={[styles.stats]}>
           {`Mode: ${mode} - Iter: ${numCalls} - Time: ${formatTime(time)}`}
-        </Text>
+        </ThemedText>
       ))}
     </>
   )
