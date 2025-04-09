@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react'
 import {
   TouchableOpacity,
   StyleSheet,
-  View
+  View,
+  Text
 } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
 
@@ -119,13 +120,13 @@ export default function HyperdbTests() {
             ]}
             onPress={() => setNumCalls(value)}
           >
-            <ThemedText style={styles.optionText}>{value}</ThemedText>
+            <Text style={styles.optionText}>{value}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
       <View style={styles.controls}>
-        {['basic', 'intensive', 'hyperbee', 'hyperbee-local'].map((type) => (
+        {['basic', 'intensive', 'bee', 'bee-local'].map((type) => (
           <TouchableOpacity
             key={type}
             style={[
@@ -134,7 +135,7 @@ export default function HyperdbTests() {
             ]}
             onPress={() => toggleMode(type)}
           >
-            <ThemedText style={styles.optionText}>{type.toUpperCase()}</ThemedText>
+            <Text style={styles.optionText}>{type.toUpperCase()}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -148,12 +149,12 @@ export default function HyperdbTests() {
         onPress={runTests}
         disabled={isButtonDisabled}
       >
-        <ThemedText style={styles.buttonText}>{`Create ${numCalls} records`}</ThemedText>
+        <Text style={styles.buttonText}>{`Run for ${numCalls} records`}</Text>
       </TouchableOpacity>
 
-      <ThemedText style={[styles.stats]}>
-        Sent: {recordsSent} | Records Created: {recordsReceived}
-      </ThemedText>
+    <ThemedText style={[styles.stats]}>
+      {modes.includes('bee') ? `Records Read: ${recordsReceived}` : `Sent: ${recordsSent} | Records Created: ${recordsReceived}`}
+    </ThemedText>
 
       {Object.entries(timings).map(([mode, time], index) => (
         <ThemedText key={index} style={[styles.stats]}>
