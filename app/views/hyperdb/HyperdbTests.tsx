@@ -120,7 +120,7 @@ export default function HyperdbTests() {
             ]}
             onPress={() => setNumCalls(value)}
           >
-            <Text style={styles.optionText}>{value}</Text>
+            <ThemedText style={styles.optionText}>{value}</ThemedText>
           </TouchableOpacity>
         ))}
       </View>
@@ -135,7 +135,7 @@ export default function HyperdbTests() {
             ]}
             onPress={() => toggleMode(type)}
           >
-            <Text style={styles.optionText}>{type.toUpperCase()}</Text>
+            <ThemedText style={styles.optionText}>{type.toUpperCase()}</ThemedText>
           </TouchableOpacity>
         ))}
       </View>
@@ -149,7 +149,7 @@ export default function HyperdbTests() {
         onPress={runTests}
         disabled={isButtonDisabled}
       >
-        <Text style={styles.buttonText}>{`Run for ${numCalls} records`}</Text>
+        <ThemedText style={styles.buttonText}>{`Run for ${numCalls} records`}</ThemedText>
       </TouchableOpacity>
 
     <ThemedText style={[styles.stats]}>
