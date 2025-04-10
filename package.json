@@ -11,7 +11,7 @@
     "gen:udx": "npx bare-pack --out app/views/udx/udx.bundle.js bare/udx.js --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
     "gen:hyperdb": "npx bare-pack --out app/views/hyperdb/hyperdb.bundle.js bare/hyperdb/hyperdb.mjs --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
     "gen:ipc": "npx bare-pack --out app/views/ipc/ipc.bundle.js bare/ipc.js --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
-    "gen:hypercore": "npx bare-pack --out app/views/hypercore/hypercore.bundle.js bare/hypercore.mjs --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
+    "gen:hypercore": "npx bare-pack --out app/views/hypercore/hypercore.bundle.js bare/hypercore/hypercore.mjs --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
     "gen:os": "npx bare-pack --out app/views/os/os.bundle.js bare/os.js --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
     "gen:checksum": "npx bare-pack --out app/views/checksum/checksum.bundle.js bare/checksum.js --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
     "bundle": "npm run gen:udx && npm run gen:hyperdb && npm run gen:ipc && npm run gen:hypercore && npm run gen:os && npm run gen:checksum"
@@ -30,11 +30,13 @@
     "b4a": "^1.6.7",
     "bare-assert": "^1.0.2",
     "bare-buffer": "^3.1.2",
+    "bare-fs": "^4.1.2",
     "corestore": "^7.0.23",
     "events": "^3.3.0",
     "expo": "^52.0.17",
     "expo-build-properties": "^0.13.1",
     "expo-constants": "^17.0.3",
+    "expo-file-system": "~18.0.12",
     "expo-linking": "^7.0.3",
     "expo-router": "^4.0.11",
     "expo-system-ui": "^4.0.5",
@@ -49,8 +51,7 @@
     "react-native-bare-kit": "^0.6.1",
     "react-native-safe-area-context": "^5.1.0",
     "sodium-native": "^5.0.1",
-    "udx-native": "^1.17.4",
-    "expo-file-system": "~18.0.12"
+    "udx-native": "^1.17.4"
   },
   "devDependencies": {
     "@types/react": "^18.3.1",
