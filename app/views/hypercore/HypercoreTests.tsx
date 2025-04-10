@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react'
 import {
   TouchableOpacity,
   StyleSheet,
-  View,
-  Text
+  View
 } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
 
