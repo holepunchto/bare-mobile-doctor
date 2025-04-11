@@ -125,7 +125,7 @@ export default function HyperdbTests() {
       </View>
 
       <View style={styles.controls}>
-        {['basic', 'intensive', 'hyperbee', 'hyperbee-local'].map((type) => (
+        {['basic', 'intensive', 'bee', 'bee-local'].map((type) => (
           <TouchableOpacity
             key={type}
             style={[
@@ -148,12 +148,12 @@ export default function HyperdbTests() {
         onPress={runTests}
         disabled={isButtonDisabled}
       >
-        <ThemedText style={styles.buttonText}>{`Create ${numCalls} records`}</ThemedText>
+        <ThemedText style={styles.buttonText}>{`Run for ${numCalls} records`}</ThemedText>
       </TouchableOpacity>
 
-      <ThemedText style={[styles.stats]}>
-        Sent: {recordsSent} | Records Created: {recordsReceived}
-      </ThemedText>
+    <ThemedText style={[styles.stats]}>
+      {modes.includes('bee') ? `Records Read: ${recordsReceived}` : `Sent: ${recordsSent} | Records Created: ${recordsReceived}`}
+    </ThemedText>
 
       {Object.entries(timings).map(([mode, time], index) => (
         <ThemedText key={index} style={[styles.stats]}>
