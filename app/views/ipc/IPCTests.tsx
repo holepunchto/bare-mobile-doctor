@@ -18,6 +18,7 @@ export default function IPCTests() {
   const [numCalls, setNumCalls] = useState(10)
   const [modes, setModes] = useState(['basic'])
   const isButtonDisabled = isRunning || modes.length === 0
+  const [cpuData, setCpuData] = useState('')
 
   useEffect(() => {
     worklet.start('ipc.bundle', source)
@@ -27,9 +28,13 @@ export default function IPCTests() {
 
     IPC.on('data', (data: string) => {
       try {
-        const messages = data.split('-').filter(Boolean)
-        console.log('messages received', messages)
-        setMessagesReceived((prev) => prev + messages.length)
+        try {
+          top = JSON.parse(data)
+          setCpuData(top.summary || '')
+        } catch (err) {
+          const messages = data.split('-').filter(Boolean)
+          setMessagesReceived((prev) => prev + messages.length)
+        }
       } catch (err) {
         console.error('Failed to parse response:', err)
       }
@@ -103,6 +108,16 @@ export default function IPCTests() {
     }
   }
 
+  useEffect(() => {
+    const { IPC } = worklet
+
+    const intervalId = setInterval(() => {
+      IPC.write(JSON.stringify({ workType: 'cpu' }))
+    }, 1000)
+
+    return () => clearInterval(intervalId)
+  }, [])
+
   return (
     <>
       <View style={styles.controls}>
@@ -155,6 +170,8 @@ export default function IPCTests() {
           {`Mode: ${mode} - Iter: ${numCalls} - Time: ${formatTime(time)}`}
         </ThemedText>
       ))}
+
+      <ThemedText style={[styles.stats]}>{`${cpuData}`}</ThemedText>
     </>
   )
 }

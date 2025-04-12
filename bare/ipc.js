@@ -1,11 +1,17 @@
 const sodium = require('sodium-native')
 const { set } = require('quickbit-native')
 const Buffer = require('bare-buffer')
+const top = require('process-top')
 
 console.log('Worklet started')
+const processTop = new top()
 
 function basicWork() {
   return 42
+}
+
+function cpu() {
+  BareKit.IPC.write(JSON.stringify({ summary: processTop.toString() }))
 }
 
 function doCryptoWork(iterations) {
@@ -46,11 +52,15 @@ BareKit.IPC.on('data', (data) => {
       doNativeWork(100_000)
     } else if (payload.workType === 'fastcall') {
       doFatCalls(100_000)
+    } else if (payload.workType === 'cpu') {
+      cpu()
     } else {
       basicWork()
     }
 
-    BareKit.IPC.write(message + '-')
+    if (payload.workType !== 'cpu') {
+      BareKit.IPC.write(message + '-')
+    }
   })
 })
 
