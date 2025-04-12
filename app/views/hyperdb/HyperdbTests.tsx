@@ -1,9 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import {
-  TouchableOpacity,
-  StyleSheet,
-  View
-} from 'react-native'
+import { TouchableOpacity, StyleSheet, View } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
 
 import useBareDir from '../../hooks/useBareDir'
@@ -22,6 +18,7 @@ export default function HyperdbTests() {
   const [timings, setTimings] = useState<Record<string, number>>({})
   const [numCalls, setNumCalls] = useState(1000)
   const [modes, setModes] = useState(['basic'])
+  const [cpuData, setCpuData] = useState('')
   const isButtonDisabled = isRunning || modes.length === 0
 
   useEffect(() => {
@@ -34,9 +31,15 @@ export default function HyperdbTests() {
 
       IPC.on('data', (data: string) => {
         try {
-          let records = JSON.parse(data)[0].id
-          console.log('Records created', records)
-          setRecordsReceived((prev) => prev + records)
+          data = JSON.parse(data)
+          if (data.id) {
+            console.log(data)
+            let records = data.id
+            console.log('Records created', records)
+            setRecordsReceived((prev) => prev + records)
+          } else {
+            setCpuData(data || '')
+          }
         } catch (err) {
           console.error('Failed to parse response:', err)
         }
@@ -101,6 +104,16 @@ export default function HyperdbTests() {
     setRecordsSent(numCalls)
   }
 
+  useEffect(() => {
+    const { IPC } = worklet
+
+    const intervalId = setInterval(() => {
+      IPC.write(JSON.stringify({ workType: 'cpu' }))
+    }, 1000)
+
+    return () => clearInterval(intervalId)
+  }, [])
+
   const toggleMode = (mode: string) => {
     setModes((prev) =>
       prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode]
@@ -134,7 +147,9 @@ export default function HyperdbTests() {
             ]}
             onPress={() => toggleMode(type)}
           >
-            <ThemedText style={styles.optionText}>{type.toUpperCase()}</ThemedText>
+            <ThemedText style={styles.optionText}>
+              {type.toUpperCase()}
+            </ThemedText>
           </TouchableOpacity>
         ))}
       </View>
@@ -148,18 +163,24 @@ export default function HyperdbTests() {
         onPress={runTests}
         disabled={isButtonDisabled}
       >
-        <ThemedText style={styles.buttonText}>{`Run for ${numCalls} records`}</ThemedText>
+        <ThemedText
+          style={styles.buttonText}
+        >{`Run for ${numCalls} records`}</ThemedText>
       </TouchableOpacity>
 
-    <ThemedText style={[styles.stats]}>
-      {modes.includes('bee') ? `Records Read: ${recordsReceived}` : `Sent: ${recordsSent} | Records Created: ${recordsReceived}`}
-    </ThemedText>
+      <ThemedText style={[styles.stats]}>
+        {modes.includes('bee')
+          ? `Records Read: ${recordsReceived}`
+          : `Sent: ${recordsSent} | Records Created: ${recordsReceived}`}
+      </ThemedText>
 
       {Object.entries(timings).map(([mode, time], index) => (
         <ThemedText key={index} style={[styles.stats]}>
           {`Mode: ${mode} - Iter: ${numCalls} - Time: ${formatTime(time)}`}
         </ThemedText>
       ))}
+
+      <ThemedText style={[styles.stats]}>{`${cpuData}`}</ThemedText>
     </>
   )
 }
