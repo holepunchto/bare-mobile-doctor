@@ -22,7 +22,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "to.holepunch.bare.doctor.mobile",
+      "package": "to.holepunch.bare.doctor.mobile"
     },
     "plugins": [
       ["expo-router"],

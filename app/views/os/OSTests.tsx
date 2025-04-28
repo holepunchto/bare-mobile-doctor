@@ -1,10 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import {
-  TouchableOpacity,
-  StyleSheet,
-  View,
-  Platform,
-} from 'react-native'
+import { TouchableOpacity, StyleSheet, View, Platform } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
 import ThemedText from '../../components/ThemedText'
 const source = require('./os.bundle')
@@ -66,7 +61,9 @@ export default function HypercoreTests() {
         onPress={runTests}
         disabled={isRunning}
       >
-        <ThemedText style={styles.buttonText}>Get {type.toUpperCase()} stats</ThemedText>
+        <ThemedText style={styles.buttonText}>
+          Get {type.toUpperCase()} stats
+        </ThemedText>
       </TouchableOpacity>
 
       {stats && typeof stats === 'object' && (
