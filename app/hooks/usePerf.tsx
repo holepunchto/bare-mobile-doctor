@@ -1,9 +1,9 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react'
 
 interface UsePerfReturn {
-  start: () => void;
-  stop: (cb: any) => number | null;
-  duration: number | null;
+  start: () => void
+  stop: (cb: any) => number | null
+  duration: number | null
 }
 
 export default function usePerf(): UsePerfReturn {
@@ -13,7 +13,7 @@ export default function usePerf(): UsePerfReturn {
   const start = useCallback(() => {
     startTimeRef.current = Date.now()
     setDuration(null)
-  }, []);
+  }, [])
 
   const stop = useCallback((cb: any) => {
     if (startTimeRef.current === null) return null
@@ -26,8 +26,7 @@ export default function usePerf(): UsePerfReturn {
     })
     startTimeRef.current = null
     return elapsed
-  }, []);
+  }, [])
 
   return { start, stop, duration }
 }
-

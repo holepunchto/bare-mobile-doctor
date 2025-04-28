@@ -58,7 +58,9 @@ export default function ChecksumTests() {
         onPress={runTests}
         disabled={isRunning}
       >
-        <ThemedText style={styles.buttonText}>{`Run checksum tests`}</ThemedText>
+        <ThemedText
+          style={styles.buttonText}
+        >{`Run checksum tests`}</ThemedText>
       </TouchableOpacity>
 
       {duration && duration > 0 && !isRunning && (
