@@ -28,13 +28,15 @@ export default function IPCTests() {
 
     IPC.on('data', (data: string) => {
       try {
-        try {
-          top = JSON.parse(data)
-          setCpuData(top.summary || '')
-        } catch (err) {
-          const messages = data.split('-').filter(Boolean)
-          setMessagesReceived((prev) => prev + messages.length)
-        }
+        const messages = data.split('-').filter(Boolean)
+        messages.forEach((rawMessage) => {
+          const message = JSON.parse(rawMessage)
+          if (message.summary) {
+            setCpuData(message.summary)
+          } else {
+            setMessagesReceived((prev) => prev + 1)
+          }
+        })
       } catch (err) {
         console.error('Failed to parse response:', err)
       }
@@ -107,16 +109,6 @@ export default function IPCTests() {
       setMessagesSent((prev) => prev + 1)
     }
   }
-
-  useEffect(() => {
-    const { IPC } = worklet
-
-    const intervalId = setInterval(() => {
-      IPC.write(JSON.stringify({ workType: 'cpu' }))
-    }, 1000)
-
-    return () => clearInterval(intervalId)
-  }, [])
 
   return (
     <>

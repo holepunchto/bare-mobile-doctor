@@ -11,7 +11,7 @@ function basicWork() {
 }
 
 function cpu() {
-  BareKit.IPC.write(JSON.stringify({ summary: processTop.toString() }))
+  BareKit.IPC.write(JSON.stringify({ summary: processTop.toString() }) + '-')
 }
 
 function doCryptoWork(iterations) {
@@ -52,16 +52,16 @@ BareKit.IPC.on('data', (data) => {
       doNativeWork(100_000)
     } else if (payload.workType === 'fastcall') {
       doFatCalls(100_000)
-    } else if (payload.workType === 'cpu') {
-      cpu()
     } else {
       basicWork()
     }
 
-    if (payload.workType !== 'cpu') {
-      BareKit.IPC.write(message + '-')
-    }
+    BareKit.IPC.write(message + '-')
   })
 })
+
+setInterval(() => {
+  cpu()
+}, 1000)
 
 console.log('Worklet setup complete')
