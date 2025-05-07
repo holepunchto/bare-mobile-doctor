@@ -23,9 +23,9 @@ function computeHash(chunks) {
 function startTest() {
   const chunkSize = 1024 * 1024 // 1MB
   const totalChunks = 250
-  const chunk = Buffer.alloc(chunkSize)
 
   for (let i = 0; i < totalChunks; i++) {
+    const chunk = Buffer.alloc(chunkSize)
     sodium.randombytes_buf(chunk)
     BareKit.IPC.write(chunk)
     sentChunks.push(chunk)
