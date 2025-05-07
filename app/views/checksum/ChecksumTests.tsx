@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { TouchableOpacity, StyleSheet } from 'react-native'
+import FramedStream from 'framed-stream'
 import { Worklet } from 'react-native-bare-kit'
 
 import ThemedText from '../../components/ThemedText'
@@ -27,14 +28,17 @@ export default function ChecksumTests() {
 
     console.log('worklet', worklet)
     const { IPC } = worklet
-    IPC.on('data', (data: any) => {
+    const stream = new FramedStream(IPC)
+    console.log('ondata')
+    stream.on('data', (data: any) => {
+      console.log('got chunk', data.byteLength)
       if (data.length === 4) {
         setHasSucceeded(isSuccessCode(data))
         setIsRunning(false)
         stopTimer(null)
         worklet.terminate()
       } else {
-        IPC.write(data)
+        stream.write(data)
       }
     })
 
