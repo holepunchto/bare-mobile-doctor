@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { TouchableOpacity, StyleSheet } from 'react-native'
+import { TouchableOpacity, StyleSheet, View } from 'react-native'
 import FramedStream from 'framed-stream'
 import { Worklet } from 'react-native-bare-kit'
 
@@ -19,19 +19,17 @@ export default function ChecksumTests() {
   const [isRunning, setIsRunning] = useState(false)
   const [hasSucceeded, setHasSucceeded] = useState(false)
   const { start: startTimer, stop: stopTimer, duration } = usePerf()
+  const [type, setType] = useState<'basic' | 'framed'>('basic')
 
   useEffect(() => {
     if (!isRunning) return
 
     const worklet = new Worklet()
-    worklet.start('checksum.bundle', source)
+    worklet.start('checksum.bundle', source, [type])
 
-    console.log('worklet', worklet)
     const { IPC } = worklet
-    const stream = new FramedStream(IPC)
-    console.log('ondata')
+    const stream = type === 'framed' ? new FramedStream(IPC) : IPC
     stream.on('data', (data: any) => {
-      console.log('got chunk', data.byteLength)
       if (data.length === 4) {
         setHasSucceeded(isSuccessCode(data))
         setIsRunning(false)
@@ -45,7 +43,7 @@ export default function ChecksumTests() {
     return () => {
       if (worklet.terminate) worklet.terminate()
     }
-  }, [isRunning])
+  }, [isRunning, type])
 
   const runTests = () => {
     if (isRunning) return
@@ -55,6 +53,29 @@ export default function ChecksumTests() {
 
   return (
     <>
+      <View style={styles.controls}>
+        <TouchableOpacity
+          style={[
+            styles.optionButton,
+            type === 'basic' && styles.selectedOption
+          ]}
+          onPress={() => setType('basic')}
+          disabled={isRunning}
+        >
+          <ThemedText style={styles.optionText}>Basic</ThemedText>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.optionButton,
+            type === 'framed' && styles.selectedOption
+          ]}
+          onPress={() => setType('framed')}
+          disabled={isRunning}
+        >
+          <ThemedText style={styles.optionText}>Framed</ThemedText>
+        </TouchableOpacity>
+      </View>
+
       <TouchableOpacity
         style={
           isRunning ? [styles.button, styles.buttonDisabled] : styles.button
@@ -64,7 +85,7 @@ export default function ChecksumTests() {
       >
         <ThemedText
           style={styles.buttonText}
-        >{`Run checksum tests`}</ThemedText>
+        >{`Run checksum tests (${type})`}</ThemedText>
       </TouchableOpacity>
 
       {duration && duration > 0 && !isRunning && (
