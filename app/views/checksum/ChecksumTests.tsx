@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from 'react'
-import { TouchableOpacity, StyleSheet, View, ActivityIndicator } from 'react-native'
+import {
+  TouchableOpacity,
+  StyleSheet,
+  View,
+  ActivityIndicator
+} from 'react-native'
 import FramedStream from 'framed-stream'
 import { Worklet } from 'react-native-bare-kit'
 
@@ -90,7 +95,7 @@ export default function ChecksumTests() {
 
       {isRunning && (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
+          <ActivityIndicator size='large' color='#007AFF' />
           <ThemedText style={styles.loadingText}>
             Running checksum test...{'\n'}This may take a minute or more
           </ThemedText>

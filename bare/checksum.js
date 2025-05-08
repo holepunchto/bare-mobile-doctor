@@ -20,7 +20,9 @@ function getRandomChunkSize() {
     return remainingSize
   }
   const maxPossible = Math.min(maxChunkSize, remainingSize)
-  return Math.floor(Math.random() * (maxPossible - minChunkSize + 1)) + minChunkSize
+  return (
+    Math.floor(Math.random() * (maxPossible - minChunkSize + 1)) + minChunkSize
+  )
 }
 
 function computeHash(chunks) {
