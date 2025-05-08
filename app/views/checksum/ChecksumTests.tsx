@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { TouchableOpacity, StyleSheet, View } from 'react-native'
+import { TouchableOpacity, StyleSheet, View, ActivityIndicator } from 'react-native'
 import FramedStream from 'framed-stream'
 import { Worklet } from 'react-native-bare-kit'
 
@@ -88,6 +88,15 @@ export default function ChecksumTests() {
         >{`Run checksum tests (${type})`}</ThemedText>
       </TouchableOpacity>
 
+      {isRunning && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <ThemedText style={styles.loadingText}>
+            Running checksum test...{'\n'}This may take a minute or more
+          </ThemedText>
+        </View>
+      )}
+
       {duration && duration > 0 && !isRunning && (
         <ThemedText style={styles.stats}>
           Time elapsed: {formatTime(duration)} | Succeeded:{' '}
@@ -141,5 +150,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: 20
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    marginVertical: 20
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 14,
+    textAlign: 'center',
+    color: '#666'
   }
 })
