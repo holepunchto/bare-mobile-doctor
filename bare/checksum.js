@@ -1,10 +1,29 @@
 const sodium = require('sodium-native')
+const FramedStream = require('framed-stream')
 
 console.log('Worklet started')
 
+let isFramed = Bare.argv[0] === 'framed'
 let receivedSize = 0
 let sentChunks = []
 let recvChunks = []
+
+const totalSize = 1024 * 1024 * 250 // 250MB in bytes
+const minChunkSize = 1024 * 100 // 100KB
+const maxChunkSize = 1024 * 1024 * 2 // 2MB
+let remainingSize = totalSize
+
+const ipc = isFramed ? new FramedStream(BareKit.IPC) : BareKit.IPC
+
+function getRandomChunkSize() {
+  if (remainingSize <= minChunkSize) {
+    return remainingSize
+  }
+  const maxPossible = Math.min(maxChunkSize, remainingSize)
+  return (
+    Math.floor(Math.random() * (maxPossible - minChunkSize + 1)) + minChunkSize
+  )
+}
 
 function computeHash(chunks) {
   const state = Buffer.alloc(sodium.crypto_hash_sha512_STATEBYTES)
@@ -21,14 +40,16 @@ function computeHash(chunks) {
 }
 
 function startTest() {
-  const chunkSize = 1024 * 1024 // 1MB
-  const totalChunks = 250
+  console.log('[Worklet] Start test')
 
-  for (let i = 0; i < totalChunks; i++) {
+  while (remainingSize > 0) {
+    const chunkSize = getRandomChunkSize()
+    console.log('[Worklet] Sending chunk of size', chunkSize)
     const chunk = Buffer.alloc(chunkSize)
     sodium.randombytes_buf(chunk)
-    BareKit.IPC.write(chunk)
+    ipc.write(chunk)
     sentChunks.push(chunk)
+    remainingSize -= chunkSize
   }
 
   console.log('[Worklet] All chunks sent')
@@ -45,14 +66,14 @@ function endTest() {
   console.log('[Worklet] Recv hash:', recvHash)
   console.log('[Worklet] Checksums match:', success)
 
-  BareKit.IPC.write(Buffer.from(success ? 'done' : 'fail'))
+  ipc.write(Buffer.from(success ? 'done' : 'fail'))
 }
 
-BareKit.IPC.on('data', (data) => {
+ipc.on('data', (data) => {
   recvChunks.push(data)
   receivedSize += data.length
 
-  if (receivedSize === 1024 * 1024 * 250) endTest()
+  if (receivedSize === totalSize) endTest()
 })
 
 console.log('Worklet setup complete')
