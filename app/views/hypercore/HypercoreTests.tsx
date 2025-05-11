@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { TouchableOpacity, StyleSheet, View } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
+import RPC from 'bare-rpc'
+import { RPC_CPU, RPC_WRITE, RPC_READ } from '../../utils/commands.js'
+
 
 import useBareDir from '../../hooks/useBareDir'
 import usePerf from '../../hooks/usePerf'
@@ -20,6 +23,7 @@ export default function HyperdbTests() {
   const [modes, setModes] = useState(['write'])
   const [cpuData, setCpuData] = useState('')
   const isButtonDisabled = isRunning || modes.length === 0
+  let rpc
 
   useEffect(() => {
     const setup = async () => {
@@ -27,23 +31,26 @@ export default function HyperdbTests() {
       worklet.start('hypercore.bundle', source, [bareDir])
 
       const { IPC } = worklet
-      IPC.setEncoding('utf8')
 
-      IPC.on('data', (data: string) => {
-        try {
-          data = JSON.parse(data)
-          if (data[0].records) {
-            console.log(data)
-            let records = data[0].records
-            console.log('Records created', records)
-            setRecordsReceived((prev) => prev + records)
-          } else {
-            setCpuData(data || '')
-          }
-        } catch (err) {
-          console.error('Failed to parse response:', err)
-        }
+      rpc = new RPC(IPC, (req) => {
+
       })
+
+      // IPC.on('data', (data: string) => {
+      //   try {
+      //     data = JSON.parse(data)
+      //     if (data[0].records) {
+      //       console.log(data)
+      //       let records = data[0].records
+      //       console.log('Records created', records)
+      //       setRecordsReceived((prev) => prev + records)
+      //     } else {
+      //       setCpuData(data || '')
+      //     }
+      //   } catch (err) {
+      //     console.error('Failed to parse response:', err)
+      //   }
+      // })
     }
 
     setup()
@@ -105,10 +112,15 @@ export default function HyperdbTests() {
   }
 
   useEffect(() => {
-    const { IPC } = worklet
 
-    const intervalId = setInterval(() => {
-      IPC.write(JSON.stringify({ workType: 'cpu' }))
+
+
+    const intervalId = setInterval(async () => {
+      const req = rpc.request(RPC_CPU)
+      const data = await req.reply()
+      const data2 = JSON.parse(data.data)
+      setCpuData(data2 || '')
+          // IPC.write(JSON.stringify({ workType: 'cpu' }))
     }, 1000)
 
     return () => clearInterval(intervalId)
