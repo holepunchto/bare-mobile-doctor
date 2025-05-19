@@ -3,8 +3,8 @@ const sodium = require('sodium-native')
 console.log('Worklet started')
 
 let receivedSize = 0
-let sentChunks = []
-let recvChunks = []
+const sentChunks = []
+const recvChunks = []
 
 function computeHash(chunks) {
   const state = Buffer.alloc(sodium.crypto_hash_sha512_STATEBYTES)

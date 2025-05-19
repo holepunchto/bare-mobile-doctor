@@ -4,11 +4,11 @@ import { Worklet } from 'react-native-bare-kit'
 import RPC from 'bare-rpc'
 import { RPC_CPU, RPC_WRITE, RPC_READ } from '../../utils/commands.js'
 
-
 import useBareDir from '../../hooks/useBareDir'
 import usePerf from '../../hooks/usePerf'
 import ThemedText from '../../components/ThemedText'
 import { formatTime } from '../../utils/date'
+import b4a from 'b4a'
 
 const source = require('./hypercore.bundle')
 
@@ -23,36 +23,18 @@ export default function HyperdbTests() {
   const [modes, setModes] = useState(['write'])
   const [cpuData, setCpuData] = useState('')
   const isButtonDisabled = isRunning || modes.length === 0
+
+  const { IPC } = worklet
   let rpc
+  const rpcRef = React.useRef(null)
 
   useEffect(() => {
     const setup = async () => {
       const bareDir = await useBareDir()
-      worklet.start('hypercore.bundle', source, [bareDir])
+      worklet.start('./hypercore.bundle', source, [bareDir])
 
-      const { IPC } = worklet
-
-      rpc = new RPC(IPC, (req) => {
-
-      })
-
-      // IPC.on('data', (data: string) => {
-      //   try {
-      //     data = JSON.parse(data)
-      //     if (data[0].records) {
-      //       console.log(data)
-      //       let records = data[0].records
-      //       console.log('Records created', records)
-      //       setRecordsReceived((prev) => prev + records)
-      //     } else {
-      //       setCpuData(data || '')
-      //     }
-      //   } catch (err) {
-      //     console.error('Failed to parse response:', err)
-      //   }
-      // })
+      rpcRef.current = new RPC(IPC, (req) => {})
     }
-
     setup()
 
     return () => {
@@ -102,25 +84,30 @@ export default function HyperdbTests() {
     runNextTest()
   }
 
-  const runNextTest = () => {
-    const { IPC } = worklet
+  const runNextTest = async () => {
+    const rpc = rpcRef.current // Access the rpc from the ref
+    if (!rpc) {
+      console.log('RPC not initialized')
+      return
+    }
     const mode = modes[0]
-    console.log('running test', mode)
+
+    const rpcmod = mode === 'write' ? RPC_WRITE : RPC_READ
     startTimer()
-    IPC.write(JSON.stringify({ recordsAmount: numCalls, workType: mode }))
+    const req = rpc.request(rpcmod)
+    req.send(`${numCalls}`)
     setRecordsSent(numCalls)
+    const records = b4a.toString(await req.reply())
+    setRecordsReceived((prev) => prev + records)
   }
 
   useEffect(() => {
-
-
-
     const intervalId = setInterval(async () => {
+      const rpc = rpcRef.current // Access the rpc from the ref
       const req = rpc.request(RPC_CPU)
-      const data = await req.reply()
-      const data2 = JSON.parse(data.data)
-      setCpuData(data2 || '')
-          // IPC.write(JSON.stringify({ workType: 'cpu' }))
+      req.send('PING')
+      const data = b4a.toString(await req.reply())
+      setCpuData(data || '')
     }, 1000)
 
     return () => clearInterval(intervalId)
