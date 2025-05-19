@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { TouchableOpacity, StyleSheet, View } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
 import RPC from 'bare-rpc'
-import { RPC_CPU, RPC_WRITE, RPC_READ } from '../../utils/commands.js'
+import { RPC_CPU, RPC_WRITE, RPC_READ, RPC_INIT } from '../../utils/commands.js'
 
 import useBareDir from '../../hooks/useBareDir'
 import usePerf from '../../hooks/usePerf'
@@ -22,6 +22,7 @@ export default function HyperdbTests() {
   const [numCalls, setNumCalls] = useState(1000)
   const [modes, setModes] = useState(['write'])
   const [cpuData, setCpuData] = useState('')
+  const [init, setInit] = useState(false)
   const isButtonDisabled = isRunning || modes.length === 0
 
   const { IPC } = worklet
@@ -33,7 +34,12 @@ export default function HyperdbTests() {
       const bareDir = await useBareDir()
       worklet.start('./hypercore.bundle', source, [bareDir])
 
-      rpcRef.current = new RPC(IPC, (req) => {})
+      rpcRef.current = new RPC(IPC, (req) => {
+        if (req.command === RPC_INIT) {
+          console.log(req.data.toString())
+          setInit(true)
+        }
+      })
     }
     setup()
 
@@ -103,7 +109,7 @@ export default function HyperdbTests() {
 
   useEffect(() => {
     const intervalId = setInterval(async () => {
-      const rpc = rpcRef.current // Access the rpc from the ref
+      const rpc = rpcRef.current
       const req = rpc.request(RPC_CPU)
       req.send('PING')
       const data = b4a.toString(await req.reply())
