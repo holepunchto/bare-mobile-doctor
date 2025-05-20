@@ -43,50 +43,46 @@ async function write(req) {
 
 async function read(req) {
   const records = Number(b4a.toString(req.data))
-
-  let core
-  if (fs.existsSync(path + '/readtest')) {
-    const core = new Hypercore(path + '/readtest')
-    await core.ready()
-    let i = 0
-    for (i = 0; i < records; i++) {
-      const randomBlock = Math.floor(Math.random() * 999999)
-      const block = await core.get(randomBlock)
-    }
-    req.reply(`${i}`)
-    await core.close()
-  } else {
-    core = new Hypercore(path + '/readtest')
-    await core.ready()
-
-    let i = 1
-    do {
-      await core.append(Buffer.from(`${time()}`))
-      i++
-    } while (i !== 1000000)
-
-    const block = await core.get(core.length - 1)
-    req.reply(block.toString())
-
-    await core.close()
+  const coreDir = path + '/init'
+  const core = new Hypercore(coreDir)
+  await core.ready()
+  let i = 0
+  for (i = 0; i < records; i++) {
+    const randomBlock = Math.floor(Math.random() * 999999)
+    const block = await core.get(randomBlock)
   }
+  req.reply(`${i}`)
+  await core.close()
 }
 
-async function init() {
+async function init(req) {
+  const coreDir = path + '/init'
   const records = 1000000
-  const core = new Hypercore(path + `/init`)
-  await core.ready()
-    if (!fs.existsSync(path + '/init')) {
-      let i = 1
-      do {
-        await core.append(Buffer.from(`${i}`))
-        i++
-      } while (i !== records + 1)
+  if (fs.existsSync(coreDir)) {
+    try {
+      const core = new Hypercore(coreDir)
+      await core.ready()
+      const block = await core.get(core.length - 1)
+      if (Number(block.toString()) === records) {
+        await core.close()
+        req.reply(block.toString())
+      }
+      return
+    } catch (e) {
+      console.log('Core likely corrupt: ', e)
+      fs.rmSync(coreDir, { recursive: true, force: true })
     }
+  }
+
+  const core = new Hypercore(coreDir)
+  await core.ready()
+  let i = 1
+  do {
+    await core.append(Buffer.from(`${i}`))
+    i++
+  } while (i !== records + 1)
   const block = await core.get(core.length - 1)
-
   await core.close()
-
   req.reply(block.toString())
 }
 
@@ -107,6 +103,6 @@ const rpc = new RPC(IPC, async (req) => {
         break
     }
   } catch (e) {
-    console.log('BARELY Doctor error: ', e)
+    console.log('RPC error: ', e)
   }
 })

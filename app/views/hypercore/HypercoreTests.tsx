@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from 'react'
-import { TouchableOpacity, StyleSheet, View } from 'react-native'
+import {
+  TouchableOpacity,
+  StyleSheet,
+  View,
+  ActivityIndicator
+} from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
 import RPC from 'bare-rpc'
 import { RPC_CPU, RPC_WRITE, RPC_READ, RPC_INIT } from '../../utils/commands.js'
@@ -22,24 +27,18 @@ export default function HyperdbTests() {
   const [numCalls, setNumCalls] = useState(1000)
   const [modes, setModes] = useState(['write'])
   const [cpuData, setCpuData] = useState('')
-  const [init, setInit] = useState(false)
-  const isButtonDisabled = isRunning || modes.length === 0
+  const [isInitialized, setIsInitialized] = useState(false)
+  const isButtonDisabled = isRunning || modes.length === 0 || !isInitialized
 
   const { IPC } = worklet
-  let rpc
+
   const rpcRef = React.useRef(null)
 
   useEffect(() => {
     const setup = async () => {
       const bareDir = await useBareDir()
       worklet.start('./hypercore.bundle', source, [bareDir])
-
-      rpcRef.current = new RPC(IPC, (req) => {
-        if (req.command === RPC_INIT) {
-          console.log(req.data.toString())
-          setInit(true)
-        }
-      })
+      rpcRef.current = new RPC(IPC, (req) => {})
     }
     setup()
 
@@ -91,7 +90,7 @@ export default function HyperdbTests() {
   }
 
   const runNextTest = async () => {
-    const rpc = rpcRef.current // Access the rpc from the ref
+    const rpc = rpcRef.current
     if (!rpc) {
       console.log('RPC not initialized')
       return
@@ -119,10 +118,45 @@ export default function HyperdbTests() {
     return () => clearInterval(intervalId)
   }, [])
 
+  useEffect(() => {
+    const checkRpc = () => {
+      const rpc = rpcRef.current
+
+      if (rpc) {
+        const req = rpc.request(RPC_INIT)
+        req.send('PING')
+        const ping = async () => {
+          const data = b4a.toString(await req.reply())
+          setIsInitialized(true)
+        }
+
+        ping()
+        clearInterval(intervalId)
+      }
+    }
+
+    const intervalId = setInterval(checkRpc, 1000)
+
+    return () => clearInterval(intervalId)
+  }, [])
+
   const toggleMode = (mode: string) => {
     setModes((prev) =>
       prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode]
     )
+  }
+
+  const LoadingScreen = () => (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size='large' color='#007AFF' />
+      <ThemedText style={styles.loadingText}>
+        Please wait while initializing the core...
+      </ThemedText>
+    </View>
+  )
+
+  if (!isInitialized) {
+    return <LoadingScreen />
   }
 
   return (
@@ -151,6 +185,7 @@ export default function HyperdbTests() {
               modes.includes(type) && styles.selectedOption
             ]}
             onPress={() => toggleMode(type)}
+            disabled={!isInitialized}
           >
             <ThemedText style={styles.optionText}>
               {type.toUpperCase()}
@@ -233,5 +268,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: 20
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff'
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 10,
+    textAlign: 'center'
   }
 })
