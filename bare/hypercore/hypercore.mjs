@@ -62,18 +62,18 @@ async function init(req) {
     try {
       const core = new Hypercore(coreDir)
       await core.ready()
-      const block = await core.get(core.length - 1)
-      if (Number(block.toString()) === records) {
+      if (core.length === records) {
         await core.close()
-        req.reply(block.toString())
+        req.reply(`${core.length}`)
+        return
+      } else {
+        await core.close()
+        fs.rmSync(coreDir, { recursive: true, force: true })
       }
-      return
     } catch (e) {
-      console.log('Core likely corrupt: ', e)
       fs.rmSync(coreDir, { recursive: true, force: true })
     }
   }
-
   const core = new Hypercore(coreDir)
   await core.ready()
   let i = 1
@@ -103,6 +103,6 @@ const rpc = new RPC(IPC, async (req) => {
         break
     }
   } catch (e) {
-    console.log('RPC error: ', e)
+    console.log('Bare error: ', e)
   }
 })
