@@ -3,7 +3,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   View,
-  ActivityIndicator
+  ActivityIndicator,
+  useColorScheme
 } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
 import RPC from 'bare-rpc'
@@ -146,14 +147,23 @@ export default function HyperdbTests() {
     )
   }
 
-  const LoadingScreen = () => (
-    <View style={styles.loadingContainer}>
-      <ActivityIndicator size='large' color='#007AFF' />
-      <ThemedText style={styles.loadingText}>
-        Please wait while initializing the core...
-      </ThemedText>
-    </View>
-  )
+  const LoadingScreen = () => {
+    const colorScheme = useColorScheme()
+    const isDark = colorScheme === 'dark'
+    return (
+      <View
+        style={[
+          styles.loadingContainer,
+          { backgroundColor: isDark ? '#000' : '#fff' }
+        ]}
+      >
+        <ActivityIndicator size='large' color={isDark ? '#fff' : '#007AFF'} />
+        <ThemedText style={styles.loadingText}>
+          Please wait while initializing the core...
+        </ThemedText>
+      </View>
+    )
+  }
 
   if (!isInitialized) {
     return <LoadingScreen />
