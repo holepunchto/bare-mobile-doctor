@@ -240,14 +240,16 @@ const styles = StyleSheet.create({
   controls: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginBottom: 10
+    marginBottom: 10,
+    flexWrap: 'wrap'
   },
   optionButton: {
     backgroundColor: '#ccc',
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 6,
-    marginHorizontal: 5
+    marginHorizontal: 5,
+    marginBottom: 8
   },
   selectedOption: {
     backgroundColor: '#007AFF'
