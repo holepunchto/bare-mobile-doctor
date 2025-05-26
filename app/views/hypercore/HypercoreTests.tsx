@@ -19,7 +19,12 @@ import b4a from 'b4a'
 const source = require('./hypercore.bundle')
 
 export default function HyperdbTests() {
+  // Refs
   const worklet = React.useRef(new Worklet()).current
+  const { IPC } = worklet
+  const rpcRef = React.useRef(null)
+
+  // State
   const [isRunning, setIsRunning] = useState(false)
   const [recordsSent, setRecordsSent] = useState(0)
   const [recordsReceived, setRecordsReceived] = useState(0)
@@ -30,10 +35,6 @@ export default function HyperdbTests() {
   const [cpuData, setCpuData] = useState('')
   const [isInitialized, setIsInitialized] = useState(false)
   const isButtonDisabled = isRunning || modes.length === 0 || !isInitialized
-
-  const { IPC } = worklet
-
-  const rpcRef = React.useRef(null)
 
   useEffect(() => {
     const setup = async () => {
@@ -76,37 +77,6 @@ export default function HyperdbTests() {
     }
   }, [modes])
 
-  const resetMessages = () => {
-    setRecordsSent(0)
-    setRecordsReceived(0)
-  }
-
-  const runTests = async () => {
-    if (isRunning) return
-    resetMessages()
-    setIsRunning(true)
-    setTimings({})
-
-    runNextTest()
-  }
-
-  const runNextTest = async () => {
-    const rpc = rpcRef.current
-    if (!rpc) {
-      console.log('RPC not initialized')
-      return
-    }
-    const mode = modes[0]
-
-    const rpcmod = mode === 'write' ? RPC_WRITE : RPC_READ
-    startTimer()
-    const req = rpc.request(rpcmod)
-    req.send(`${numCalls}`)
-    setRecordsSent(numCalls)
-    const records = b4a.toString(await req.reply())
-    setRecordsReceived((prev) => prev + records)
-  }
-
   useEffect(() => {
     const intervalId = setInterval(async () => {
       const rpc = rpcRef.current
@@ -140,6 +110,37 @@ export default function HyperdbTests() {
 
     return () => clearInterval(intervalId)
   }, [])
+
+  const resetMessages = () => {
+    setRecordsSent(0)
+    setRecordsReceived(0)
+  }
+
+  const runTests = async () => {
+    if (isRunning) return
+    resetMessages()
+    setIsRunning(true)
+    setTimings({})
+
+    runNextTest()
+  }
+
+  const runNextTest = async () => {
+    const rpc = rpcRef.current
+    if (!rpc) {
+      console.log('RPC not initialized')
+      return
+    }
+    const mode = modes[0]
+
+    const rpcmod = mode === 'write' ? RPC_WRITE : RPC_READ
+    startTimer()
+    const req = rpc.request(rpcmod)
+    req.send(`${numCalls}`)
+    setRecordsSent(numCalls)
+    const records = b4a.toString(await req.reply())
+    setRecordsReceived((prev) => prev + records)
+  }
 
   const toggleMode = (mode: string) => {
     setModes((prev) =>
