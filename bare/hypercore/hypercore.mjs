@@ -1,6 +1,11 @@
 import Hypercore from 'hypercore'
 import fs from 'bare-fs'
 import top from 'process-top'
+import RPC from 'bare-rpc'
+import b4a from 'b4a'
+import { RPC_CPU, RPC_WRITE, RPC_READ, RPC_INIT } from './commands.mjs'
+
+const { IPC } = BareKit
 
 console.log('Hypercore Worklet started')
 
@@ -15,14 +20,14 @@ function time() {
 
 const processTop = new top()
 
-function cpu() {
-  BareKit.IPC.write(JSON.stringify(processTop.toString()))
+function cpu(req) {
+  req.reply(JSON.stringify(processTop.toString()))
 }
 
-async function write(records) {
+async function write(req) {
+  const records = Number(b4a.toString(req.data))
   const core = new Hypercore(path + `/${time()}`)
   await core.ready()
-
   let i = 1
   do {
     await core.append(Buffer.from(`${i}`))
@@ -30,48 +35,74 @@ async function write(records) {
   } while (i !== records + 1)
 
   const block = await core.get(core.length - 1)
-  BareKit.IPC.write(JSON.stringify([{ records: block.toString() }]))
 
+  await core.close()
+
+  req.reply(block.toString())
+}
+
+async function read(req) {
+  const records = Number(b4a.toString(req.data))
+  const coreDir = path + '/init'
+  const core = new Hypercore(coreDir)
+  await core.ready()
+  let i = 0
+  for (i = 0; i < records; i++) {
+    const randomBlock = Math.floor(Math.random() * 999999)
+    const block = await core.get(randomBlock)
+  }
+  req.reply(`${i}`)
   await core.close()
 }
 
-async function read(records) {
-  let core
-  if (fs.existsSync(path + '/readtest')) {
-    const core = new Hypercore(path + '/readtest')
-    await core.ready()
-    let i = 0
-    for (i = 0; i < records; i++) {
-      const randomBlock = Math.floor(Math.random() * 999999)
-      const block = await core.get(randomBlock)
+async function init(req) {
+  const coreDir = path + '/init'
+  const records = 1000000
+  if (fs.existsSync(coreDir)) {
+    try {
+      const core = new Hypercore(coreDir)
+      await core.ready()
+      if (core.length === records) {
+        await core.close()
+        req.reply(`${core.length}`)
+        return
+      } else {
+        await core.close()
+        fs.rmSync(coreDir, { recursive: true, force: true })
+      }
+    } catch (e) {
+      fs.rmSync(coreDir, { recursive: true, force: true })
     }
-    BareKit.IPC.write(JSON.stringify([{ records: i }]))
-    await core.close()
-  } else {
-    core = new Hypercore(path + '/readtest')
-    await core.ready()
-
-    let i = 1
-    do {
-      await core.append(Buffer.from(`${time()}`))
-      i++
-    } while (i !== 1000000)
-
-    const block = await core.get(core.length - 1)
-    BareKit.IPC.write(JSON.stringify([{ records: block.toString() }]))
-
-    await core.close()
   }
+  const core = new Hypercore(coreDir)
+  await core.ready()
+  let i = 1
+  do {
+    await core.append(Buffer.from(`${i}`))
+    i++
+  } while (i !== records + 1)
+  const block = await core.get(core.length - 1)
+  await core.close()
+  req.reply(block.toString())
 }
 
-BareKit.IPC.on('data', async (data) => {
-  const payload = JSON.parse(data.toString())
-
-  if (payload.workType === 'cpu') {
-    cpu()
-  } else if (payload.workType === 'write') {
-    await write(payload.recordsAmount)
-  } else if (payload.workType === 'read') {
-    await read(payload.recordsAmount)
+const rpc = new RPC(IPC, async (req) => {
+  try {
+    switch (req.command) {
+      case RPC_CPU:
+        cpu(req)
+        break
+      case RPC_WRITE:
+        await write(req)
+        break
+      case RPC_READ:
+        await read(req)
+        break
+      case RPC_INIT:
+        await init(req)
+        break
+    }
+  } catch (e) {
+    console.log('Bare error: ', e)
   }
 })

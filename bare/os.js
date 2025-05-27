@@ -4,7 +4,7 @@ let timer = null
 BareKit.IPC.setEncoding('utf8')
 BareKit.IPC.on('data', function (data) {
   clearInterval(timer)
-  let message = JSON.parse(data)
+  const message = JSON.parse(data)
   if (message.type) {
     timer = setInterval(() => {
       const top = ptop()

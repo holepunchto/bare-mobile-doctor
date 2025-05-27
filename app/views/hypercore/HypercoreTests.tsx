@@ -1,16 +1,30 @@
 import React, { useState, useEffect } from 'react'
-import { TouchableOpacity, StyleSheet, View } from 'react-native'
+import {
+  TouchableOpacity,
+  StyleSheet,
+  View,
+  ActivityIndicator,
+  useColorScheme
+} from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
+import RPC from 'bare-rpc'
+import { RPC_CPU, RPC_WRITE, RPC_READ, RPC_INIT } from '../../utils/commands.js'
 
 import useBareDir from '../../hooks/useBareDir'
 import usePerf from '../../hooks/usePerf'
 import ThemedText from '../../components/ThemedText'
 import { formatTime } from '../../utils/date'
+import b4a from 'b4a'
 
 const source = require('./hypercore.bundle')
 
 export default function HyperdbTests() {
+  // Refs
   const worklet = React.useRef(new Worklet()).current
+  const { IPC } = worklet
+  const rpcRef = React.useRef(null)
+
+  // State
   const [isRunning, setIsRunning] = useState(false)
   const [recordsSent, setRecordsSent] = useState(0)
   const [recordsReceived, setRecordsReceived] = useState(0)
@@ -19,33 +33,15 @@ export default function HyperdbTests() {
   const [numCalls, setNumCalls] = useState(1000)
   const [modes, setModes] = useState(['write'])
   const [cpuData, setCpuData] = useState('')
-  const isButtonDisabled = isRunning || modes.length === 0
+  const [isInitialized, setIsInitialized] = useState(false)
+  const isButtonDisabled = isRunning || modes.length === 0 || !isInitialized
 
   useEffect(() => {
     const setup = async () => {
       const bareDir = await useBareDir()
-      worklet.start('hypercore.bundle', source, [bareDir])
-
-      const { IPC } = worklet
-      IPC.setEncoding('utf8')
-
-      IPC.on('data', (data: string) => {
-        try {
-          data = JSON.parse(data)
-          if (data[0].records) {
-            console.log(data)
-            let records = data[0].records
-            console.log('Records created', records)
-            setRecordsReceived((prev) => prev + records)
-          } else {
-            setCpuData(data || '')
-          }
-        } catch (err) {
-          console.error('Failed to parse response:', err)
-        }
-      })
+      worklet.start('./hypercore.bundle', source, [bareDir])
+      rpcRef.current = new RPC(IPC, (req) => {})
     }
-
     setup()
 
     return () => {
@@ -81,6 +77,40 @@ export default function HyperdbTests() {
     }
   }, [modes])
 
+  useEffect(() => {
+    const intervalId = setInterval(async () => {
+      const rpc = rpcRef.current
+      const req = rpc.request(RPC_CPU)
+      req.send('PING')
+      const data = b4a.toString(await req.reply())
+      setCpuData(data || '')
+    }, 1000)
+
+    return () => clearInterval(intervalId)
+  }, [])
+
+  useEffect(() => {
+    const checkRpc = () => {
+      const rpc = rpcRef.current
+
+      if (rpc) {
+        const req = rpc.request(RPC_INIT)
+        req.send('PING')
+        const ping = async () => {
+          const data = b4a.toString(await req.reply())
+          setIsInitialized(true)
+        }
+
+        ping()
+        clearInterval(intervalId)
+      }
+    }
+
+    const intervalId = setInterval(checkRpc, 1000)
+
+    return () => clearInterval(intervalId)
+  }, [])
+
   const resetMessages = () => {
     setRecordsSent(0)
     setRecordsReceived(0)
@@ -95,29 +125,49 @@ export default function HyperdbTests() {
     runNextTest()
   }
 
-  const runNextTest = () => {
-    const { IPC } = worklet
+  const runNextTest = async () => {
+    const rpc = rpcRef.current
+    if (!rpc) {
+      console.log('RPC not initialized')
+      return
+    }
     const mode = modes[0]
-    console.log('running test', mode)
+
+    const rpcmod = mode === 'write' ? RPC_WRITE : RPC_READ
     startTimer()
-    IPC.write(JSON.stringify({ recordsAmount: numCalls, workType: mode }))
+    const req = rpc.request(rpcmod)
+    req.send(`${numCalls}`)
     setRecordsSent(numCalls)
+    const records = b4a.toString(await req.reply())
+    setRecordsReceived((prev) => prev + records)
   }
-
-  useEffect(() => {
-    const { IPC } = worklet
-
-    const intervalId = setInterval(() => {
-      IPC.write(JSON.stringify({ workType: 'cpu' }))
-    }, 1000)
-
-    return () => clearInterval(intervalId)
-  }, [])
 
   const toggleMode = (mode: string) => {
     setModes((prev) =>
       prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode]
     )
+  }
+
+  const LoadingScreen = () => {
+    const colorScheme = useColorScheme()
+    const isDark = colorScheme === 'dark'
+    return (
+      <View
+        style={[
+          styles.loadingContainer,
+          { backgroundColor: isDark ? '#000' : '#fff' }
+        ]}
+      >
+        <ActivityIndicator size='large' color={isDark ? '#fff' : '#007AFF'} />
+        <ThemedText style={styles.loadingText}>
+          Please wait while initializing the core...
+        </ThemedText>
+      </View>
+    )
+  }
+
+  if (!isInitialized) {
+    return <LoadingScreen />
   }
 
   return (
@@ -146,6 +196,7 @@ export default function HyperdbTests() {
               modes.includes(type) && styles.selectedOption
             ]}
             onPress={() => toggleMode(type)}
+            disabled={!isInitialized}
           >
             <ThemedText style={styles.optionText}>
               {type.toUpperCase()}
@@ -189,14 +240,16 @@ const styles = StyleSheet.create({
   controls: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginBottom: 10
+    marginBottom: 10,
+    flexWrap: 'wrap'
   },
   optionButton: {
     backgroundColor: '#ccc',
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 6,
-    marginHorizontal: 5
+    marginHorizontal: 5,
+    marginBottom: 8
   },
   selectedOption: {
     backgroundColor: '#007AFF'
@@ -228,5 +281,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: 20
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff'
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 10,
+    textAlign: 'center'
   }
 })

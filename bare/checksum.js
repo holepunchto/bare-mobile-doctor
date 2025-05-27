@@ -5,8 +5,8 @@ console.log('Worklet started')
 
 let isFramed = Bare.argv[0] === 'framed'
 let receivedSize = 0
-let sentChunks = []
-let recvChunks = []
+const sentChunks = []
+const recvChunks = []
 
 const totalSize = 1024 * 1024 * 250 // 250MB in bytes
 const minChunkSize = 1024 * 100 // 100KB
