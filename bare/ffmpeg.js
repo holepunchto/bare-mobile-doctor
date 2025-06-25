@@ -34,3 +34,26 @@ if (!bestStream) {
 }
 
 log('Get best stream', bestStream)
+
+const decoder = bestStream.decoder()
+log('Get decoder')
+
+const rawFrame = new ffmpeg.Frame()
+const rgbaFrame = new ffmpeg.Frame()
+rgbaFrame.width = decoder.width
+rgbaFrame.height = decoder.height
+rgbaFrame.pixelFormat = ffmpeg.constants.pixelFormats.RGBA
+rgbaFrame.alloc()
+
+log('Frames set!')
+
+const toRGBA = new ffmpeg.Scaler(
+  decoder.pixelFormat,
+  decoder.width,
+  decoder.height,
+  ffmpeg.constants.pixelFormats.RGBA,
+  decoder.width,
+  decoder.height
+)
+
+log('Scaler set')
