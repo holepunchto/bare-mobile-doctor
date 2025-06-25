@@ -8,25 +8,49 @@ import {
 } from 'react-native'
 import FramedStream from 'framed-stream'
 import { Worklet } from 'react-native-bare-kit'
+import { useCameraPermissions } from 'expo-camera'
 
 import ThemedText from '../../components/ThemedText'
 
 const source = require('./ffmpeg.bundle')
 
 export default function FFmpegTest() {
+  const [permission, requestPermission] = useCameraPermissions()
+
   useEffect(() => {
-    const worklet = new Worklet()
-    worklet.start('ffmpeg.bundle', source) 
+    if (permission?.granted) {
+      const worklet = new Worklet()
+      worklet.start('ffmpeg.bundle', source) 
 
-    const { IPC } = worklet
-    IPC.on('data', (data: any) => {
-      console.log(data)
-    })
+      const { IPC } = worklet
+      IPC.on('data', (data: any) => {
+        console.log(data)
+      })
 
-    return () => {
-      if (worklet.terminate) worklet.terminate()
-    }
-  }, [])
+      return () => {
+        if (worklet.terminate) worklet.terminate()
+      }
+    } 
+  }, [permission?.granted])
+
+  if (!permission) {
+    return (
+      <>
+        <ThemedText>
+          Loading permissions...
+        </ThemedText>
+      </>
+    )
+  }
+
+  if (!permission.granted) {
+    return (
+      <View>
+        <Text>We need your permission to show the camera</Text>
+        <Button onPress={requestPermission} title="grant permission" />
+      </View>
+    );
+  }
 
   return (
     <>

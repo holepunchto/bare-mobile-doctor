@@ -23,6 +23,7 @@ log('InputFormat set!')
 const inputFormatContext = new ffmpeg.InputFormatContext(
   inputFormat,
   options,
+  '0:'
 )
 
 log('InputFormatContext set!')
