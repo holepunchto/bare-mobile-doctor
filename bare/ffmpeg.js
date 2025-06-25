@@ -1,18 +1,15 @@
 const ffmpeg = require('bare-ffmpeg')
 
-// Log
-//
 function log(message) {
   console.log(message)
 }
 
 log('Worklet ready!')
 
-// Set up device
 const options = new ffmpeg.Dictionary()
 options.set('framerate', '30')
 options.set('video_size', '1280x720')
-options.set('pixel_format', 'uyvy422')
+options.set('pixel_format', 'nv12')
 
 log('Options set!')
 
@@ -27,3 +24,13 @@ const inputFormatContext = new ffmpeg.InputFormatContext(
 )
 
 log('InputFormatContext set!')
+
+const bestStream = inputFormatContext.getBestStream(
+  ffmpeg.constants.mediaTypes.VIDEO
+)
+
+if (!bestStream) {
+  process.exit(1)
+}
+
+log('Get best stream', bestStream)
