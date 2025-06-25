@@ -56,7 +56,8 @@
     "react-native-bare-kit": "^0.7.0",
     "react-native-safe-area-context": "^5.1.0",
     "sodium-native": "^5.0.1",
-    "udx-native": "^1.17.4"
+    "udx-native": "^1.17.4",
+    "@shopify/react-native-skia": "1.5.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.1",

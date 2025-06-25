@@ -1,7 +1,7 @@
 const ffmpeg = require('bare-ffmpeg')
 
-function log(message) {
-  console.log(message)
+function log(...message) {
+  console.log(...message)
 }
 
 log('Worklet ready!')
@@ -57,3 +57,46 @@ const toRGBA = new ffmpeg.Scaler(
 )
 
 log('Scaler set')
+
+// Main loop
+setInterval(() => {
+  const packet = new ffmpeg.Packet()
+  const ret = inputFormatContext.readFrame(packet)
+  console.log('1 - read frame')
+  if (!ret) return
+
+  decoder.sendPacket(packet)
+  console.log('2 - send packet')
+  packet.unref()
+
+  while (decoder.receiveFrame(rawFrame)) {
+    console.log('3 - receive raw frame')
+
+    const image = new ffmpeg.Image(
+      ffmpeg.constants.pixelFormats.RGBA,
+      decoder.width,
+      decoder.height
+    )
+    console.log('4 - create image')
+    console.log('image buffer', image._data.buffer)
+    console.log('image byteOffset', image._data.byteOffset)
+    console.log('image byteLength', image._data.byteLength)
+
+    toRGBA.scale(rawFrame, rgbaFrame)
+    console.log('5 - scale to rgba frame')
+    console.log('rgbaFrame', rgbaFrame)
+
+    image.fill(rgbaFrame) // Crash on iOS
+    console.log('6 - fill  image')
+
+    console.log('7 - use buffer from image', image.data)
+
+    // BareKit.IPC.write(JSON.stringify({
+    //   width: image.width,
+    //   height: image.height,
+    //   buffer: image.data.buffer,
+    //   byteOffset: image.data.byteOffset,
+    //   byteLength: image.data.byteLength
+    // }))
+  }
+}, 1000 / 30) // ~30 FPS
