@@ -8,6 +8,7 @@ import HyperdbTests from './views/hyperdb/HyperdbTests'
 import HypercoreTests from './views/hypercore/HypercoreTests'
 import OSTests from './views/os/OSTests'
 import ChecksumTests from './views/checksum/ChecksumTests'
+import FFmpegTests from './views/ffmpeg/FFmpegTests'
 
 export type TestModule =
   | 'IPC'
@@ -17,6 +18,7 @@ export type TestModule =
   | 'Hypercore'
   | 'Checksum'
   | 'OS'
+  | 'FFmpeg'
 
 export default function () {
   const [activeModule, setActiveModule] = useState<TestModule>('IPC')
@@ -37,6 +39,8 @@ export default function () {
         return <OSTests />
       case 'Checksum':
         return <ChecksumTests />
+      case 'FFmpeg':
+        return <FFmpegTests />
     }
   }
 
@@ -50,7 +54,8 @@ export default function () {
           'Hyperdb',
           'Hypercore',
           'Checksum',
-          'OS'
+          'OS',
+          'FFmpeg'
         ]}
         activeModule={activeModule}
         onChangeModule={setActiveModule}

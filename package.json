@@ -14,7 +14,8 @@
     "gen:hypercore": "npx bare-pack --out app/views/hypercore/hypercore.bundle.js bare/hypercore/hypercore.mjs --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
     "gen:os": "npx bare-pack --out app/views/os/os.bundle.js bare/os.js --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
     "gen:checksum": "npx bare-pack --out app/views/checksum/checksum.bundle.js bare/checksum.js --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
-    "bundle": "npm run gen:udx && npm run gen:hyperdb && npm run gen:ipc && npm run gen:hypercore && npm run gen:os && npm run gen:checksum"
+    "gen:ffmpeg": "npx bare-pack --out app/views/ffmpeg/ffmpeg.bundle.js bare/ffmpeg.js --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
+    "bundle": "npm run gen:udx && npm run gen:hyperdb && npm run gen:ipc && npm run gen:hypercore && npm run gen:os && npm run gen:checksum && npm run gen:ffmpeg"
   },
   "repository": {
     "type": "git",
@@ -30,6 +31,7 @@
     "b4a": "^1.6.7",
     "bare-assert": "^1.0.2",
     "bare-buffer": "^3.1.2",
+    "bare-ffmpeg": "^1.0.0-8",
     "bare-fs": "^4.1.2",
     "bare-rpc": "^0.2.5",
     "corestore": "^7.0.23",
