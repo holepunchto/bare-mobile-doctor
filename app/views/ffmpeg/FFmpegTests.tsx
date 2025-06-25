@@ -20,7 +20,7 @@ export default function FFmpegTest() {
   useEffect(() => {
     if (permission?.granted) {
       const worklet = new Worklet()
-      worklet.start('ffmpeg.bundle', source) 
+      worklet.start('ffmpeg.bundle', source)
 
       const { IPC } = worklet
       IPC.on('data', (data: any) => {
@@ -30,15 +30,13 @@ export default function FFmpegTest() {
       return () => {
         if (worklet.terminate) worklet.terminate()
       }
-    } 
+    }
   }, [permission?.granted])
 
   if (!permission) {
     return (
       <>
-        <ThemedText>
-          Loading permissions...
-        </ThemedText>
+        <ThemedText>Loading permissions...</ThemedText>
       </>
     )
   }
@@ -47,16 +45,14 @@ export default function FFmpegTest() {
     return (
       <View>
         <Text>We need your permission to show the camera</Text>
-        <Button onPress={requestPermission} title="grant permission" />
+        <Button onPress={requestPermission} title='grant permission' />
       </View>
-    );
+    )
   }
 
   return (
     <>
-      <ThemedText>
-        Video
-      </ThemedText>
+      <ThemedText>Video</ThemedText>
     </>
   )
 }

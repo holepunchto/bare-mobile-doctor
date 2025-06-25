@@ -28,9 +28,7 @@
       "package": "to.holepunch.bare.doctor.mobile"
     },
     "plugins": [
-      [
-        "expo-router"
-      ],
+      ["expo-router"],
       [
         "expo-build-properties",
         {
