@@ -1,7 +1,9 @@
 const ffmpeg = require('bare-ffmpeg')
 
+let debug = false
+
 function log(...message) {
-  console.log(...message)
+  if (debug) console.log(...message)
 }
 
 log('Worklet ready!')
@@ -62,45 +64,44 @@ log('Scaler set')
 setInterval(() => {
   const packet = new ffmpeg.Packet()
   let ret = inputFormatContext.readFrame(packet)
-  console.log('1 - read frame')
+  log('1 - read frame')
   if (!ret) return
 
-  console.log('packet.buffer', packet.data)
+  log('packet.buffer', packet.data)
 
   ret = decoder.sendPacket(packet)
-  console.log('2 - send packet', ret)
+  log('2 - send packet', ret)
   packet.unref()
   if (!ret) return
 
   while (decoder.receiveFrame(rawFrame)) {
-    console.log('3 - receive raw frame')
+    log('3 - receive raw frame')
 
     const image = new ffmpeg.Image(
       ffmpeg.constants.pixelFormats.RGBA,
       decoder.width,
       decoder.height
     )
-    console.log('4 - create image')
-    console.log('image buffer', image._data.buffer)
-    console.log('image byteOffset', image._data.byteOffset)
-    console.log('image byteLength', image._data.byteLength)
+    log('4 - create image')
+    log('image buffer', image._data.buffer)
+    log('image byteOffset', image._data.byteOffset)
+    log('image byteLength', image._data.byteLength)
 
     image.fill(rgbaFrame) // Crash on iOS
-    console.log('5 - fill  image')
+    log('5 - fill  image')
 
     toRGBA.scale(rawFrame, rgbaFrame)
-    console.log('6 - scale to rgba frame')
-    console.log('rgbaFrame', rgbaFrame)
+    log('6 - scale to rgba frame')
+    log('rgbaFrame', rgbaFrame)
 
+    log('7 - use buffer from image', image.data)
 
-    console.log('7 - use buffer from image', image.data)
-
-    // BareKit.IPC.write(JSON.stringify({
-    //   width: image.width,
-    //   height: image.height,
-    //   buffer: image.data.buffer,
-    //   byteOffset: image.data.byteOffset,
-    //   byteLength: image.data.byteLength
-    // }))
+    BareKit.IPC.write(JSON.stringify({
+      width: image.width,
+      height: image.height,
+      buffer: image.data.buffer,
+      byteOffset: image.data.byteOffset,
+      byteLength: image.data.byteLength
+    }))
   }
 }, 1000 / 30) // ~30 FPS
