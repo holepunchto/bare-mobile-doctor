@@ -1,21 +1,102 @@
-import React, { useState, useEffect } from 'react'
-import {
-  TouchableOpacity,
-  StyleSheet,
-  View,
-  ActivityIndicator,
-  PermissionIOS
-} from 'react-native'
-import FramedStream from 'framed-stream'
+import React, { useState, useEffect, useMemo, memo } from 'react'
+import { TouchableOpacity, StyleSheet, View } from 'react-native'
+
 import { Worklet } from 'react-native-bare-kit'
 import { useCameraPermissions } from 'expo-camera'
+import FramedStream from 'framed-stream'
+import {
+  Canvas,
+  Skia,
+  Image,
+  Rect,
+  Paint,
+  AlphaType,
+  ColorType
+} from '@shopify/react-native-skia'
 
 import ThemedText from '../../components/ThemedText'
 
 const source = require('./ffmpeg.bundle')
 
+const width = 352
+const height = 288
+
+const VideoCanvas = memo(({ data }: { data: any }) => {
+  const image = useMemo(() => {
+    if (!data || !data.length) {
+      return null
+    }
+
+    try {
+      const result = Skia.Image.MakeImage(
+        {
+          width,
+          height,
+          alphaType: AlphaType.Opaque,
+          colorType: ColorType.RGBA_8888
+        },
+        Skia.Data.fromBytes(data),
+        width * 4
+      )
+
+      return result
+    } catch (error) {
+      console.error('Error creating Skia image:', error)
+      return null
+    }
+  }, [data])
+
+  if (!data || !data.length) {
+    return (
+      <View
+        style={{
+          width,
+          height,
+          backgroundColor: 'red',
+          justifyContent: 'center',
+          alignItems: 'center'
+        }}
+      >
+        <ThemedText style={{ color: 'white' }}>No data</ThemedText>
+      </View>
+    )
+  }
+
+  if (!image) {
+    return (
+      <View
+        style={{
+          width,
+          height,
+          backgroundColor: 'red',
+          justifyContent: 'center',
+          alignItems: 'center'
+        }}
+      >
+        <ThemedText style={{ color: 'white' }}>
+          Image creation failed
+        </ThemedText>
+      </View>
+    )
+  }
+
+  return (
+    <Canvas style={{ width, height, backgroundColor: 'red' }}>
+      <Image
+        image={image}
+        fit='cover'
+        x={0}
+        y={0}
+        width={width}
+        height={height}
+      />
+    </Canvas>
+  )
+})
+
 export default function FFmpegTest() {
   const [permission, requestPermission] = useCameraPermissions()
+  const [data, setData] = useState<any>(null)
 
   useEffect(() => {
     if (permission?.granted) {
@@ -23,9 +104,14 @@ export default function FFmpegTest() {
       worklet.start('ffmpeg.bundle', source)
 
       const { IPC } = worklet
-      IPC.setEncoding('utf8')
-      IPC.on('data', (data: any) => {
-        console.log(data)
+      const stream = new FramedStream(IPC)
+
+      stream.on('data', (data: any) => {
+        try {
+          setData(data)
+        } catch (err) {
+          console.warn('Failed to parse frame', err)
+        }
       })
 
       return () => {
@@ -45,16 +131,18 @@ export default function FFmpegTest() {
   if (!permission.granted) {
     return (
       <View>
-        <Text>We need your permission to show the camera</Text>
-        <Button onPress={requestPermission} title='grant permission' />
+        <ThemedText>We need your permission to show the camera</ThemedText>
+        <TouchableOpacity onPress={requestPermission} style={styles.button}>
+          <ThemedText style={styles.buttonText}>Grant Permission</ThemedText>
+        </TouchableOpacity>
       </View>
     )
   }
 
   return (
-    <>
-      <ThemedText>Video</ThemedText>
-    </>
+    <View style={{ flex: 1 }}>
+      {data ? <VideoCanvas data={data} /> : <ThemedText>No video</ThemedText>}
+    </View>
   )
 }
 

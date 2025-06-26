@@ -1,4 +1,6 @@
 const ffmpeg = require('bare-ffmpeg')
+const b4a = require('b4a')
+const FramedStream = require('framed-stream')
 
 let debug = false
 
@@ -8,9 +10,11 @@ function log(...message) {
 
 log('Worklet ready!')
 
+const ipc = new FramedStream(BareKit.IPC)
+
 const options = new ffmpeg.Dictionary()
-options.set('framerate', '30')
-options.set('video_size', '1280x720')
+options.set('framerate', '60')
+options.set('video_size', '352x288')
 options.set('pixel_format', 'nv12')
 
 log('Options set!')
@@ -32,6 +36,7 @@ const bestStream = inputFormatContext.getBestStream(
 )
 
 if (!bestStream) {
+  log('No video stream found!')
   process.exit(1)
 }
 
@@ -62,48 +67,44 @@ log('Scaler set')
 
 // Main loop
 setInterval(() => {
-  const packet = new ffmpeg.Packet()
-  let ret = inputFormatContext.readFrame(packet)
-  log('1 - read frame')
-  if (!ret) return
+  try {
+    const packet = new ffmpeg.Packet()
+    let ret = inputFormatContext.readFrame(packet)
+    log('1 - read frame', ret)
+    if (!ret) return
 
-  log('packet.buffer', packet.data)
+    log('packet.buffer size:', packet.data?.length || 0)
 
-  ret = decoder.sendPacket(packet)
-  log('2 - send packet', ret)
-  packet.unref()
-  if (!ret) return
+    ret = decoder.sendPacket(packet)
+    log('2 - send packet', ret)
+    packet.unref()
+    if (!ret) return
 
-  while (decoder.receiveFrame(rawFrame)) {
-    log('3 - receive raw frame')
+    while (decoder.receiveFrame(rawFrame)) {
+      log('3 - receive raw frame')
 
-    const image = new ffmpeg.Image(
-      ffmpeg.constants.pixelFormats.RGBA,
-      decoder.width,
-      decoder.height
-    )
-    log('4 - create image')
-    log('image buffer', image._data.buffer)
-    log('image byteOffset', image._data.byteOffset)
-    log('image byteLength', image._data.byteLength)
+      const image = new ffmpeg.Image(
+        ffmpeg.constants.pixelFormats.RGBA,
+        decoder.width,
+        decoder.height
+      )
+      log('4 - create image')
 
-    image.fill(rgbaFrame) // Crash on iOS
-    log('5 - fill  image')
+      image.fill(rgbaFrame)
+      log('5 - fill  image')
 
-    toRGBA.scale(rawFrame, rgbaFrame)
-    log('6 - scale to rgba frame')
-    log('rgbaFrame', rgbaFrame)
+      toRGBA.scale(rawFrame, rgbaFrame)
+      log('6 - scale to rgba frame')
 
-    log('7 - use buffer from image', image.data)
+      log('7 - use buffer from image', image.data)
 
-    BareKit.IPC.write(
-      JSON.stringify({
-        width: image.width,
-        height: image.height,
-        buffer: image.data.buffer,
-        byteOffset: image.data.byteOffset,
-        byteLength: image.data.byteLength
-      })
-    )
+      const buf = b4a.from(image.data.buffer)
+      log('8 - buffer size being sent:', buf.length)
+
+      ipc.write(buf)
+      log('9 - buffer sent successfully via FramedStream')
+    }
+  } catch (error) {
+    log('Error in main loop:', error)
   }
 }, 1000 / 30) // ~30 FPS
