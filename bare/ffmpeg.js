@@ -82,12 +82,13 @@ setInterval(() => {
     console.log('image byteOffset', image._data.byteOffset)
     console.log('image byteLength', image._data.byteLength)
 
+    image.fill(rgbaFrame) // Crash on iOS
+    console.log('5 - fill  image')
+
     toRGBA.scale(rawFrame, rgbaFrame)
-    console.log('5 - scale to rgba frame')
+    console.log('6 - scale to rgba frame')
     console.log('rgbaFrame', rgbaFrame)
 
-    image.fill(rgbaFrame) // Crash on iOS
-    console.log('6 - fill  image')
 
     console.log('7 - use buffer from image', image.data)
 
