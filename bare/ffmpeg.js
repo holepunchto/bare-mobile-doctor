@@ -96,12 +96,14 @@ setInterval(() => {
 
     log('7 - use buffer from image', image.data)
 
-    BareKit.IPC.write(JSON.stringify({
-      width: image.width,
-      height: image.height,
-      buffer: image.data.buffer,
-      byteOffset: image.data.byteOffset,
-      byteLength: image.data.byteLength
-    }))
+    BareKit.IPC.write(
+      JSON.stringify({
+        width: image.width,
+        height: image.height,
+        buffer: image.data.buffer,
+        byteOffset: image.data.byteOffset,
+        byteLength: image.data.byteLength
+      })
+    )
   }
 }, 1000 / 30) // ~30 FPS
