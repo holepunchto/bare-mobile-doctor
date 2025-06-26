@@ -23,6 +23,7 @@ export default function FFmpegTest() {
       worklet.start('ffmpeg.bundle', source)
 
       const { IPC } = worklet
+      IPC.setEncoding('utf8')
       IPC.on('data', (data: any) => {
         console.log(data)
       })
