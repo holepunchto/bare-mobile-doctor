@@ -61,13 +61,16 @@ log('Scaler set')
 // Main loop
 setInterval(() => {
   const packet = new ffmpeg.Packet()
-  const ret = inputFormatContext.readFrame(packet)
+  let ret = inputFormatContext.readFrame(packet)
   console.log('1 - read frame')
   if (!ret) return
 
-  decoder.sendPacket(packet)
-  console.log('2 - send packet')
+  console.log('packet.buffer', packet.data)
+
+  ret = decoder.sendPacket(packet)
+  console.log('2 - send packet', ret)
   packet.unref()
+  if (!ret) return
 
   while (decoder.receiveFrame(rawFrame)) {
     console.log('3 - receive raw frame')
