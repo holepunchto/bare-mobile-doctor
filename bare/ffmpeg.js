@@ -2,7 +2,7 @@ const ffmpeg = require('bare-ffmpeg')
 const b4a = require('b4a')
 const FramedStream = require('framed-stream')
 
-let debug = false
+let debug = false // TODO: use args sent from the front end
 
 function log(...message) {
   if (debug) console.log(...message)
@@ -16,6 +16,9 @@ const options = new ffmpeg.Dictionary()
 options.set('framerate', '60')
 options.set('video_size', '352x288')
 options.set('pixel_format', 'nv12')
+options.set('video_device_index', '1') // TODO: use args sent from the front end
+options.set('preset', 'ultrafast')
+options.set('input_queue_size', '3')
 
 log('Options set!')
 
@@ -107,4 +110,4 @@ setInterval(() => {
   } catch (error) {
     log('Error in main loop:', error)
   }
-}, 1000 / 30) // ~30 FPS
+}, 1000 / 60) // ~60 FPS
