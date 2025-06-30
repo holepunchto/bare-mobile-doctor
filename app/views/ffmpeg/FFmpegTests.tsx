@@ -80,18 +80,15 @@ const VideoCanvas = memo(({ data }: { data: any }) => {
     )
   }
 
-  // Note: all width/height are swapped temporary
   return (
-    <Canvas style={{ width: height, height: width, backgroundColor: 'red' }}>
+    <Canvas style={{ width, height, backgroundColor: 'red' }}>
       <Image
         image={image}
         fit='cover'
         x={0}
         y={0}
-        width={height}
-        height={width}
-        origin={{ x: height / 2, y: width / 2 }}
-        transform={[{ rotate: Math.PI / 2 }]} // 90 degrees in radians
+        width={width}
+        height={height}
       />
     </Canvas>
   )
