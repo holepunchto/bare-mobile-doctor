@@ -1,6 +1,7 @@
 const ffmpeg = require('bare-ffmpeg')
 const b4a = require('b4a')
 const FramedStream = require('framed-stream')
+const http = require('bare-http1')
 
 let debug = false // TODO: use args sent from the front end
 
@@ -8,7 +9,24 @@ function log(...message) {
   if (debug) console.log(...message)
 }
 
+function info(...message) {
+  console.log(...message)
+}
+
 log('Worklet ready!')
+
+let server
+
+const httpServer = http.createServer((req, res) => {
+  res.statusCode = 200
+  res.setHeader('Content-Type', 'application/octet-stream')
+  res.setHeader('Cache-Control', 'no-store')
+  server = res
+})
+
+httpServer.listen(8888, () => {
+  info('Http server running on http://localhost:8888')
+})
 
 const ipc = new FramedStream(BareKit.IPC)
 
