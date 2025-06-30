@@ -3,7 +3,6 @@ import { TouchableOpacity, StyleSheet, View } from 'react-native'
 
 import { Worklet } from 'react-native-bare-kit'
 import { useCameraPermissions } from 'expo-camera'
-import FramedStream from 'framed-stream'
 import {
   Canvas,
   Skia,
@@ -21,7 +20,28 @@ const source = require('./ffmpeg.bundle')
 const width = 352
 const height = 288
 
-const VideoCanvas = memo(({ data }: { data: any }) => {
+function fetchData(url ='http://localhost:8888'): Promise<Uint8Array> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('GET', url, true)
+    xhr.responseType = 'arraybuffer'
+    
+    xhr.onload = () => {
+      if (xhr.status === 200 && xhr.response) {
+        const uint8Array = new Uint8Array(xhr.response)
+        resolve(uint8Array)
+      } else {
+        reject(new Error(`Failed to load RGBA buffer: ${xhr.status}`))
+      }
+    }
+
+    xhr.onerror = () => reject(new Error('XHR error'))
+
+    xhr.send()
+  })
+}
+
+const VideoCanvas = memo(({ data }: { data: Uint8Array | null }) => {
   const image = useMemo(() => {
     if (!data || !data.length) {
       return null
@@ -96,26 +116,35 @@ const VideoCanvas = memo(({ data }: { data: any }) => {
 
 export default function FFmpegTest() {
   const [permission, requestPermission] = useCameraPermissions()
-  const [data, setData] = useState<any>(null)
+  const [data, setData] = useState<Uint8Array | null>(null)
 
   useEffect(() => {
     if (permission?.granted) {
       const worklet = new Worklet()
       worklet.start('ffmpeg.bundle', source)
+      console.log('worklet started')
 
-      const { IPC } = worklet
-      const stream = new FramedStream(IPC)
+      let intervalId: NodeJS.Timeout | null = null
 
-      stream.on('data', (data: any) => {
-        try {
-          setData(data)
-        } catch (err) {
-          console.warn('Failed to parse frame', err)
-        }
-      })
+      // Start fetching data after a short delay to ensure worklet is ready
+      setTimeout(() => {
+        intervalId = setInterval(async () => {
+          try {
+            const data = await fetchData()
+            setData(data)
+          } catch (error) {
+            console.error('Failed to fetch frame data:', error)
+          }
+        }, 1000 / 24) // ~24 FPS
+      }, 1000)
 
       return () => {
-        if (worklet.terminate) worklet.terminate()
+        if (intervalId) {
+          clearInterval(intervalId)
+        }
+        if (worklet.terminate) {
+          worklet.terminate()
+        }
       }
     }
   }, [permission?.granted])
