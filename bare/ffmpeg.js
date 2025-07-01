@@ -105,6 +105,11 @@ const toRGBA = new ffmpeg.Scaler(
 
 log('Scaler set')
 
+Bare.on('exit', () => {
+  console.log('exit')
+  inputFormatContext.destroy()
+})
+
 // Main loop
 setInterval(() => {
   try {

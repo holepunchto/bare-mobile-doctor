@@ -142,9 +142,7 @@ export default function FFmpegTest() {
         if (intervalId) {
           clearInterval(intervalId)
         }
-        if (worklet.terminate) {
-          worklet.terminate()
-        }
+        worklet.terminate()
       }
     }
   }, [permission?.granted])
