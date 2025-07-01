@@ -20,12 +20,12 @@ const source = require('./ffmpeg.bundle')
 const width = 352
 const height = 288
 
-function fetchData(url ='http://localhost:8888'): Promise<Uint8Array> {
+function fetchData(url = 'http://localhost:8888'): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     xhr.open('GET', url, true)
     xhr.responseType = 'arraybuffer'
-    
+
     xhr.onload = () => {
       if (xhr.status === 200 && xhr.response) {
         const uint8Array = new Uint8Array(xhr.response)
