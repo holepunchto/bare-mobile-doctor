@@ -1,7 +1,6 @@
 const ffmpeg = require('bare-ffmpeg')
 const b4a = require('b4a')
 const FramedStream = require('framed-stream')
-const http = require('bare-http1')
 
 let debug = false // TODO: use args sent from the front end
 
@@ -19,35 +18,7 @@ log('Worklet ready!')
 const width = 352
 const height = 288
 
-let currentResponse = null
-let lastFrameData = null
-
-const httpServer = http.createServer((req, res) => {
-  res.statusCode = 200
-  res.setHeader('Content-Type', 'application/octet-stream')
-  res.setHeader('Cache-Control', 'no-store')
-
-  if (lastFrameData) {
-    res.setHeader('Content-Length', lastFrameData.length)
-    res.write(lastFrameData)
-    res.end()
-    log('Sent cached frame data immediately')
-  }
-
-  // Store the current response for streaming (but we're not using it for now)
-  currentResponse = res
-
-  // Handle connection close
-  req.on('close', () => {
-    if (currentResponse === res) {
-      currentResponse = null
-    }
-  })
-})
-
-httpServer.listen(8888, () => {
-  info('Http server running on http://localhost:8888')
-})
+const ipc = new FramedStream(BareKit.IPC)
 
 const options = new ffmpeg.Dictionary()
 options.set('framerate', '60')
@@ -106,7 +77,6 @@ const toRGBA = new ffmpeg.Scaler(
 log('Scaler set')
 
 Bare.on('exit', () => {
-  console.log('exit')
   inputFormatContext.destroy()
 })
 
@@ -146,17 +116,8 @@ setInterval(() => {
       const buf = b4a.from(image.data.buffer)
       log('8 - buffer size being sent:', buf.length)
 
-      // Store the frame data for immediate response on next request
-      lastFrameData = buf
-      log('9 - frame data stored for next request')
-
-      // Send the frame data if we have an active response
-      if (currentResponse && !currentResponse.destroyed) {
-        currentResponse.setHeader('Content-Length', buf.length)
-        currentResponse.write(buf)
-        currentResponse.end()
-        log('10 - buffer sent successfully via HTTP')
-      }
+      ipc.write(buf)
+      log('9 - buffer sent successfully via HTTP')
     }
   } catch (error) {
     log('Error in main loop:', error)
