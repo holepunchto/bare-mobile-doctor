@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { View, StyleSheet } from 'react-native'
+import { View, StyleSheet, Text } from 'react-native'
+
 import TabNavigator from './components/TabNavigator'
 import IPCTests from './views/ipc/IPCTests'
 import UDXTests from './views/udx/UDXTests'
@@ -21,7 +22,7 @@ export type TestModule =
   | 'FFmpeg'
 
 export default function () {
-  const [activeModule, setActiveModule] = useState<TestModule>('IPC')
+  const [activeModule, setActiveModule] = useState<TestModule>('OS')
 
   const renderContent = () => {
     switch (activeModule) {
