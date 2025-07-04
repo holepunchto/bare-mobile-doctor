@@ -122,4 +122,4 @@ setInterval(() => {
   } catch (error) {
     log('Error in main loop:', error)
   }
-}, 1000 / 60) // ~60 FPS
+}, 1000 / 30)
