@@ -78,6 +78,9 @@ log('Scaler set')
 
 Bare.on('exit', () => {
   inputFormatContext.destroy()
+  rawFrame.destroy()
+  rgbaFrame.destroy()
+  toRGBA.destroy()
 })
 
 // Main loop
@@ -117,6 +120,7 @@ setInterval(() => {
       log('8 - buffer size being sent:', buf.length)
 
       ipc.write(buf)
+      image.destroy()
       log('9 - buffer sent successfully via HTTP')
     }
   } catch (error) {
