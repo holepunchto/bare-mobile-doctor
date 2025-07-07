@@ -22,35 +22,35 @@ const width = 352
 const height = 288
 
 function createImage(data: Uint8Array): Uint8Array | null {
-    if (!data || !data.length) {
-      return null
-    }
+  if (!data || !data.length) {
+    return null
+  }
 
-    try {
-      const result = Skia.Image.MakeImage(
-        {
-          width,
-          height,
-          alphaType: AlphaType.Opaque,
-          colorType: ColorType.RGBA_8888
-        },
-        Skia.Data.fromBytes(data),
-        width * 4
-      )
+  try {
+    const result = Skia.Image.MakeImage(
+      {
+        width,
+        height,
+        alphaType: AlphaType.Opaque,
+        colorType: ColorType.RGBA_8888
+      },
+      Skia.Data.fromBytes(data),
+      width * 4
+    )
 
-      return result
-    } catch (error) {
-      console.error('Error creating Skia image:', error)
-      return null
-    }
+    return result
+  } catch (error) {
+    console.error('Error creating Skia image:', error)
+    return null
+  }
 }
 
 const VideoCanvas = memo(({ data }: { data: Uint8Array | null }) => {
   const [image, setImage] = useState<Uint8Array | null>(null)
 
   useEffect(() => {
-    const image = createImage(data);
-    setImage(image);
+    const image = createImage(data)
+    setImage(image)
   }, [data])
 
   if (!data || !data.length) {
