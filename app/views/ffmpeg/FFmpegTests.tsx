@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, memo } from 'react'
-import { TouchableOpacity, StyleSheet, View } from 'react-native'
+import React, { useState, useEffect, memo } from 'react'
+import { TouchableOpacity, StyleSheet, View, Platform } from 'react-native'
 
 import { Worklet } from 'react-native-bare-kit'
 import { useCameraPermissions } from 'expo-camera'
@@ -18,8 +18,8 @@ import ThemedText from '../../components/ThemedText'
 
 const source = require('./ffmpeg.bundle')
 
-const width = 352
-const height = 288
+const width = Platform.OS === 'ios' ? 352 : 640
+const height = Platform.OS === 'ios' ? 288 : 480
 
 function createImage(data: Uint8Array): Uint8Array | null {
   if (!data || !data.length) {

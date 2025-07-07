@@ -10,23 +10,34 @@ function log(...message) {
 
 log('Worklet ready!')
 
-// Video dimensions
-const width = 352
-const height = 288
-
 const ipc = new FramedStream(BareKit.IPC)
 
 const options = new ffmpeg.Dictionary()
-options.set('framerate', '60')
-options.set('video_size', '352x288')
-options.set('pixel_format', 'nv12')
-options.set('video_device_index', '1') // TODO: use args sent from the front end
-options.set('preset', 'ultrafast')
-options.set('input_queue_size', '3')
+if (Bare.platform === 'ios') {
+  options.set('framerate', '60')
+  options.set('video_size', '352x288')
+  options.set('pixel_format', 'nv12')
+  options.set('video_device_index', '1') // TODO: use args sent from the front end
+  options.set('preset', 'ultrafast')
+  options.set('input_queue_size', '3')
+} else {
+  options.set('framerate', '30')
+  options.set('video_size', '640x480')
+  options.set('pixel_format', 'yuv420p')
+  options.set('camera_index', '1') // TODO: use args sent from the front end
+  options.set('input_queue_size', '3')
+}
 
 log('Options set!')
 
-const inputFormat = new ffmpeg.InputFormat()
+let inputFormat
+
+if (Bare.platform === 'ios') {
+  inputFormat = new ffmpeg.InputFormat()
+} else {
+  // TODO: add it as default in `bare-ffmpeg`
+  inputFormat = new ffmpeg.InputFormat('android_camera')
+}
 
 log('InputFormat set!')
 
