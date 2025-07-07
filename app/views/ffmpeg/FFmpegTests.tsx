@@ -21,8 +21,7 @@ const source = require('./ffmpeg.bundle')
 const width = 352
 const height = 288
 
-const VideoCanvas = memo(({ data }: { data: Uint8Array | null }) => {
-  const image = useMemo(() => {
+function createImage(data: Uint8Array): Uint8Array | null {
     if (!data || !data.length) {
       return null
     }
@@ -44,6 +43,14 @@ const VideoCanvas = memo(({ data }: { data: Uint8Array | null }) => {
       console.error('Error creating Skia image:', error)
       return null
     }
+}
+
+const VideoCanvas = memo(({ data }: { data: Uint8Array | null }) => {
+  const [image, setImage] = useState<Uint8Array | null>(null)
+
+  useEffect(() => {
+    const image = createImage(data);
+    setImage(image);
   }, [data])
 
   if (!data || !data.length) {
@@ -102,17 +109,12 @@ export default function FFmpegTest() {
     if (permission?.granted) {
       const worklet = new Worklet()
       worklet.start('ffmpeg.bundle', source)
+
       console.log('worklet started')
 
-      const { IPC } = worklet
-      const stream = new FramedStream(IPC)
-
+      const stream = new FramedStream(worklet.IPC)
       stream.on('data', (data: any) => {
-        try {
-          setData(data)
-        } catch (err) {
-          console.warn('Failed to parse frame', err)
-        }
+        setData(data)
       })
 
       return () => {
