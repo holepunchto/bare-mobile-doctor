@@ -8,10 +8,6 @@ function log(...message) {
   if (debug) console.log(...message)
 }
 
-function info(...message) {
-  console.log(...message)
-}
-
 log('Worklet ready!')
 
 // Video dimensions
@@ -120,8 +116,7 @@ setInterval(() => {
       log('8 - buffer size being sent:', buf.length)
 
       ipc.write(buf)
-      image.destroy()
-      log('9 - buffer sent successfully via HTTP')
+      log('9 - buffer sent successfully via IPC')
     }
   } catch (error) {
     log('Error in main loop:', error)
