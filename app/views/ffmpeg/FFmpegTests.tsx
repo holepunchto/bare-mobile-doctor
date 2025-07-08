@@ -17,7 +17,12 @@ export default function FFmpegTest() {
   useEffect(() => {
     if (permission?.granted) {
       const worklet = new Worklet()
-      worklet.start('ffmpeg.bundle', source)
+      // TODO: add button to let the user
+      // - enable log
+      const enableDebug = 'false'
+      // - choose camera
+      const camera = 'front'
+      worklet.start('ffmpeg.bundle', source, [enableDebug, camera])
 
       console.log('worklet started')
 

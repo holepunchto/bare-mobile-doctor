@@ -2,7 +2,8 @@ const ffmpeg = require('bare-ffmpeg')
 const b4a = require('b4a')
 const FramedStream = require('framed-stream')
 
-let debug = false // TODO: use args sent from the front end
+let debug = Bare.argv[0] === 'true'
+let deviceIndex = Bare.argv[1] === 'front' ? '1' : '0'
 
 function log(...message) {
   if (debug) console.log(...message)
@@ -17,14 +18,14 @@ if (Bare.platform === 'ios') {
   options.set('framerate', '60')
   options.set('video_size', '352x288')
   options.set('pixel_format', 'nv12')
-  options.set('video_device_index', '1') // TODO: use args sent from the front end
+  options.set('video_device_index', deviceIndex)
   options.set('preset', 'ultrafast')
   options.set('input_queue_size', '3')
 } else {
   options.set('framerate', '30')
   options.set('video_size', '640x480')
   options.set('pixel_format', 'yuv420p')
-  options.set('camera_index', '1') // TODO: use args sent from the front end
+  options.set('camera_index', deviceIndex)
   options.set('input_queue_size', '3')
 }
 
