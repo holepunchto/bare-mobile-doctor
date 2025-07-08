@@ -15,7 +15,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "to.holepunch.bare.doctor.mobile"
+      "bundleIdentifier": "to.holepunch.bare.doctor.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app uses the camera to capture video content"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -30,7 +33,7 @@
         "expo-build-properties",
         {
           "android": {
-            "minSdkVersion": 28
+            "minSdkVersion": 29
           }
         }
       ]
