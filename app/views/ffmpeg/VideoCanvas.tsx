@@ -1,5 +1,5 @@
 // TODO: remove memo
-import React, { useState, useEffect  } from 'react'
+import React, { useState, useEffect } from 'react'
 import { View, Platform } from 'react-native'
 import {
   Canvas,

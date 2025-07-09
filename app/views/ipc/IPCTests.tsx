@@ -29,7 +29,7 @@ export default function IPCTests() {
 
     IPC.on('data', (data: string) => {
       try {
-        const stringData = b4a.toString(data);
+        const stringData = b4a.toString(data)
         const messages = stringData.split('-').filter(Boolean)
         messages.forEach((rawMessage) => {
           const message = JSON.parse(rawMessage)
@@ -105,7 +105,8 @@ export default function IPCTests() {
     console.log('running test', mode)
     startTimer()
     for (let i = 0; i < numCalls; i++) {
-      const message = JSON.stringify({ msg: `Hello world ${i}`, workType: mode }) + '-'
+      const message =
+        JSON.stringify({ msg: `Hello world ${i}`, workType: mode }) + '-'
       IPC.write(b4a.from(message))
       setMessagesSent((prev) => prev + 1)
     }

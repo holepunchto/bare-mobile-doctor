@@ -71,9 +71,7 @@ function streamTest() {
 }
 
 function result(type, hasSucceeded, message = null) {
-  return Buffer.from(
-    JSON.stringify({ type, hasSucceeded, message }) + '\n'
-  )
+  return Buffer.from(JSON.stringify({ type, hasSucceeded, message }) + '\n')
 }
 
 console.log('Worklet setup complete')
