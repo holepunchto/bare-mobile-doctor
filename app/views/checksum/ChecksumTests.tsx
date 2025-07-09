@@ -39,14 +39,13 @@ export default function ChecksumTests() {
         setHasSucceeded(isSuccessCode(data))
         setIsRunning(false)
         stopTimer(null)
-        worklet.terminate()
       } else {
         stream.write(data)
       }
     })
 
     return () => {
-      if (worklet.terminate) worklet.terminate()
+      if (worklet) worklet.terminate()
     }
   }, [isRunning, type])
 
