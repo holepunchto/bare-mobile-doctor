@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { Text, TouchableOpacity, StyleSheet, View } from 'react-native'
+
 import { Worklet } from 'react-native-bare-kit'
+import b4a from 'b4a'
 
 import ThemedText from '../../components/ThemedText'
 import { formatTime } from '../../utils/date'
@@ -24,11 +26,11 @@ export default function IPCTests() {
     worklet.start('ipc.bundle', source)
 
     const { IPC } = worklet
-    IPC.setEncoding('utf8')
 
     IPC.on('data', (data: string) => {
       try {
-        const messages = data.split('-').filter(Boolean)
+        const stringData = b4a.toString(data);
+        const messages = stringData.split('-').filter(Boolean)
         messages.forEach((rawMessage) => {
           const message = JSON.parse(rawMessage)
           if (message.summary) {
@@ -103,9 +105,8 @@ export default function IPCTests() {
     console.log('running test', mode)
     startTimer()
     for (let i = 0; i < numCalls; i++) {
-      IPC.write(
-        JSON.stringify({ msg: `Hello world ${i}`, workType: mode }) + '-'
-      )
+      const message = JSON.stringify({ msg: `Hello world ${i}`, workType: mode }) + '-'
+      IPC.write(b4a.from(message))
       setMessagesSent((prev) => prev + 1)
     }
   }
