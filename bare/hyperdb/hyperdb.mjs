@@ -14,7 +14,8 @@ function time() {
 const processTop = new top()
 
 function cpu() {
-  BareKit.IPC.write(JSON.stringify(processTop.toString()))
+  const message = JSON.stringify(processTop.toString())
+  BareKit.IPC.write(b4a.from(message))
 }
 
 let path = Bare.argv[0]
@@ -82,7 +83,7 @@ async function bee(records) {
       if (result && result.id === records) {
         remote.unwatch(remoteOnChange)
 
-        BareKit.IPC.write(JSON.stringify(result))
+        BareKit.IPC.write(b4a.from(JSON.stringify(result)))
 
         await swarm2.destroy()
         await remote.close()
