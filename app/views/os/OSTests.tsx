@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { TouchableOpacity, StyleSheet, View, Platform } from 'react-native'
+
 import { Worklet } from 'react-native-bare-kit'
 import ThemedText from '../../components/ThemedText'
+import b4a from 'b4a'
+
 const source = require('./os.bundle')
 
 export default function HypercoreTests() {
@@ -15,10 +18,9 @@ export default function HypercoreTests() {
 
     const { IPC } = worklet
 
-    IPC.setEncoding('utf8')
     IPC.on('data', (data: string) => {
       try {
-        let message = JSON.parse(data)
+        let message = JSON.parse(b4a.toString(data))
         setStats(message)
         setIsRunning(false)
       } catch (err) {
@@ -34,7 +36,8 @@ export default function HypercoreTests() {
   const runTests = async () => {
     if (isRunning) return
     setIsRunning(true)
-    worklet.IPC.write(JSON.stringify({ type }))
+    const startMessage = JSON.stringify({ type })
+    worklet.IPC.write(b4a.from(startMessage))
   }
 
   return (

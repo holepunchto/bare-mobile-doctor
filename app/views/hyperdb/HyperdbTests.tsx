@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { TouchableOpacity, StyleSheet, View } from 'react-native'
+
 import { Worklet } from 'react-native-bare-kit'
+import b4a from 'b4a'
 
 import useBareDir from '../../hooks/useBareDir'
 import usePerf from '../../hooks/usePerf'
@@ -27,11 +29,10 @@ export default function HyperdbTests() {
       worklet.start('hyperdb.bundle', source, [bareDir])
 
       const { IPC } = worklet
-      IPC.setEncoding('utf8')
 
       IPC.on('data', (data: string) => {
         try {
-          data = JSON.parse(data)
+          data = JSON.parse(b4a.toString(data))
           if (data.id) {
             console.log(data)
             let records = data.id
@@ -100,7 +101,8 @@ export default function HyperdbTests() {
     const mode = modes[0]
     console.log('running test', mode)
     startTimer()
-    IPC.write(JSON.stringify({ recordsAmount: numCalls, workType: mode }))
+    const message = JSON.stringify({ recordsAmount: numCalls, workType: mode })
+    IPC.write(b4a.from(message))
     setRecordsSent(numCalls)
   }
 
@@ -108,7 +110,8 @@ export default function HyperdbTests() {
     const { IPC } = worklet
 
     const intervalId = setInterval(() => {
-      IPC.write(JSON.stringify({ workType: 'cpu' }))
+      const message = JSON.stringify({ workType: 'cpu' })
+      IPC.write(b4a.from(message))
     }, 1000)
 
     return () => clearInterval(intervalId)

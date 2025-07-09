@@ -11,7 +11,8 @@ function basicWork() {
 }
 
 function cpu() {
-  BareKit.IPC.write(JSON.stringify({ summary: processTop.toString() }) + '-')
+  const message = JSON.stringify({ summary: processTop.toString() }) + '-'
+  BareKit.IPC.write(Buffer.from(message))
 }
 
 function doCryptoWork(iterations) {
@@ -56,7 +57,7 @@ BareKit.IPC.on('data', (data) => {
       basicWork()
     }
 
-    BareKit.IPC.write(message + '-')
+    BareKit.IPC.write(Buffer.from(message + '-'))
   })
 })
 
