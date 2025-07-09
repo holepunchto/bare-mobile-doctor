@@ -1,5 +1,5 @@
 // TODO: remove memo
-import React, { useState, useEffect, memo } from 'react'
+import React, { useState, useEffect  } from 'react'
 import { View, Platform } from 'react-native'
 import {
   Canvas,
@@ -38,7 +38,7 @@ function createImage(data: Uint8Array): Uint8Array | null {
   }
 }
 
-const VideoCanvas = memo(({ data }: { data: Uint8Array | null }) => {
+const VideoCanvas = ({ data }: { data: Uint8Array | null }) => {
   const [image, setImage] = useState<Uint8Array | null>(null)
 
   useEffect(() => {
@@ -92,6 +92,6 @@ const VideoCanvas = memo(({ data }: { data: Uint8Array | null }) => {
       />
     </Canvas>
   )
-})
+}
 
 export default VideoCanvas
