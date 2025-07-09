@@ -1,7 +1,6 @@
 const ptop = require('process-top')
 
 let timer = null
-BareKit.IPC.setEncoding('utf8')
 BareKit.IPC.on('data', function (data) {
   clearInterval(timer)
   const message = JSON.parse(data)
@@ -9,7 +8,7 @@ BareKit.IPC.on('data', function (data) {
     timer = setInterval(() => {
       const top = ptop()
       const res = message.type === 'cpu' ? top.cpu() : top.memory()
-      BareKit.IPC.write(JSON.stringify(res))
+      BareKit.IPC.write(Buffer.from(JSON.stringify(res)))
     }, 1000)
   }
 })
