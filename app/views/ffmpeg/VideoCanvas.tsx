@@ -1,6 +1,6 @@
 // TODO: remove memo
 import React, { useState, useEffect, memo } from 'react'
-import { View } from 'react-native'
+import { View, Platform } from 'react-native'
 import {
   Canvas,
   Skia,
