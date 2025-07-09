@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
+
 import { Worklet } from 'react-native-bare-kit'
+import b4a from 'b4a'
 
 const source = require('./udx.bundle')
 
@@ -54,10 +56,10 @@ export default function UDXTests() {
     worklet.start('udx.bundle', source)
 
     const { IPC } = worklet
-    IPC.setEncoding('utf8')
     IPC.on('data', (data: string) => {
       try {
-        const messages = data.split('\n').filter(Boolean)
+        const dataString = b4a.toString(data)
+        const messages = dataString.split('\n').filter(Boolean)
 
         messages.forEach((message) => {
           const jsonMessage = JSON.parse(message)
@@ -89,8 +91,8 @@ export default function UDXTests() {
   const runTests = () => {
     const { IPC } = worklet
     setIsRunning(true)
-    IPC.write('stream')
-    IPC.write('socket')
+    IPC.write(b4a.from('stream'))
+    IPC.write(b4a.from('socket'))
   }
 
   return (

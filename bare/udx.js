@@ -3,13 +3,14 @@ const UDX = require('udx-native')
 const b4a = require('b4a')
 const assert = require('bare-assert')
 
-BareKit.IPC.setEncoding('utf8')
 BareKit.IPC.on('data', function (data) {
-  if (data === 'socket') {
+  const message = data.toString()
+  if (message.includes('socket')) {
     socketTest()
       .then(() => BareKit.IPC.write(result('socket', true)))
       .catch((e) => BareKit.IPC.write(result('socket', false, e.message)))
-  } else if (data === 'stream') {
+  }
+  if (message.includes('stream')) {
     streamTest()
       .then(() => BareKit.IPC.write(result('stream', true)))
       .catch((e) => BareKit.IPC.write(result('stream', false, e.message)))
@@ -70,7 +71,9 @@ function streamTest() {
 }
 
 function result(type, hasSucceeded, message = null) {
-  return JSON.stringify({ type, hasSucceeded, message }) + '\n'
+  return Buffer.from(
+    JSON.stringify({ type, hasSucceeded, message }) + '\n'
+  )
 }
 
 console.log('Worklet setup complete')
