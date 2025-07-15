@@ -4,15 +4,25 @@ import { TouchableOpacity, StyleSheet, View, Platform } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
 import { useCameraPermissions } from 'expo-camera'
 import FramedStream from 'framed-stream'
+import b4a from 'b4a'
 
 import VideoCanvas from './VideoCanvas'
 import ThemedText from '../../components/ThemedText'
 
 const source = require('./ffmpeg.bundle')
 
+function isCpuInfo(data: Uint8Array): boolean {
+  return (
+    data[0] === 'c'.charCodeAt(0) &&
+    data[1] === 'p'.charCodeAt(0) &&
+    data[2] === 'u'.charCodeAt(0)
+  );
+}
+
 export default function FFmpegTest() {
   const [permission, requestPermission] = useCameraPermissions()
   const [data, setData] = useState<Uint8Array | null>(null)
+  const [cpuInfo, setCpuInfo] = useState<string>('')
 
   useEffect(() => {
     if (permission?.granted) {
@@ -28,7 +38,11 @@ export default function FFmpegTest() {
 
       const stream = new FramedStream(worklet.IPC)
       stream.on('data', (data: any) => {
-        setData(data)
+        if (isCpuInfo(data)) {
+          setCpuInfo(b4a.toString(data.subarray(3)))
+        } else {
+          setData(data)
+        }
       })
 
       return () => {
@@ -59,6 +73,7 @@ export default function FFmpegTest() {
   return (
     <View style={{ flex: 1 }}>
       {data ? <VideoCanvas data={data} /> : <ThemedText>No video</ThemedText>}
+      <ThemedText style={[styles.stats]}>{`${cpuInfo}`}</ThemedText>
     </View>
   )
 }
@@ -116,5 +131,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     color: '#666'
+  },
+  stats: {
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 20
   }
 })
