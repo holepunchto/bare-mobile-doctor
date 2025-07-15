@@ -1,17 +1,15 @@
 import React, { useState, useEffect } from 'react'
 import { Text, TouchableOpacity, StyleSheet, View } from 'react-native'
 
-import { Worklet } from 'react-native-bare-kit'
-import b4a from 'b4a'
-
 import ThemedText from '../../components/ThemedText'
 import { formatTime } from '../../utils/date'
 import usePerf from '../../hooks/usePerf'
+import useWorklet from '../../hooks/useWorklet'
 
 const source = require('./ipc.bundle')
 
 export default function IPCTests() {
-  const worklet = React.useRef(new Worklet()).current
+  const [write, response] = useWorklet(['ipc.bundle', source])
   const [isRunning, setIsRunning] = useState(false)
   const { start: startTimer, stop: stopTimer } = usePerf()
   const [timings, setTimings] = useState<Record<string, number>>({})
@@ -23,31 +21,20 @@ export default function IPCTests() {
   const [cpuData, setCpuData] = useState('')
 
   useEffect(() => {
-    worklet.start('ipc.bundle', source)
-
-    const { IPC } = worklet
-
-    IPC.on('data', (data: string) => {
-      try {
-        const stringData = b4a.toString(data)
-        const messages = stringData.split('-').filter(Boolean)
-        messages.forEach((rawMessage) => {
-          const message = JSON.parse(rawMessage)
-          if (message.summary) {
-            setCpuData(message.summary)
-          } else {
-            setMessagesReceived((prev) => prev + 1)
-          }
-        })
-      } catch (err) {
-        console.error('Failed to parse response:', err)
-      }
-    })
-
-    return () => {
-      if (worklet.terminate) worklet.terminate()
+    try {
+      const messages = response.split('-').filter(Boolean)
+      messages.forEach((rawMessage) => {
+        const message = JSON.parse(rawMessage)
+        if (message.summary) {
+          setCpuData(message.summary)
+        } else {
+          setMessagesReceived((prev) => prev + 1)
+        }
+      })
+    } catch (err) {
+      console.error('Failed to parse response:', err)
     }
-  }, [])
+  }, [response])
 
   useEffect(() => {
     if (messagesReceived >= numCalls) {
@@ -100,14 +87,13 @@ export default function IPCTests() {
   }
 
   const runNextTest = () => {
-    const { IPC } = worklet
     const mode = modes[0]
     console.log('running test', mode)
     startTimer()
     for (let i = 0; i < numCalls; i++) {
       const message =
         JSON.stringify({ msg: `Hello world ${i}`, workType: mode }) + '-'
-      IPC.write(b4a.from(message))
+      write(message)
       setMessagesSent((prev) => prev + 1)
     }
   }
