@@ -1,43 +1,34 @@
 import React, { useState, useEffect } from 'react'
 import { TouchableOpacity, StyleSheet, View, Platform } from 'react-native'
 
-import { Worklet } from 'react-native-bare-kit'
+import useWorklet from '../../hooks/useWorklet'
 import ThemedText from '../../components/ThemedText'
-import b4a from 'b4a'
 
 const source = require('./os.bundle')
 
 export default function HypercoreTests() {
-  const worklet = React.useRef(new Worklet()).current
+  const [write, response] = useWorklet(['os.bundle', source, [Platform.OS]])
   const [isRunning, setIsRunning] = useState(false)
   const [stats, setStats] = useState(null)
   const [type, setType] = useState('cpu')
 
   useEffect(() => {
-    worklet.start('os.bundle', source, [Platform.OS])
-
-    const { IPC } = worklet
-
-    IPC.on('data', (data: string) => {
-      try {
-        let message = JSON.parse(b4a.toString(data))
+    try {
+      if (response !== '') {
+        let message = JSON.parse(response)
         setStats(message)
         setIsRunning(false)
-      } catch (err) {
-        console.error('Failed to parse response:', err)
       }
-    })
-
-    return () => {
-      if (worklet.terminate) worklet.terminate()
+    } catch (err) {
+      console.error('Failed to parse response:', err)
     }
-  }, [])
+  }, [response])
 
   const runTests = async () => {
     if (isRunning) return
     setIsRunning(true)
     const startMessage = JSON.stringify({ type })
-    worklet.IPC.write(b4a.from(startMessage))
+    write(startMessage)
   }
 
   return (

@@ -2,11 +2,11 @@ import { useRef, useEffect, useState } from 'react'
 import { Worklet } from 'react-native-bare-kit'
 import b4a from 'b4a'
 
-const noop = () => {}
+const noop = (data: unknown) => {}
 
 export default function useWorklet(
   startArgs: Parameters<Worklet['start']>
-): Worklet['IPC']['write'] {
+): [(data: unknown) => void, string] {
   const worklet = useRef(new Worklet()).current
 
   const [write, setWrite] = useState(() => noop)
