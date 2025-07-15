@@ -1,8 +1,7 @@
 import React, { useEffect } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 
-import { Worklet } from 'react-native-bare-kit'
-import b4a from 'b4a'
+import useWorklet from '../../hooks/useWorklet'
 
 const source = require('./udx.bundle')
 
@@ -44,55 +43,44 @@ const ErrorList = ({ errors }: { errors: string[] }) => {
 }
 
 export default function UDXTests() {
+  const [write, response] = useWorklet(['udx.bundle', source])
   const [isRunning, setIsRunning] = React.useState(false)
   const [socketTestsHasSucceeded, setSocketTestsHasSucceeded] =
     React.useState(null)
   const [streamTestsHasSucceeded, setStreamTestsHasSucceeded] =
     React.useState(null)
-  const worklet = React.useRef(new Worklet()).current
   const [errors, setErrors] = React.useState<string[]>([])
 
   useEffect(() => {
-    worklet.start('udx.bundle', source)
+    try {
+      const messages = response.split('\n').filter(Boolean)
 
-    const { IPC } = worklet
-    IPC.on('data', (data: string) => {
-      try {
-        const dataString = b4a.toString(data)
-        const messages = dataString.split('\n').filter(Boolean)
-
-        messages.forEach((message) => {
-          const jsonMessage = JSON.parse(message)
-          if (jsonMessage.type === 'socket') {
-            setSocketTestsHasSucceeded(jsonMessage.hasSucceeded)
-            if (!jsonMessage.hasSucceeded && jsonMessage.message) {
-              setErrors((errors) => [...errors, jsonMessage.message])
-            }
+      messages.forEach((message) => {
+        const jsonMessage = JSON.parse(message)
+        if (jsonMessage.type === 'socket') {
+          setSocketTestsHasSucceeded(jsonMessage.hasSucceeded)
+          if (!jsonMessage.hasSucceeded && jsonMessage.message) {
+            setErrors((errors) => [...errors, jsonMessage.message])
           }
-          if (jsonMessage.type === 'stream') {
-            setStreamTestsHasSucceeded(jsonMessage.hasSucceeded)
-            if (!jsonMessage.hasSucceeded && jsonMessage.message) {
-              setErrors((errors) => [...errors, jsonMessage.message])
-            }
+        }
+        if (jsonMessage.type === 'stream') {
+          setStreamTestsHasSucceeded(jsonMessage.hasSucceeded)
+          if (!jsonMessage.hasSucceeded && jsonMessage.message) {
+            setErrors((errors) => [...errors, jsonMessage.message])
           }
-        })
-      } catch (err) {
-        console.error('Failed to parse response:', err)
-      } finally {
-        setIsRunning(false)
-      }
-    })
-
-    return () => {
-      if (worklet.terminate) worklet.terminate()
+        }
+      })
+    } catch (err) {
+      console.error('Failed to parse response:', err)
+    } finally {
+      setIsRunning(false)
     }
-  }, [])
+  }, [response])
 
   const runTests = () => {
-    const { IPC } = worklet
     setIsRunning(true)
-    IPC.write(b4a.from('stream'))
-    IPC.write(b4a.from('socket'))
+    write('stream')
+    write('socket')
   }
 
   return (
