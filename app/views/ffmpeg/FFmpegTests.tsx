@@ -16,7 +16,7 @@ function isCpuInfo(data: Uint8Array): boolean {
     data[0] === 'c'.charCodeAt(0) &&
     data[1] === 'p'.charCodeAt(0) &&
     data[2] === 'u'.charCodeAt(0)
-  );
+  )
 }
 
 export default function FFmpegTest() {
