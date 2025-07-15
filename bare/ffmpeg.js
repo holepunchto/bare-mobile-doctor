@@ -102,7 +102,6 @@ Bare.on('exit', () => {
 })
 
 setInterval(() => {
-  console.log('interval CPU')
   cpu()
 }, 1000)
 
