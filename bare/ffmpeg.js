@@ -1,17 +1,27 @@
 const ffmpeg = require('bare-ffmpeg')
 const b4a = require('b4a')
 const FramedStream = require('framed-stream')
+const top = require('process-top')
 
 let debug = Bare.argv[0] === 'true'
 let deviceIndex = Bare.argv[1] === 'front' ? '1' : '0'
+const processTop = new top()
+const ipc = new FramedStream(BareKit.IPC)
 
 function log(...message) {
   if (debug) console.log(...message)
 }
 
-log('Worklet ready!')
+function cpu() {
+  const cpuInfo = processTop.toString()
+  const prefix = Buffer.from('cpu')
+  const body = Buffer.from(cpuInfo)
+  const message = Buffer.concat([prefix, body])
+  ipc.write(message)
+  log('cpu info sent')
+}
 
-const ipc = new FramedStream(BareKit.IPC)
+log('Worklet ready!')
 
 const options = new ffmpeg.Dictionary()
 if (Bare.platform === 'ios') {
@@ -91,6 +101,10 @@ Bare.on('exit', () => {
   toRGBA.destroy()
 })
 
+setInterval(() => {
+  cpu()
+}, 1000)
+
 // Main loop
 setInterval(() => {
   try {
@@ -98,8 +112,6 @@ setInterval(() => {
     let ret = inputFormatContext.readFrame(packet)
     log('1 - read frame', ret)
     if (!ret) return
-
-    log('packet.buffer size:', packet.data?.length || 0)
 
     ret = decoder.sendPacket(packet)
     log('2 - send packet', ret)
