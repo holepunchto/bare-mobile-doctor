@@ -11,8 +11,8 @@ import {
 
 import ThemedText from '../../components/ThemedText'
 
-const width = Platform.OS === 'ios' ? 352 : 640
-const height = Platform.OS === 'ios' ? 288 : 480
+const width = (Platform.OS === 'ios' ? 352 : 640) / 2
+const height = (Platform.OS === 'ios' ? 288 : 480) / 2
 
 function createImage(data: Uint8Array): Uint8Array | null {
   if (!data || !data.length) {

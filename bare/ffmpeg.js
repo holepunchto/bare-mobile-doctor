@@ -76,8 +76,8 @@ log('Get decoder')
 
 const rawFrame = new ffmpeg.Frame()
 const rgbaFrame = new ffmpeg.Frame()
-rgbaFrame.width = decoder.width
-rgbaFrame.height = decoder.height
+rgbaFrame.width = decoder.width / 2
+rgbaFrame.height = decoder.height / 2
 rgbaFrame.pixelFormat = ffmpeg.constants.pixelFormats.RGBA
 rgbaFrame.alloc()
 
@@ -88,8 +88,8 @@ const toRGBA = new ffmpeg.Scaler(
   decoder.width,
   decoder.height,
   ffmpeg.constants.pixelFormats.RGBA,
-  decoder.width,
-  decoder.height
+  decoder.width / 2,
+  decoder.height / 2
 )
 
 log('Scaler set')
@@ -123,8 +123,8 @@ setInterval(() => {
 
       const image = new ffmpeg.Image(
         ffmpeg.constants.pixelFormats.RGBA,
-        decoder.width,
-        decoder.height
+        decoder.width / 2,
+        decoder.height / 2
       )
       log('4 - create image')
 
