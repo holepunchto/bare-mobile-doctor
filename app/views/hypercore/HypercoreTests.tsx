@@ -17,10 +17,10 @@ import { formatTime } from '../../utils/date'
 
 const source = require('./hypercore.bundle')
 
-export default function HyperdbTests() {
+export default function HypercoreTests() {
   // State
   const bareDir = useBareDir()
-  const [request, init] = useWorkletRPC('hypercore.bundle', source)
+  const [request, init] = useWorkletRPC(['hypercore.bundle', source])
 
   const [isRunning, setIsRunning] = useState(false)
   const [recordsSent, setRecordsSent] = useState(0)

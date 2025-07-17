@@ -5,11 +5,14 @@ import ThemedText from '../../components/ThemedText'
 import { formatTime } from '../../utils/date'
 import usePerf from '../../hooks/usePerf'
 import useWorklet from '../../hooks/useWorklet'
+import useWorkletIPC from '../../hooks/useWorkletIPC'
 
 const source = require('./ipc.bundle')
 
 export default function IPCTests() {
-  const [write, response] = useWorklet(['ipc.bundle', source])
+  const IPC = useWorklet(['ipc.bundle', source])
+  const [write, response] = useWorkletIPC(IPC)
+
   const [isRunning, setIsRunning] = useState(false)
   const { start: startTimer, stop: stopTimer } = usePerf()
   const [timings, setTimings] = useState<Record<string, number>>({})

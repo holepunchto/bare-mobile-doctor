@@ -1,31 +1,28 @@
 import { useRef, useEffect, useState } from 'react'
 import { Worklet } from 'react-native-bare-kit'
-import b4a from 'b4a'
-
-const noop = (data: unknown) => {}
 
 export default function useWorklet(
-  startArgs: Parameters<Worklet['start']>
-): [(data: unknown) => void, string] {
+  startArgs: Parameters<Worklet['start']>,
+  async: boolean = false
+) {
   const worklet = useRef(new Worklet()).current
-
-  const [write, setWrite] = useState(() => noop)
-  const [response, setResponse] = useState('')
+  const [IPC, setIPC] = useState<Worklet['IPC'] | null>(null)
 
   useEffect(() => {
-    worklet.start(...startArgs)
-
-    setWrite(() => (data: unknown) => {
-      setResponse('')
-      worklet.IPC.write(b4a.from(data))
-    })
-
-    worklet.IPC.on('data', (data: string) => setResponse(b4a.toString(data)))
+    if (async === false) {
+      worklet.start(...startArgs)
+      setIPC(worklet.IPC)
+    }
 
     return () => {
-      if (worklet.terminate) worklet.terminate()
+      if (worklet?.terminate) worklet.terminate()
     }
   }, [])
 
-  return [write, response]
+  const init = (asyncArgs: string[]) => {
+    worklet.start(startArgs[0], startArgs[1], asyncArgs)
+    setIPC(worklet.IPC)
+  }
+
+  return async ? [IPC, init] : IPC
 }

@@ -2,12 +2,15 @@ import React, { useState, useEffect } from 'react'
 import { TouchableOpacity, StyleSheet, View, Platform } from 'react-native'
 
 import useWorklet from '../../hooks/useWorklet'
+import useWorkletIPC from '../../hooks/useWorkletIPC'
 import ThemedText from '../../components/ThemedText'
 
 const source = require('./os.bundle')
 
 export default function HypercoreTests() {
-  const [write, response] = useWorklet(['os.bundle', source, [Platform.OS]])
+  const IPC = useWorklet(['os.bundle', source, [Platform.OS]])
+  const [write, response] = useWorkletIPC(IPC)
+
   const [isRunning, setIsRunning] = useState(false)
   const [stats, setStats] = useState(null)
   const [type, setType] = useState('cpu')

@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from 'react'
 import { TouchableOpacity, StyleSheet, View } from 'react-native'
 
-import { Worklet } from 'react-native-bare-kit'
-import b4a from 'b4a'
-
-import useBareDir from '../../hooks/useBareDir'
 import usePerf from '../../hooks/usePerf'
+import useBareDir from '../../hooks/useBareDir'
+import useWorklet from '../../hooks/useWorklet'
+import useWorkletIPC from '../../hooks/useWorkletIPC'
 import ThemedText from '../../components/ThemedText'
 import { formatTime } from '../../utils/date'
 
 const source = require('./hyperdb.bundle')
 
 export default function HyperdbTests() {
-  const worklet = React.useRef(new Worklet()).current
+  const [IPC, init] = useWorklet(['hyperdb.bundle', source], true)
+  const [write, response] = useWorkletIPC(IPC)
+  const bareDir = useBareDir()
+
   const [isRunning, setIsRunning] = useState(false)
   const [recordsSent, setRecordsSent] = useState(0)
   const [recordsReceived, setRecordsReceived] = useState(0)
@@ -24,35 +26,26 @@ export default function HyperdbTests() {
   const isButtonDisabled = isRunning || modes.length === 0
 
   useEffect(() => {
-    const setup = async () => {
-      const bareDir = await useBareDir()
-      worklet.start('hyperdb.bundle', source, [bareDir])
+    if (bareDir) init([bareDir])
+  }, [bareDir])
 
-      const { IPC } = worklet
-
-      IPC.on('data', (data: string) => {
-        try {
-          data = JSON.parse(b4a.toString(data))
-          if (data.id) {
-            console.log(data)
-            let records = data.id
-            console.log('Records created', records)
-            setRecordsReceived((prev) => prev + records)
-          } else {
-            setCpuData(data || '')
-          }
-        } catch (err) {
-          console.error('Failed to parse response:', err)
+  useEffect(() => {
+    if (response) {
+      try {
+        const data = JSON.parse(response)
+        if (data.id) {
+          console.log(data)
+          let records = data.id
+          console.log('Records created', records)
+          setRecordsReceived((prev) => prev + records)
+        } else {
+          setCpuData(data || '')
         }
-      })
+      } catch (err) {
+        console.error('Failed to parse response:', err)
+      }
     }
-
-    setup()
-
-    return () => {
-      if (worklet.terminate) worklet.terminate()
-    }
-  }, [])
+  }, [response])
 
   useEffect(() => {
     if (recordsReceived >= numCalls) {
@@ -97,25 +90,21 @@ export default function HyperdbTests() {
   }
 
   const runNextTest = () => {
-    const { IPC } = worklet
     const mode = modes[0]
     console.log('running test', mode)
     startTimer()
     const message = JSON.stringify({ recordsAmount: numCalls, workType: mode })
-    IPC.write(b4a.from(message))
+    write(message)
     setRecordsSent(numCalls)
   }
 
   useEffect(() => {
-    const { IPC } = worklet
-
     const intervalId = setInterval(() => {
-      const message = JSON.stringify({ workType: 'cpu' })
-      IPC.write(b4a.from(message))
+      if (write) write(JSON.stringify({ workType: 'cpu' }))
     }, 1000)
 
     return () => clearInterval(intervalId)
-  }, [])
+  }, [write])
 
   const toggleMode = (mode: string) => {
     setModes((prev) =>

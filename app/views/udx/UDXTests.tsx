@@ -2,6 +2,7 @@ import React, { useEffect } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 
 import useWorklet from '../../hooks/useWorklet'
+import useWorkletIPC from '../../hooks/useWorkletIPC'
 
 const source = require('./udx.bundle')
 
@@ -43,7 +44,9 @@ const ErrorList = ({ errors }: { errors: string[] }) => {
 }
 
 export default function UDXTests() {
-  const [write, response] = useWorklet(['udx.bundle', source])
+  const IPC = useWorklet(['udx.bundle', source])
+  const [write, response] = useWorkletIPC(IPC)
+
   const [isRunning, setIsRunning] = React.useState(false)
   const [socketTestsHasSucceeded, setSocketTestsHasSucceeded] =
     React.useState(null)
