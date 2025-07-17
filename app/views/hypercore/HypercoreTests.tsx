@@ -6,25 +6,22 @@ import {
   ActivityIndicator,
   useColorScheme
 } from 'react-native'
-import { Worklet } from 'react-native-bare-kit'
-import RPC from 'bare-rpc'
+
 import { RPC_CPU, RPC_WRITE, RPC_READ, RPC_INIT } from '../../utils/commands.js'
 
 import useBareDir from '../../hooks/useBareDir'
+import useWorkletRPC from '../../hooks/useWorkletRPC'
 import usePerf from '../../hooks/usePerf'
 import ThemedText from '../../components/ThemedText'
 import { formatTime } from '../../utils/date'
-import b4a from 'b4a'
 
 const source = require('./hypercore.bundle')
 
 export default function HyperdbTests() {
-  // Refs
-  const worklet = React.useRef(new Worklet()).current
-  const { IPC } = worklet
-  const rpcRef = React.useRef(null)
-
   // State
+  const bareDir = useBareDir()
+  const [request, init] = useWorkletRPC('hypercore.bundle', source)
+
   const [isRunning, setIsRunning] = useState(false)
   const [recordsSent, setRecordsSent] = useState(0)
   const [recordsReceived, setRecordsReceived] = useState(0)
@@ -37,17 +34,8 @@ export default function HyperdbTests() {
   const isButtonDisabled = isRunning || modes.length === 0 || !isInitialized
 
   useEffect(() => {
-    const setup = async () => {
-      const bareDir = await useBareDir()
-      worklet.start('./hypercore.bundle', source, [bareDir])
-      rpcRef.current = new RPC(IPC, (req) => {})
-    }
-    setup()
-
-    return () => {
-      if (worklet.terminate) worklet.terminate()
-    }
-  }, [])
+    if (bareDir) init([bareDir])
+  }, [bareDir])
 
   useEffect(() => {
     if (recordsReceived >= numCalls) {
@@ -75,41 +63,29 @@ export default function HyperdbTests() {
         setIsRunning(false)
       }
     }
-  }, [modes])
+  }, [modes, request])
 
   useEffect(() => {
     const intervalId = setInterval(async () => {
-      const rpc = rpcRef.current
-      const req = rpc.request(RPC_CPU)
-      req.send('PING')
-      const data = b4a.toString(await req.reply())
-      setCpuData(data || '')
+      if (request) {
+        const pong = await request(RPC_CPU, ['PING'])
+        setCpuData(pong || '')
+      }
     }, 1000)
 
     return () => clearInterval(intervalId)
-  }, [])
+  }, [request])
 
   useEffect(() => {
-    const checkRpc = () => {
-      const rpc = rpcRef.current
-
-      if (rpc) {
-        const req = rpc.request(RPC_INIT)
-        req.send('PING')
-        const ping = async () => {
-          const data = b4a.toString(await req.reply())
-          setIsInitialized(true)
-        }
-
-        ping()
-        clearInterval(intervalId)
+    if (request) {
+      const run = async () => {
+        await request(RPC_INIT, ['PING'])
+        setIsInitialized(true)
       }
+
+      run()
     }
-
-    const intervalId = setInterval(checkRpc, 1000)
-
-    return () => clearInterval(intervalId)
-  }, [])
+  }, [request])
 
   const resetMessages = () => {
     setRecordsSent(0)
@@ -126,19 +102,13 @@ export default function HyperdbTests() {
   }
 
   const runNextTest = async () => {
-    const rpc = rpcRef.current
-    if (!rpc) {
-      console.log('RPC not initialized')
-      return
-    }
     const mode = modes[0]
 
     const rpcmod = mode === 'write' ? RPC_WRITE : RPC_READ
     startTimer()
-    const req = rpc.request(rpcmod)
-    req.send(`${numCalls}`)
+
     setRecordsSent(numCalls)
-    const records = b4a.toString(await req.reply())
+    const records = await request(rpcmod, [`${numCalls}`])
     setRecordsReceived((prev) => prev + records)
   }
 
