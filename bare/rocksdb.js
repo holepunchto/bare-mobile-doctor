@@ -1,16 +1,17 @@
 const RocksDB = require('rocksdb-native')
 const tmp = require('test-tmp')
-const assert = require('bare-assert')
 
 const { IPC } = BareKit
 
-IPC.on('data', () => {
-  rocksDbTest()
-    .then(() => IPC.write(result(true)))
-    .catch((e) => IPC.write(result(false, e.message)))
+IPC.on('data', (data) => {
+  const { payload } = JSON.parse(data)
+
+  rocksDbTest(payload)
+    .then((response) => IPC.write(result(response.toString())))
+    .catch((e) => IPC.write(result(null, e.message)))
 })
 
-async function rocksDbTest() {
+async function rocksDbTest(payload) {
   let db
 
   try {
@@ -19,7 +20,7 @@ async function rocksDbTest() {
 
     {
       const batch = db.write()
-      const p = batch.put('hello', 'world')
+      const p = batch.put('default', payload)
       await batch.flush()
       batch.destroy()
 
@@ -27,12 +28,11 @@ async function rocksDbTest() {
     }
     {
       const batch = db.read()
-      const p = batch.get('hello')
+      const p = batch.get('default')
       await batch.flush()
       batch.destroy()
 
-      assert((await p).equals(Buffer.from('world')))
-      return true
+      return await p
     }
   } catch (e) {
     throw e
@@ -41,6 +41,6 @@ async function rocksDbTest() {
   }
 }
 
-function result(hasSucceeded, message = null) {
-  return Buffer.from(JSON.stringify({ hasSucceeded, message }) + '\n')
+function result(response, message = null) {
+  return Buffer.from(JSON.stringify({ response, message }) + '\n')
 }

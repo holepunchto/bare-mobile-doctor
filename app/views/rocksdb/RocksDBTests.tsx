@@ -47,7 +47,9 @@ export default function RocksDBTests() {
   const worklet = React.useRef(new Worklet()).current
 
   const [isRunning, setIsRunning] = React.useState(false)
-  const [readWriteHasSucceeded, setReadWriteHasSucceeded] = React.useState(null)
+  const [readWriteHasSucceeded, setReadWriteHasSucceeded] = React.useState<
+    boolean | null
+  >(null)
   const [errors, setErrors] = React.useState<string[]>([])
 
   useEffect(() => {
@@ -62,8 +64,10 @@ export default function RocksDBTests() {
         messages.forEach((message) => {
           const jsonMessage = JSON.parse(message)
 
-          setReadWriteHasSucceeded(jsonMessage.hasSucceeded)
-          if (!jsonMessage.hasSucceeded && jsonMessage.message) {
+          const hasSucceeded = jsonMessage.response === 'hello world'
+          setReadWriteHasSucceeded(hasSucceeded)
+
+          if (!hasSucceeded && jsonMessage.message) {
             setErrors((errors) => [...errors, jsonMessage.message])
           }
         })
@@ -82,7 +86,9 @@ export default function RocksDBTests() {
   const runTests = () => {
     const { IPC } = worklet
     setIsRunning(true)
-    IPC.write(b4a.from('read/write'))
+    IPC.write(
+      b4a.from(JSON.stringify({ test: 'read/write', payload: 'hello world' }))
+    )
   }
 
   return (
