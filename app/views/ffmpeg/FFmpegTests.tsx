@@ -10,8 +10,6 @@ import VideoCanvas from './VideoCanvas'
 import ThemedText from '../../components/ThemedText'
 
 const source = require('./ffmpeg.bundle')
-const width = (Platform.OS === 'ios' ? 352 : 640) / 2
-const height = (Platform.OS === 'ios' ? 288 : 480) / 2
 
 function isCpuInfo(data: Uint8Array): boolean {
   return (
@@ -25,6 +23,10 @@ export default function FFmpegTest() {
   const [permission, requestPermission] = useCameraPermissions()
   const [data, setData] = useState<Uint8Array | null>(null)
   const [cpuInfo, setCpuInfo] = useState<string>('')
+  const [width, setWidth] = useState<number>(Platform.OS === 'ios' ? 352 : 640)
+  const [height, setHeight] = useState<number>(
+    Platform.OS === 'ios' ? 288 : 480
+  )
   const [isDownScaled, setDownScale] = useState<boolean>(false)
   const stream = useRef<any>(null)
 
@@ -89,6 +91,8 @@ export default function FFmpegTest() {
               buf[1] = 'p'.charCodeAt(0)
             }
             stream.current.write(buf)
+            setWidth(isDownScaled ? width * 2 : width / 2)
+            setHeight(isDownScaled ? height * 2 : height / 2)
             setDownScale(!isDownScaled)
           }}
         >
