@@ -81,8 +81,8 @@ log('Get decoder')
 
 const rawFrame = new ffmpeg.Frame()
 const rgbaFrame = new ffmpeg.Frame()
-rgbaFrame.width = decoder.width / 2
-rgbaFrame.height = decoder.height / 2
+rgbaFrame.width = decoder.width
+rgbaFrame.height = decoder.height
 rgbaFrame.pixelFormat = ffmpeg.constants.pixelFormats.RGBA
 rgbaFrame.alloc()
 
@@ -93,9 +93,18 @@ const toRGBA = new ffmpeg.Scaler(
   decoder.width,
   decoder.height,
   ffmpeg.constants.pixelFormats.RGBA,
+  decoder.width,
+  decoder.height
+)
+const toDowngradedRGBA = new ffmpeg.Scaler(
+  decoder.pixelFormat,
+  decoder.width,
+  decoder.height,
+  ffmpeg.constants.pixelFormats.RGBA,
   decoder.width / 2,
   decoder.height / 2
 )
+let scaler = toRGBA
 
 log('Scaler set')
 
@@ -109,7 +118,15 @@ Bare.on('exit', () => {
 ipc.on('data', (data) => {
   isDownScaled = isDownScale(data) ? true : false
 
-  console.log({ isDownScaled })
+  if (isDownScaled) {
+    scaler = toDowngradedRGBA
+    rgbaFrame.height = rgbaFrame.height / 2
+    rgbaFrame.width = rgbaFrame.width / 2
+  } else {
+    scaler = toRGBA
+    rgbaFrame.height = rgbaFrame.height * 2
+    rgbaFrame.width = rgbaFrame.width * 2
+  }
 })
 
 setInterval(() => {
@@ -134,15 +151,15 @@ setInterval(() => {
 
       const image = new ffmpeg.Image(
         ffmpeg.constants.pixelFormats.RGBA,
-        decoder.width / 2,
-        decoder.height / 2
+        isDownScaled ? decoder.width / 2 : decoder.width, // try with rgbaFrame
+        isDownScaled ? decoder.height / 2 : decoder.height
       )
       log('4 - create image')
 
       image.fill(rgbaFrame)
       log('5 - fill  image')
 
-      toRGBA.scale(rawFrame, rgbaFrame)
+      scaler.scale(rawFrame, rgbaFrame)
       log('6 - scale to rgba frame')
 
       log('7 - use buffer from image', image.data)
