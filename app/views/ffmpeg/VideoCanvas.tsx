@@ -11,10 +11,11 @@ import {
 
 import ThemedText from '../../components/ThemedText'
 
-const width = (Platform.OS === 'ios' ? 352 : 640) / 2
-const height = (Platform.OS === 'ios' ? 288 : 480) / 2
-
-function createImage(data: Uint8Array): Uint8Array | null {
+function createImage(
+  data: Uint8Array,
+  width: number,
+  height: number
+): Uint8Array | null {
   if (!data || !data.length) {
     return null
   }
@@ -38,11 +39,19 @@ function createImage(data: Uint8Array): Uint8Array | null {
   }
 }
 
-const VideoCanvas = ({ data }: { data: Uint8Array | null }) => {
+const VideoCanvas = ({
+  data,
+  width,
+  height
+}: {
+  data: Uint8Array | null
+  width: number
+  height: number
+}) => {
   const [image, setImage] = useState<Uint8Array | null>(null)
 
   useEffect(() => {
-    const image = createImage(data)
+    const image = createImage(data, width, height)
     setImage(image)
   }, [data])
 

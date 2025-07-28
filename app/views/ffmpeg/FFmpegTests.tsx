@@ -10,6 +10,8 @@ import VideoCanvas from './VideoCanvas'
 import ThemedText from '../../components/ThemedText'
 
 const source = require('./ffmpeg.bundle')
+const width = (Platform.OS === 'ios' ? 352 : 640) / 2
+const height = (Platform.OS === 'ios' ? 288 : 480) / 2
 
 function isCpuInfo(data: Uint8Array): boolean {
   return (
@@ -95,7 +97,11 @@ export default function FFmpegTest() {
           </ThemedText>
         </TouchableOpacity>
       </View>
-      {data ? <VideoCanvas data={data} /> : <ThemedText>No video</ThemedText>}
+      {data ? (
+        <VideoCanvas data={data} width={width} height={height} />
+      ) : (
+        <ThemedText>No video</ThemedText>
+      )}
       <ThemedText style={[styles.stats]}>{`${cpuInfo}`}</ThemedText>
     </View>
   )
