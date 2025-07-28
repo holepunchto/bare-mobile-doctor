@@ -5,8 +5,13 @@ const top = require('process-top')
 
 let debug = Bare.argv[0] === 'true'
 let deviceIndex = Bare.argv[1] === 'front' ? '1' : '0'
+let isDownScaled = false
 const processTop = new top()
 const ipc = new FramedStream(BareKit.IPC)
+
+function isDownScale(data) {
+  return data[0] === 'd'.charCodeAt(0) && data[1] === 'n'.charCodeAt(0)
+}
 
 function log(...message) {
   if (debug) console.log(...message)
@@ -99,6 +104,12 @@ Bare.on('exit', () => {
   rawFrame.destroy()
   rgbaFrame.destroy()
   toRGBA.destroy()
+})
+
+ipc.on('data', (data) => {
+  isDownScaled = isDownScale(data) ? true : false
+
+  console.log({ isDownScaled })
 })
 
 setInterval(() => {
