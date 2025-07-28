@@ -10,6 +10,7 @@ import HypercoreTests from './views/hypercore/HypercoreTests'
 import OSTests from './views/os/OSTests'
 import ChecksumTests from './views/checksum/ChecksumTests'
 import FFmpegTests from './views/ffmpeg/FFmpegTests'
+import RocksDBTests from './views/rocksdb/RocksDBTests'
 
 export type TestModule =
   | 'IPC'
@@ -20,6 +21,7 @@ export type TestModule =
   | 'Checksum'
   | 'OS'
   | 'FFmpeg'
+  | 'RocksDB'
 
 export default function () {
   const [activeModule, setActiveModule] = useState<TestModule>('OS')
@@ -42,6 +44,8 @@ export default function () {
         return <ChecksumTests />
       case 'FFmpeg':
         return <FFmpegTests />
+      case 'RocksDB':
+        return <RocksDBTests />
     }
   }
 
@@ -56,7 +60,8 @@ export default function () {
           'Hypercore',
           'Checksum',
           'OS',
-          'FFmpeg'
+          'FFmpeg',
+          'RocksDB'
         ]}
         activeModule={activeModule}
         onChangeModule={setActiveModule}
