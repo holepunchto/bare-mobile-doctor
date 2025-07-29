@@ -118,15 +118,9 @@ Bare.on('exit', () => {
 ipc.on('data', (data) => {
   isDownScaled = isDownScale(data) ? true : false
 
-  if (isDownScaled) {
-    scaler = toDowngradedRGBA
-    rgbaFrame.height = rgbaFrame.height / 2
-    rgbaFrame.width = rgbaFrame.width / 2
-  } else {
-    scaler = toRGBA
-    rgbaFrame.height = rgbaFrame.height * 2
-    rgbaFrame.width = rgbaFrame.width * 2
-  }
+  scaler = isDownScaled ? toDowngradedRGBA : toRGBA
+  rgbaFrame.width = isDownScaled ? rgbaFrame.width / 2 : rgbaFrame.width * 2
+  rgbaFrame.height = isDownScaled ? rgbaFrame.height / 2 : rgbaFrame.height * 2
 })
 
 setInterval(() => {

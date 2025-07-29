@@ -57,6 +57,21 @@ export default function FFmpegTest() {
     }
   }, [permission?.granted])
 
+  const updateScale = () => {
+    const buf = new Uint8Array(2)
+    if (!isDownScaled) {
+      buf[0] = 'd'.charCodeAt(0)
+      buf[1] = 'n'.charCodeAt(0)
+    } else {
+      buf[0] = 'u'.charCodeAt(0)
+      buf[1] = 'p'.charCodeAt(0)
+    }
+    stream.current.write(buf)
+    setWidth(isDownScaled ? width * 2 : width / 2)
+    setHeight(isDownScaled ? height * 2 : height / 2)
+    setDownScale(!isDownScaled)
+  }
+
   if (!permission) {
     return (
       <>
@@ -81,20 +96,7 @@ export default function FFmpegTest() {
       <View style={styles.controls}>
         <TouchableOpacity
           style={[styles.optionButton, isDownScaled && styles.selectedOption]}
-          onPress={() => {
-            const buf = new Uint8Array(2)
-            if (!isDownScaled) {
-              buf[0] = 'd'.charCodeAt(0)
-              buf[1] = 'n'.charCodeAt(0)
-            } else {
-              buf[0] = 'u'.charCodeAt(0)
-              buf[1] = 'p'.charCodeAt(0)
-            }
-            stream.current.write(buf)
-            setWidth(isDownScaled ? width * 2 : width / 2)
-            setHeight(isDownScaled ? height * 2 : height / 2)
-            setDownScale(!isDownScaled)
-          }}
+          onPress={updateScale}
         >
           <ThemedText style={styles.optionText}>
             {isDownScaled ? 'Upscale' : 'Downscale'}
