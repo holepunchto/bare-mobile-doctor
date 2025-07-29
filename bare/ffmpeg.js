@@ -151,8 +151,8 @@ setInterval(() => {
 
       const image = new ffmpeg.Image(
         ffmpeg.constants.pixelFormats.RGBA,
-        isDownScaled ? decoder.width / 2 : decoder.width, // try with rgbaFrame
-        isDownScaled ? decoder.height / 2 : decoder.height
+        rgbaFrame.width,
+        rgbaFrame.height
       )
       log('4 - create image')
 
