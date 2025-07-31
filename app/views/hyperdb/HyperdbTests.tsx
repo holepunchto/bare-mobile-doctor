@@ -13,7 +13,6 @@ const source = require('./hyperdb.bundle')
 export default function HyperdbTests() {
   const [IPC, init] = useWorklet(['hyperdb.bundle', source], true)
   const [write, response] = useWorkletIPC(IPC)
-  const bareDir = useBareDir()
 
   const [isRunning, setIsRunning] = useState(false)
   const [recordsSent, setRecordsSent] = useState(0)
@@ -26,8 +25,9 @@ export default function HyperdbTests() {
   const isButtonDisabled = isRunning || modes.length === 0
 
   useEffect(() => {
-    if (bareDir) init([bareDir])
-  }, [bareDir])
+    const setup = async () => init([await useBareDir()])
+    setup()
+  }, [])
 
   useEffect(() => {
     if (response) {

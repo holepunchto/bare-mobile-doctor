@@ -19,7 +19,6 @@ const source = require('./hypercore.bundle')
 
 export default function HypercoreTests() {
   // State
-  const bareDir = useBareDir()
   const [request, init] = useWorkletRPC(['hypercore.bundle', source])
 
   const [isRunning, setIsRunning] = useState(false)
@@ -34,8 +33,9 @@ export default function HypercoreTests() {
   const isButtonDisabled = isRunning || modes.length === 0 || !isInitialized
 
   useEffect(() => {
-    if (bareDir) init([bareDir])
-  }, [bareDir])
+    const setup = async () => init([await useBareDir()])
+    setup()
+  }, [])
 
   useEffect(() => {
     if (recordsReceived >= numCalls) {
