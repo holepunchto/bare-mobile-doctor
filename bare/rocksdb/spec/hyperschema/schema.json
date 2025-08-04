@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "schema": [
+    {
+      "name": "a",
+      "namespace": "x",
+      "compact": false,
+      "flagsPosition": 7,
+      "fields": [
+        {
+          "name": "a",
+          "required": true,
+          "type": "string",
+          "version": 1
+        },
+        {
+          "name": "b",
+          "required": true,
+          "type": "uint",
+          "version": 1
+        },
+        {
+          "name": "c",
+          "required": true,
+          "type": "string",
+          "version": 1
+        },
+        {
+          "name": "d",
+          "required": true,
+          "type": "uint",
+          "version": 1
+        },
+        {
+          "name": "e",
+          "required": true,
+          "type": "string",
+          "version": 1
+        },
+        {
+          "name": "f",
+          "required": true,
+          "type": "string",
+          "version": 1
+        },
+        {
+          "name": "g",
+          "required": true,
+          "type": "uint",
+          "version": 1
+        },
+        {
+          "name": "h",
+          "required": false,
+          "type": "uint",
+          "version": 1
+        },
+        {
+          "name": "i",
+          "required": false,
+          "type": "uint",
+          "version": 1
+        },
+        {
+          "name": "j",
+          "required": false,
+          "type": "string",
+          "version": 1
+        },
+        {
+          "name": "k",
+          "required": false,
+          "type": "string",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "name": "b",
+      "namespace": "x",
+      "compact": false,
+      "flagsPosition": -1,
+      "fields": [
+        {
+          "name": "a",
+          "required": true,
+          "type": "string",
+          "version": 1
+        },
+        {
+          "name": "b",
+          "required": true,
+          "type": "uint",
+          "version": 1
+        },
+        {
+          "name": "c",
+          "required": true,
+          "type": "string",
+          "version": 1
+        },
+        {
+          "name": "d",
+          "required": true,
+          "type": "uint",
+          "version": 1
+        }
+      ]
+    }
+  ]
+}

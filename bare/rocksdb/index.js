@@ -1,46 +1,48 @@
-const RocksDB = require('rocksdb-native')
-const tmp = require('test-tmp')
+import HyperDB from 'hyperdb'
+import RocksDB from 'rocksdb-native'
+import spec from './spec/hyperdb/index.js'
 
-const { IPC } = BareKit
+const DURATION = 10 * 1000 // 10s
 
-IPC.on('data', (data) => {
-  const { payload } = JSON.parse(data)
+// await bench('./dbs/1e6', 1e6)
+// await bench('./dbs/1e5', 1e5)
+// await bench('./dbs/1e4', 1e4)
+// await benchRaw('./dbs/raw-1e6', 1e6)
+// await benchRaw('./dbs/raw-1e5', 1e5)
+// await benchRaw('./dbs/raw-1e4', 1e4)
 
-  rocksDbTest(payload)
-    .then((response) => IPC.write(result(response.toString())))
-    .catch((e) => IPC.write(result(null, e.message)))
-})
-
-async function rocksDbTest(payload) {
-  let db
-
-  try {
-    db = new RocksDB(await tmp())
-    await db.ready()
-
-    {
-      const batch = db.write()
-      const p = batch.put('default', payload)
-      await batch.flush()
-      batch.destroy()
-
-      await p
-    }
-    {
-      const batch = db.read()
-      const p = batch.get('default')
-      await batch.flush()
-      batch.destroy()
-
-      return await p
-    }
-  } catch (e) {
-    throw e
-  } finally {
-    db && (await db.close())
+async function bench (dir, count) {
+  const db = HyperDB.rocks(dir, spec)
+  const start = Date.now()
+  let duration = 0
+  let i = 0
+  while (true) {
+    const key = Math.floor(Math.random() * count)
+    const res = await db.get('@x/b', { b: key })
+    if (!res) throw new Error(`Key is not there but should be there: ${key}`)
+    i++
+    duration = Date.now() - start
+    if (duration >= DURATION) break
   }
+  const rate = (i / duration) * 1000
+  console.log(`(${dir}) Read ${i} records in ${duration / 1000}s (${rate} records/s)`)
+  await db.close()
 }
 
-function result(response, message = null) {
-  return Buffer.from(JSON.stringify({ response, message }) + '\n')
+async function benchRaw (dir, count) {
+  const db = new RocksDB(dir)
+  const start = Date.now()
+  let duration = 0
+  let i = 0
+  while (true) {
+    const key = '' + Math.floor(Math.random() * count)
+    const res = await db.get(key)
+    if (!res) throw new Error(`Key is not there but should be there: ${key}`)
+    i++
+    duration = Date.now() - start
+    if (duration >= DURATION) break
+  }
+  const rate = (i / duration) * 1000
+  console.log(`(${dir}) Read ${i} records in ${duration / 1000}s (${rate} records/s)`)
+  await db.close()
 }
