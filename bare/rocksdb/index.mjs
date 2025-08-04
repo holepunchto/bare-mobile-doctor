@@ -1,9 +1,16 @@
 import HyperDB from 'hyperdb'
 import RocksDB from 'rocksdb-native'
 import FramedStream from 'framed-stream'
+import fs from 'bare-fs'
 
 import spec from './spec/hyperdb/index.js'
 import { generateDatabase, generateRawDatabase } from './generate.mjs'
+
+// Get the base path from argv, similar to other modules
+let path = Bare.argv[0]
+if (path.includes('file://')) {
+  path = path.replace('file://', '')
+}
 
 const DURATION = 10 * 1000 // 10s
 const ipc = new FramedStream(BareKit.IPC)
@@ -36,11 +43,17 @@ async function handleGenerate(payload) {
   const { type, size } = payload
   
   try {
+    // Ensure the dbs directory exists using the base path
+    const dbsDir = path + '/dbs'
+    if (!fs.existsSync(dbsDir)) {
+      fs.mkdirSync(dbsDir, { recursive: true })
+    }
+    
     if (type === 'hyperdb') {
-      await generateDatabase(`./dbs/${size}`, size)
+      await generateDatabase(path + `/dbs/${size}`, size)
       sendResponse({ success: true, message: `Generated HyperDB database with ${size} records` })
     } else if (type === 'raw') {
-      await generateRawDatabase(`./dbs/raw-${size}`, size)
+      await generateRawDatabase(path + `/dbs/raw-${size}`, size)
       sendResponse({ success: true, message: `Generated raw RocksDB database with ${size} records` })
     } else {
       sendResponse({ error: 'Invalid type. Use "hyperdb" or "raw"' })
@@ -54,11 +67,17 @@ async function handleBench(payload) {
   const { type, size } = payload
   
   try {
+    // Ensure the dbs directory exists using the base path
+    const dbsDir = path + '/dbs'
+    if (!fs.existsSync(dbsDir)) {
+      fs.mkdirSync(dbsDir, { recursive: true })
+    }
+    
     let result
     if (type === 'hyperdb') {
-      result = await bench(`./dbs/${size}`, size)
+      result = await bench(path + `/dbs/${size}`, size)
     } else if (type === 'raw') {
-      result = await benchRaw(`./dbs/raw-${size}`, size)
+      result = await benchRaw(path + `/dbs/raw-${size}`, size)
     } else {
       sendResponse({ error: 'Invalid type. Use "hyperdb" or "raw"' })
       return

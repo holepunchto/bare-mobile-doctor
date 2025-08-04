@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import FramedStream from 'framed-stream'
 import { Worklet } from 'react-native-bare-kit'
 import b4a from 'b4a'
+import useBareDir from '../../hooks/useBareDir'
 
 const source = require('./rocksdb.bundle')
 
@@ -70,9 +71,11 @@ export default function RocksDBTests() {
   const [errors, setErrors] = React.useState<string[]>([])
 
   useEffect(() => {
-    worklet.start('rocksdb.bundle', source)
+    const setup = async () => {
+      const bareDir = await useBareDir()
+      worklet.start('rocksdb.bundle', source, [bareDir])
 
-    ipc.current = new FramedStream(worklet.IPC)
+      ipc.current = new FramedStream(worklet.IPC)
     ipc.current.on('data', (data: string) => {
       try {
         const dataString = b4a.toString(data)
@@ -99,6 +102,9 @@ export default function RocksDBTests() {
         setIsRunning(false)
       }
     })
+    }
+
+    setup()
 
     return () => {
       if (worklet.terminate) worklet.terminate()
