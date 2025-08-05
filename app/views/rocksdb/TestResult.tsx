@@ -1,5 +1,6 @@
 import React from 'react'
-import { View, Text, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet, useColorScheme } from 'react-native'
+import ThemedText from '../../components/ThemedText'
 
 interface BenchmarkResult {
   dir: string
@@ -21,6 +22,8 @@ function TestResult({
   isRunning,
   result
 }: TestResultProps) {
+  const colorScheme = useColorScheme()
+  const isDark = colorScheme === 'dark'
   const formatNumber = (num: number) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
     if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
@@ -44,19 +47,38 @@ function TestResult({
   }
 
   return (
-    <View style={styles.resultCard}>
+    <View
+      style={[
+        styles.resultCard,
+        { backgroundColor: isDark ? '#2d2d2d' : '#fff' }
+      ]}
+    >
       <View style={styles.cardHeader}>
         <View style={styles.databaseInfo}>
-          <Text style={styles.databaseType}>{getDatabaseType(testName)}</Text>
-          <Text style={styles.databaseSize}>{getDatabaseSize(testName)}</Text>
+          <ThemedText style={styles.databaseType}>
+            {getDatabaseType(testName)}
+          </ThemedText>
+          <ThemedText style={styles.databaseSize}>
+            {getDatabaseSize(testName)}
+          </ThemedText>
         </View>
         {isRunning ? (
-          <View style={styles.statusBadge}>
-            <Text style={styles.statusText}>⏳ Running</Text>
+          <View
+            style={[
+              styles.statusBadge,
+              { backgroundColor: isDark ? '#444' : '#f8f9fa' }
+            ]}
+          >
+            <ThemedText style={styles.statusText}>⏳ Running</ThemedText>
           </View>
         ) : hasSucceeded === null ? (
-          <View style={styles.statusBadge}>
-            <Text style={styles.statusText}>-</Text>
+          <View
+            style={[
+              styles.statusBadge,
+              { backgroundColor: isDark ? '#444' : '#f8f9fa' }
+            ]}
+          >
+            <ThemedText style={styles.statusText}>-</ThemedText>
           </View>
         ) : hasSucceeded ? (
           <View style={[styles.statusBadge, styles.successBadge]}>
@@ -70,23 +92,30 @@ function TestResult({
       </View>
 
       {result && (
-        <View style={styles.metricsContainer}>
+        <View
+          style={[
+            styles.metricsContainer,
+            { backgroundColor: isDark ? '#444' : '#f8f9fa' }
+          ]}
+        >
           <View style={styles.metricRow}>
             <View style={styles.metric}>
-              <Text style={styles.metricLabel}>Records Read</Text>
-              <Text style={styles.metricValue}>
+              <ThemedText style={styles.metricLabel}>Records Read</ThemedText>
+              <ThemedText style={styles.metricValue}>
                 {formatNumber(result.recordsRead)}
-              </Text>
+              </ThemedText>
             </View>
             <View style={styles.metric}>
-              <Text style={styles.metricLabel}>Duration</Text>
-              <Text style={styles.metricValue}>{result.duration}s</Text>
+              <ThemedText style={styles.metricLabel}>Duration</ThemedText>
+              <ThemedText style={styles.metricValue}>
+                {result.duration}s
+              </ThemedText>
             </View>
             <View style={styles.metric}>
-              <Text style={styles.metricLabel}>Rate</Text>
-              <Text style={styles.metricValue}>
+              <ThemedText style={styles.metricLabel}>Rate</ThemedText>
+              <ThemedText style={styles.metricValue}>
                 {formatNumber(result.rate)}/s
-              </Text>
+              </ThemedText>
             </View>
           </View>
         </View>
@@ -97,7 +126,6 @@ function TestResult({
 
 const styles = StyleSheet.create({
   resultCard: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 20,
     marginBottom: 15,
@@ -121,18 +149,15 @@ const styles = StyleSheet.create({
   databaseType: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#2c3e50',
     marginBottom: 2
   },
   databaseSize: {
-    fontSize: 14,
-    color: '#6c757d'
+    fontSize: 14
   },
   statusBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: '#f8f9fa'
+    borderRadius: 20
   },
   successBadge: {
     backgroundColor: '#d4edda',
@@ -144,8 +169,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    fontWeight: 'bold',
-    color: '#6c757d'
+    fontWeight: 'bold'
   },
   successText: {
     fontSize: 12,
@@ -158,7 +182,6 @@ const styles = StyleSheet.create({
     color: '#721c24'
   },
   metricsContainer: {
-    backgroundColor: '#f8f9fa',
     borderRadius: 8,
     padding: 15
   },
@@ -172,14 +195,12 @@ const styles = StyleSheet.create({
   },
   metricLabel: {
     fontSize: 12,
-    color: '#6c757d',
     marginBottom: 4,
     fontWeight: '500'
   },
   metricValue: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2c3e50'
+    fontWeight: 'bold'
   }
 })
 

@@ -4,7 +4,8 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView
+  ScrollView,
+  useColorScheme
 } from 'react-native'
 
 import FramedStream from 'framed-stream'
@@ -12,6 +13,7 @@ import { Worklet } from 'react-native-bare-kit'
 import b4a from 'b4a'
 
 import useBareDir from '../../hooks/useBareDir'
+import ThemedText from '../../components/ThemedText'
 import ExecutionLog from './ExecutionLog'
 import TestResult from './TestResult'
 
@@ -62,6 +64,8 @@ type Message = BenchmarkMessage | GenerationMessage | ErrorMessage
 export default function RocksDBTests() {
   const worklet = React.useRef<any>(null)
   const ipc = useRef<any>(null)
+  const colorScheme = useColorScheme()
+  const isDark = colorScheme === 'dark'
 
   const [isGenerating, setIsGenerating] = React.useState(false)
   const [isRunning, setIsRunning] = React.useState(false)
@@ -179,12 +183,22 @@ export default function RocksDBTests() {
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>🚀 RocksDB Benchmark</Text>
-        <Text style={styles.subtitle}>
+    <ScrollView
+      style={[
+        styles.container,
+        { backgroundColor: isDark ? '#1a1a1a' : '#f8f9fa' }
+      ]}
+    >
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: isDark ? '#2d2d2d' : '#fff' }
+        ]}
+      >
+        <ThemedText style={styles.title}>🚀 RocksDB Benchmark</ThemedText>
+        <ThemedText style={styles.subtitle}>
           Performance testing for HyperDB vs Raw RocksDB
-        </Text>
+        </ThemedText>
       </View>
 
       <View style={styles.buttonContainer}>
@@ -197,11 +211,11 @@ export default function RocksDBTests() {
           onPress={generateDatabases}
           disabled={isGenerating || isRunning}
         >
-          <Text style={styles.buttonText}>
+          <ThemedText style={styles.buttonText}>
             {isGenerating
               ? `🔄 Generating... (${generationProgress}/${expectedDatabases})`
               : '📊 Generate Databases'}
-          </Text>
+          </ThemedText>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -213,23 +227,35 @@ export default function RocksDBTests() {
           onPress={runBenchmarks}
           disabled={isGenerating || isRunning}
         >
-          <Text style={styles.buttonText}>
+          <ThemedText style={styles.buttonText}>
             {isRunning ? '⚡ Running...' : '🏃 Run Benchmarks'}
-          </Text>
+          </ThemedText>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.tipContainer}>
-        <Text style={styles.tipIcon}>💡</Text>
-        <Text style={styles.tipTitle}>Tip: Generate Databases First</Text>
-        <Text style={styles.tipText}>
+      <View
+        style={[
+          styles.tipContainer,
+          {
+            backgroundColor: isDark ? '#2d2d2d' : '#fff3cd',
+            borderColor: isDark ? '#444' : '#ffeaa7'
+          }
+        ]}
+      >
+        <ThemedText style={styles.tipIcon}>💡</ThemedText>
+        <ThemedText style={styles.tipTitle}>
+          Tip: Generate Databases First
+        </ThemedText>
+        <ThemedText style={styles.tipText}>
           Before running benchmarks, you need to generate the test databases.
           Click "Generate Databases" to create the required data files.
-        </Text>
+        </ThemedText>
       </View>
 
       <View style={styles.resultsContainer}>
-        <Text style={styles.sectionTitle}>📈 Benchmark Results</Text>
+        <ThemedText style={styles.sectionTitle}>
+          📈 Benchmark Results
+        </ThemedText>
         {benchmarkResults.map((result, index) => (
           <TestResult
             key={index}
@@ -240,12 +266,19 @@ export default function RocksDBTests() {
           />
         ))}
         {benchmarkResults.length === 0 && !isRunning && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateIcon}>📊</Text>
-            <Text style={styles.emptyStateText}>No benchmark results yet</Text>
-            <Text style={styles.emptyStateSubtext}>
+          <View
+            style={[
+              styles.emptyState,
+              { backgroundColor: isDark ? '#2d2d2d' : '#fff' }
+            ]}
+          >
+            <ThemedText style={styles.emptyStateIcon}>📊</ThemedText>
+            <ThemedText style={styles.emptyStateText}>
+              No benchmark results yet
+            </ThemedText>
+            <ThemedText style={styles.emptyStateSubtext}>
               Click "Run Benchmarks" to test the generated databases
-            </Text>
+            </ThemedText>
           </View>
         )}
       </View>
@@ -257,26 +290,22 @@ export default function RocksDBTests() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#f8f9fa'
+    flex: 1
   },
   header: {
     padding: 20,
     paddingTop: 40,
-    backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef'
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#2c3e50',
     textAlign: 'center',
     marginBottom: 5
   },
   subtitle: {
     fontSize: 16,
-    color: '#6c757d',
     textAlign: 'center'
   },
   buttonContainer: {
@@ -318,7 +347,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#2c3e50',
     marginBottom: 15,
     textAlign: 'center'
   },
@@ -329,7 +357,6 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: 'center',
     padding: 40,
-    backgroundColor: '#fff',
     borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -344,20 +371,16 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#6c757d',
     marginBottom: 5
   },
   emptyStateSubtext: {
     fontSize: 14,
-    color: '#adb5bd',
     textAlign: 'center'
   },
 
   tipContainer: {
     margin: 20,
-    backgroundColor: '#fff3cd',
     borderWidth: 1,
-    borderColor: '#ffeaa7',
     borderRadius: 8,
     padding: 16,
     alignItems: 'center'
@@ -369,13 +392,11 @@ const styles = StyleSheet.create({
   tipTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#856404',
     marginBottom: 8,
     textAlign: 'center'
   },
   tipText: {
     fontSize: 14,
-    color: '#856404',
     textAlign: 'center',
     lineHeight: 20
   }
