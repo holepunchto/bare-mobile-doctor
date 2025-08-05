@@ -213,6 +213,11 @@ export default function RocksDBTests() {
   >([])
   const [errors, setErrors] = React.useState<string[]>([])
 
+  // Calculate expected total databases (3 sizes × 2 types = 6)
+  const expectedDatabases = 6
+  const generationProgress = generationResults.length
+  const isGenerationComplete = generationProgress >= expectedDatabases
+
   useEffect(() => {
     const setup = async () => {
       const bareDir = await useBareDir()
@@ -233,8 +238,14 @@ export default function RocksDBTests() {
             setIsRunning(false)
           } else if (message.success) {
             // Generation success
-            setGenerationResults((prev) => [...prev, message])
-            setIsGenerating(false)
+            setGenerationResults((prev) => {
+              const newResults = [...prev, message]
+              // Check if we've generated all expected databases
+              if (newResults.length >= expectedDatabases) {
+                setIsGenerating(false)
+              }
+              return newResults
+            })
           } else if (message.error) {
             // Error occurred
             setErrors((prev) => [...prev, message.error])
@@ -317,7 +328,9 @@ export default function RocksDBTests() {
           disabled={isGenerating || isRunning}
         >
           <Text style={styles.buttonText}>
-            {isGenerating ? '🔄 Generating...' : '📊 Generate Databases'}
+            {isGenerating
+              ? `🔄 Generating... (${generationProgress}/${expectedDatabases})`
+              : '📊 Generate Databases'}
           </Text>
         </TouchableOpacity>
 
@@ -705,5 +718,27 @@ const styles = StyleSheet.create({
     color: '#856404',
     textAlign: 'center',
     lineHeight: 20
+  },
+  progressContainer: {
+    marginTop: 12,
+    alignItems: 'center'
+  },
+  progressText: {
+    fontSize: 12,
+    color: '#856404',
+    marginBottom: 6,
+    fontWeight: '500'
+  },
+  progressBar: {
+    width: '100%',
+    height: 6,
+    backgroundColor: '#ffeaa7',
+    borderRadius: 3,
+    overflow: 'hidden'
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#28a745',
+    borderRadius: 3
   }
 })
