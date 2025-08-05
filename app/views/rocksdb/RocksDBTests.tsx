@@ -1,5 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native'
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Dimensions
+} from 'react-native'
 
 import FramedStream from 'framed-stream'
 import { Worklet } from 'react-native-bare-kit'
@@ -28,7 +35,12 @@ interface TestResultProps {
   result?: BenchmarkResult
 }
 
-function TestResult({ testName, hasSucceeded, isRunning, result }: TestResultProps) {
+function TestResult({
+  testName,
+  hasSucceeded,
+  isRunning,
+  result
+}: TestResultProps) {
   const formatNumber = (num: number) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
     if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
@@ -76,13 +88,15 @@ function TestResult({ testName, hasSucceeded, isRunning, result }: TestResultPro
           </View>
         )}
       </View>
-      
+
       {result && (
         <View style={styles.metricsContainer}>
           <View style={styles.metricRow}>
             <View style={styles.metric}>
               <Text style={styles.metricLabel}>Records Read</Text>
-              <Text style={styles.metricValue}>{formatNumber(result.recordsRead)}</Text>
+              <Text style={styles.metricValue}>
+                {formatNumber(result.recordsRead)}
+              </Text>
             </View>
             <View style={styles.metric}>
               <Text style={styles.metricLabel}>Duration</Text>
@@ -90,7 +104,9 @@ function TestResult({ testName, hasSucceeded, isRunning, result }: TestResultPro
             </View>
             <View style={styles.metric}>
               <Text style={styles.metricLabel}>Rate</Text>
-              <Text style={styles.metricValue}>{formatNumber(result.rate)}/s</Text>
+              <Text style={styles.metricValue}>
+                {formatNumber(result.rate)}/s
+              </Text>
             </View>
           </View>
         </View>
@@ -114,9 +130,15 @@ const ErrorList = ({ errors }: { errors: string[] }) => {
   )
 }
 
-const ExecutionLog = ({ results, errors }: { results: GenerationResults[], errors: string[] }) => {
+const ExecutionLog = ({
+  results,
+  errors
+}: {
+  results: GenerationResults[]
+  errors: string[]
+}) => {
   const [isExpanded, setIsExpanded] = useState(false)
-  
+
   const totalEvents = results.length + errors.length
   if (totalEvents === 0) return null
 
@@ -127,7 +149,7 @@ const ExecutionLog = ({ results, errors }: { results: GenerationResults[], error
 
   return (
     <View style={styles.logContainer}>
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.logHeader}
         onPress={() => setIsExpanded(!isExpanded)}
       >
@@ -140,23 +162,27 @@ const ExecutionLog = ({ results, errors }: { results: GenerationResults[], error
         </View>
         <Text style={styles.logToggle}>{isExpanded ? '▼' : '▶'}</Text>
       </TouchableOpacity>
-      
+
       {isExpanded && (
         <View style={styles.logContent}>
-          <Text style={styles.logTimestamp}>// Started at {formatTimestamp()}</Text>
-          
+          <Text style={styles.logTimestamp}>
+            // Started at {formatTimestamp()}
+          </Text>
+
           {results.map((result, index) => (
             <View key={`result-${index}`} style={styles.logEntry}>
               <Text style={styles.logLine}>
                 <Text style={styles.logSuccess}>✓</Text>
                 <Text style={styles.logType}> {result.type}</Text>
                 <Text style={styles.logText}> database created with </Text>
-                <Text style={styles.logNumber}>{result.size.toLocaleString()}</Text>
+                <Text style={styles.logNumber}>
+                  {result.size.toLocaleString()}
+                </Text>
                 <Text style={styles.logText}> records</Text>
               </Text>
             </View>
           ))}
-          
+
           {errors.map((error, index) => (
             <View key={`error-${index}`} style={styles.logEntry}>
               <Text style={styles.logLine}>
@@ -165,7 +191,7 @@ const ExecutionLog = ({ results, errors }: { results: GenerationResults[], error
               </Text>
             </View>
           ))}
-          
+
           <Text style={styles.logTimestamp}>// Execution complete</Text>
         </View>
       )}
@@ -179,8 +205,12 @@ export default function RocksDBTests() {
 
   const [isGenerating, setIsGenerating] = React.useState(false)
   const [isRunning, setIsRunning] = React.useState(false)
-  const [generationResults, setGenerationResults] = React.useState<GenerationResults[]>([])
-  const [benchmarkResults, setBenchmarkResults] = React.useState<BenchmarkResult[]>([])
+  const [generationResults, setGenerationResults] = React.useState<
+    GenerationResults[]
+  >([])
+  const [benchmarkResults, setBenchmarkResults] = React.useState<
+    BenchmarkResult[]
+  >([])
   const [errors, setErrors] = React.useState<string[]>([])
 
   useEffect(() => {
@@ -192,37 +222,38 @@ export default function RocksDBTests() {
 
       ipc.current = new FramedStream(worklet.current.IPC)
       ipc.current.on('data', (data: string) => {
-      try {
-        const dataString = b4a.toString(data)
-        const message = JSON.parse(dataString)
-        console.log('Received response:', message)
+        try {
+          const dataString = b4a.toString(data)
+          const message = JSON.parse(dataString)
+          console.log('Received response:', message)
 
-        if (message.success && message.result) {
-          // Benchmark result
-          setBenchmarkResults(prev => [...prev, message.result])
-          setIsRunning(false)
-        } else if (message.success) {
-          // Generation success
-          setGenerationResults(prev => [...prev, message])
-          setIsGenerating(false)
-        } else if (message.error) {
-          // Error occurred
-          setErrors(prev => [...prev, message.error])
+          if (message.success && message.result) {
+            // Benchmark result
+            setBenchmarkResults((prev) => [...prev, message.result])
+            setIsRunning(false)
+          } else if (message.success) {
+            // Generation success
+            setGenerationResults((prev) => [...prev, message])
+            setIsGenerating(false)
+          } else if (message.error) {
+            // Error occurred
+            setErrors((prev) => [...prev, message.error])
+            setIsGenerating(false)
+            setIsRunning(false)
+          }
+        } catch (err) {
+          console.error('Failed to parse response:', err)
           setIsGenerating(false)
           setIsRunning(false)
         }
-      } catch (err) {
-        console.error('Failed to parse response:', err)
-        setIsGenerating(false)
-        setIsRunning(false)
-      }
-    })
+      })
     }
 
     setup()
 
     return () => {
-      if (worklet.current && worklet.current.terminate) worklet.current.terminate()
+      if (worklet.current && worklet.current.terminate)
+        worklet.current.terminate()
     }
   }, [])
 
@@ -230,16 +261,16 @@ export default function RocksDBTests() {
     setIsGenerating(true)
     setErrors([])
     setGenerationResults([])
-    
+
     // Generate databases for different sizes
     const sizes = [1e4, 1e5, 1e6]
     const types = ['hyperdb', 'raw']
-    
-    sizes.forEach(size => {
-      types.forEach(type => {
-        const message = JSON.stringify({ 
-          action: 'generate', 
-          payload: { type, size } 
+
+    sizes.forEach((size) => {
+      types.forEach((type) => {
+        const message = JSON.stringify({
+          action: 'generate',
+          payload: { type, size }
         })
         ipc.current.write(b4a.from(message))
       })
@@ -250,16 +281,16 @@ export default function RocksDBTests() {
     setIsRunning(true)
     setErrors([])
     setBenchmarkResults([])
-    
+
     // Run benchmarks for different sizes
     const sizes = [1e4, 1e5, 1e6]
     const types = ['hyperdb', 'raw']
-    
-    sizes.forEach(size => {
-      types.forEach(type => {
-        const message = JSON.stringify({ 
-          action: 'bench', 
-          payload: { type, size } 
+
+    sizes.forEach((size) => {
+      types.forEach((type) => {
+        const message = JSON.stringify({
+          action: 'bench',
+          payload: { type, size }
         })
         ipc.current.write(b4a.from(message))
       })
@@ -270,12 +301,18 @@ export default function RocksDBTests() {
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>🚀 RocksDB Benchmark</Text>
-        <Text style={styles.subtitle}>Performance testing for HyperDB vs Raw RocksDB</Text>
+        <Text style={styles.subtitle}>
+          Performance testing for HyperDB vs Raw RocksDB
+        </Text>
       </View>
 
       <View style={styles.buttonContainer}>
         <TouchableOpacity
-          style={[styles.button, styles.generateButton, isGenerating && styles.buttonDisabled]}
+          style={[
+            styles.button,
+            styles.generateButton,
+            isGenerating && styles.buttonDisabled
+          ]}
           onPress={generateDatabases}
           disabled={isGenerating || isRunning}
         >
@@ -285,7 +322,11 @@ export default function RocksDBTests() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.button, styles.runButton, isRunning && styles.buttonDisabled]}
+          style={[
+            styles.button,
+            styles.runButton,
+            isRunning && styles.buttonDisabled
+          ]}
           onPress={runBenchmarks}
           disabled={isGenerating || isRunning}
         >
@@ -299,7 +340,7 @@ export default function RocksDBTests() {
         <Text style={styles.tipIcon}>💡</Text>
         <Text style={styles.tipTitle}>Tip: Generate Databases First</Text>
         <Text style={styles.tipText}>
-          Before running benchmarks, you need to generate the test databases. 
+          Before running benchmarks, you need to generate the test databases.
           Click "Generate Databases" to create the required data files.
         </Text>
       </View>
@@ -319,7 +360,9 @@ export default function RocksDBTests() {
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateIcon}>📊</Text>
             <Text style={styles.emptyStateText}>No benchmark results yet</Text>
-            <Text style={styles.emptyStateSubtext}>Click "Run Benchmarks" to test the generated databases</Text>
+            <Text style={styles.emptyStateSubtext}>
+              Click "Run Benchmarks" to test the generated databases
+            </Text>
           </View>
         )}
       </View>

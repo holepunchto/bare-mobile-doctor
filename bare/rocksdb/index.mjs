@@ -22,7 +22,7 @@ ipc.on('data', (data) => {
     console.log('Received message:', message)
     const { action, payload } = JSON.parse(message)
     console.log('Parsed action:', action, 'payload:', payload)
-    
+
     switch (action) {
       case 'generate':
         handleGenerate(payload)
@@ -41,14 +41,14 @@ ipc.on('data', (data) => {
 
 async function handleGenerate(payload) {
   const { type, size } = payload
-  
+
   try {
     // Ensure the dbs directory exists using the base path
     const dbsDir = path + '/dbs'
     if (!fs.existsSync(dbsDir)) {
       fs.mkdirSync(dbsDir, { recursive: true })
     }
-    
+
     if (type === 'hyperdb') {
       await generateDatabase(path + `/dbs/${size}`, size)
       sendResponse({ success: true, type: 'hyperdb', size })
@@ -65,16 +65,19 @@ async function handleGenerate(payload) {
 
 async function handleBench(payload) {
   const { type, size } = payload
-  
+
   try {
     // Ensure the dbs directory exists using the base path
     const dbsDir = path + '/dbs'
     if (!fs.existsSync(dbsDir)) {
-      sendResponse({ error: 'Database directory does not exist. Please generate databases first.' })
+      sendResponse({
+        error:
+          'Database directory does not exist. Please generate databases first.'
+      })
       return
     }
     console.log('dbsDir', dbsDir)
-    
+
     let dbPath
     if (type === 'hyperdb') {
       dbPath = path + `/dbs/${size}`
@@ -86,29 +89,35 @@ async function handleBench(payload) {
     }
 
     console.log('dbPath', dbPath)
-    
+
     // Check if the specific database exists
     if (!fs.existsSync(dbPath)) {
-      sendResponse({ error: `Database ${type} with size ${size} does not exist. Please generate it first.` })
+      sendResponse({
+        error: `Database ${type} with size ${size} does not exist. Please generate it first.`
+      })
       return
     }
-    
+
     // Check if RocksDB files exist (CURRENT, MANIFEST, etc.)
     const rocksdbFiles = ['CURRENT', 'MANIFEST', 'LOCK']
-    const hasRocksDBFiles = rocksdbFiles.some(file => fs.existsSync(`${dbPath}/${file}`))
-    
+    const hasRocksDBFiles = rocksdbFiles.some((file) =>
+      fs.existsSync(`${dbPath}/${file}`)
+    )
+
     if (!hasRocksDBFiles) {
-      sendResponse({ error: `Database ${type} with size ${size} exists but is not properly initialized. Please regenerate it.` })
+      sendResponse({
+        error: `Database ${type} with size ${size} exists but is not properly initialized. Please regenerate it.`
+      })
       return
     }
-    
+
     let result
     if (type === 'hyperdb') {
       result = await bench(dbPath, size)
     } else if (type === 'raw') {
       result = await benchRaw(dbPath, size)
     }
-    
+
     sendResponse({ success: true, result })
   } catch (error) {
     sendResponse({ error: error.message })
@@ -127,7 +136,7 @@ function sendResponse(data) {
 // await benchRaw('./dbs/raw-1e5', 1e5)
 // await benchRaw('./dbs/raw-1e4', 1e4)
 
-async function bench (dir, count) {
+async function bench(dir, count) {
   let db
   try {
     db = HyperDB.rocks(dir, spec)
@@ -152,7 +161,9 @@ async function bench (dir, count) {
     return result
   } catch (error) {
     if (error.message.includes('Key is not there')) {
-      throw new Error(`The database was not properly generated or is incomplete. Please regenerate the databases.`)
+      throw new Error(
+        `The database was not properly generated or is incomplete. Please regenerate the databases.`
+      )
     }
     throw new Error(`HyperDB benchmark failed: ${error.message}`)
   } finally {
@@ -166,7 +177,7 @@ async function bench (dir, count) {
   }
 }
 
-async function benchRaw (dir, count) {
+async function benchRaw(dir, count) {
   let db
   try {
     db = new RocksDB(dir)
@@ -191,7 +202,9 @@ async function benchRaw (dir, count) {
     return result
   } catch (error) {
     if (error.message.includes('Key is not there')) {
-      throw new Error(`The database was not properly generated or is incomplete. Please regenerate the databases.`)
+      throw new Error(
+        `The database was not properly generated or is incomplete. Please regenerate the databases.`
+      )
     }
     throw new Error(`Raw RocksDB benchmark failed: ${error.message}`)
   } finally {

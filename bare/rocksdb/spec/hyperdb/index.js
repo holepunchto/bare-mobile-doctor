@@ -5,12 +5,12 @@ const { IndexEncoder, c } = require('hyperdb/runtime')
 const { version, getEncoding, setVersion } = require('./messages.js')
 
 // '@x/a' collection key
-const collection0_key = new IndexEncoder([
-  IndexEncoder.STRING,
-  IndexEncoder.UINT
-], { prefix: 0 })
+const collection0_key = new IndexEncoder(
+  [IndexEncoder.STRING, IndexEncoder.UINT],
+  { prefix: 0 }
+)
 
-function collection0_indexify (record) {
+function collection0_indexify(record) {
   const arr = []
 
   const a0 = record.c
@@ -28,7 +28,7 @@ function collection0_indexify (record) {
 const collection0_enc = getEncoding('@x/a/hyperdb#0')
 
 // '@x/a' reconstruction function
-function collection0_reconstruct (version, keyBuf, valueBuf) {
+function collection0_reconstruct(version, keyBuf, valueBuf) {
   const key = collection0_key.decode(keyBuf)
   setVersion(version)
   const record = c.decode(collection0_enc, valueBuf)
@@ -37,7 +37,7 @@ function collection0_reconstruct (version, keyBuf, valueBuf) {
   return record
 }
 // '@x/a' key reconstruction function
-function collection0_reconstruct_key (keyBuf) {
+function collection0_reconstruct_key(keyBuf) {
   const key = collection0_key.decode(keyBuf)
   return {
     c: key[0],
@@ -49,11 +49,11 @@ function collection0_reconstruct_key (keyBuf) {
 const collection0 = {
   name: '@x/a',
   id: 0,
-  encodeKey (record) {
+  encodeKey(record) {
     const key = [record.c, record.d]
     return collection0_key.encode(key)
   },
-  encodeKeyRange ({ gt, lt, gte, lte } = {}) {
+  encodeKeyRange({ gt, lt, gte, lte } = {}) {
     return collection0_key.encodeRange({
       gt: gt ? collection0_indexify(gt) : null,
       lt: lt ? collection0_indexify(lt) : null,
@@ -61,7 +61,7 @@ const collection0 = {
       lte: lte ? collection0_indexify(lte) : null
     })
   },
-  encodeValue (version, record) {
+  encodeValue(version, record) {
     setVersion(version)
     return c.encode(collection0_enc, record)
   },
@@ -72,11 +72,9 @@ const collection0 = {
 }
 
 // '@x/b' collection key
-const collection1_key = new IndexEncoder([
-  IndexEncoder.UINT
-], { prefix: 1 })
+const collection1_key = new IndexEncoder([IndexEncoder.UINT], { prefix: 1 })
 
-function collection1_indexify (record) {
+function collection1_indexify(record) {
   const a = record.b
   return a === undefined ? [] : [a]
 }
@@ -85,7 +83,7 @@ function collection1_indexify (record) {
 const collection1_enc = getEncoding('@x/b/hyperdb#1')
 
 // '@x/b' reconstruction function
-function collection1_reconstruct (version, keyBuf, valueBuf) {
+function collection1_reconstruct(version, keyBuf, valueBuf) {
   const key = collection1_key.decode(keyBuf)
   setVersion(version)
   const record = c.decode(collection1_enc, valueBuf)
@@ -93,7 +91,7 @@ function collection1_reconstruct (version, keyBuf, valueBuf) {
   return record
 }
 // '@x/b' key reconstruction function
-function collection1_reconstruct_key (keyBuf) {
+function collection1_reconstruct_key(keyBuf) {
   const key = collection1_key.decode(keyBuf)
   return {
     b: key[0]
@@ -104,11 +102,11 @@ function collection1_reconstruct_key (keyBuf) {
 const collection1 = {
   name: '@x/b',
   id: 1,
-  encodeKey (record) {
+  encodeKey(record) {
     const key = [record.b]
     return collection1_key.encode(key)
   },
-  encodeKeyRange ({ gt, lt, gte, lte } = {}) {
+  encodeKeyRange({ gt, lt, gte, lte } = {}) {
     return collection1_key.encodeRange({
       gt: gt ? collection1_indexify(gt) : null,
       lt: lt ? collection1_indexify(lt) : null,
@@ -116,7 +114,7 @@ const collection1 = {
       lte: lte ? collection1_indexify(lte) : null
     })
   },
-  encodeValue (version, record) {
+  encodeValue(version, record) {
     setVersion(version)
     return c.encode(collection1_enc, record)
   },
@@ -127,13 +125,12 @@ const collection1 = {
 }
 
 // '@x/c' collection key
-const index2_key = new IndexEncoder([
-  IndexEncoder.UINT,
-  IndexEncoder.STRING,
-  IndexEncoder.UINT
-], { prefix: 2 })
+const index2_key = new IndexEncoder(
+  [IndexEncoder.UINT, IndexEncoder.STRING, IndexEncoder.UINT],
+  { prefix: 2 }
+)
 
-function index2_indexify (record) {
+function index2_indexify(record) {
   const arr = []
 
   const a0 = record.b
@@ -155,10 +152,10 @@ function index2_indexify (record) {
 const index2 = {
   name: '@x/c',
   id: 2,
-  encodeKey (record) {
+  encodeKey(record) {
     return index2_key.encode(index2_indexify(record))
   },
-  encodeKeyRange ({ gt, lt, gte, lte } = {}) {
+  encodeKeyRange({ gt, lt, gte, lte } = {}) {
     return index2_key.encodeRange({
       gt: gt ? index2_indexify(gt) : null,
       lt: lt ? index2_indexify(lt) : null,
@@ -167,7 +164,7 @@ const index2 = {
     })
   },
   encodeValue: (doc) => index2.collection.encodeKey(doc),
-  encodeIndexKeys (record, context) {
+  encodeIndexKeys(record, context) {
     return [index2_key.encode([record.b, record.c, record.d])]
   },
   reconstruct: (keyBuf, valueBuf) => valueBuf,
@@ -177,13 +174,12 @@ const index2 = {
 collection0.indexes.push(index2)
 
 // '@x/d' collection key
-const index3_key = new IndexEncoder([
-  IndexEncoder.STRING,
-  IndexEncoder.STRING,
-  IndexEncoder.UINT
-], { prefix: 3 })
+const index3_key = new IndexEncoder(
+  [IndexEncoder.STRING, IndexEncoder.STRING, IndexEncoder.UINT],
+  { prefix: 3 }
+)
 
-function index3_indexify (record) {
+function index3_indexify(record) {
   const arr = []
 
   const a0 = record.c
@@ -205,10 +201,10 @@ function index3_indexify (record) {
 const index3 = {
   name: '@x/d',
   id: 3,
-  encodeKey (record) {
+  encodeKey(record) {
     return index3_key.encode(index3_indexify(record))
   },
-  encodeKeyRange ({ gt, lt, gte, lte } = {}) {
+  encodeKeyRange({ gt, lt, gte, lte } = {}) {
     return index3_key.encodeRange({
       gt: gt ? index3_indexify(gt) : null,
       lt: lt ? index3_indexify(lt) : null,
@@ -217,7 +213,7 @@ const index3 = {
     })
   },
   encodeValue: (doc) => index3.collection.encodeKey(doc),
-  encodeIndexKeys (record, context) {
+  encodeIndexKeys(record, context) {
     return [index3_key.encode([record.c, record.c, record.d])]
   },
   reconstruct: (keyBuf, valueBuf) => valueBuf,
@@ -227,13 +223,12 @@ const index3 = {
 collection0.indexes.push(index3)
 
 // '@x/e' collection key
-const index4_key = new IndexEncoder([
-  IndexEncoder.UINT,
-  IndexEncoder.STRING,
-  IndexEncoder.UINT
-], { prefix: 4 })
+const index4_key = new IndexEncoder(
+  [IndexEncoder.UINT, IndexEncoder.STRING, IndexEncoder.UINT],
+  { prefix: 4 }
+)
 
-function index4_indexify (record) {
+function index4_indexify(record) {
   const arr = []
 
   const a0 = record.g
@@ -255,10 +250,10 @@ function index4_indexify (record) {
 const index4 = {
   name: '@x/e',
   id: 4,
-  encodeKey (record) {
+  encodeKey(record) {
     return index4_key.encode(index4_indexify(record))
   },
-  encodeKeyRange ({ gt, lt, gte, lte } = {}) {
+  encodeKeyRange({ gt, lt, gte, lte } = {}) {
     return index4_key.encodeRange({
       gt: gt ? index4_indexify(gt) : null,
       lt: lt ? index4_indexify(lt) : null,
@@ -267,7 +262,7 @@ const index4 = {
     })
   },
   encodeValue: (doc) => index4.collection.encodeKey(doc),
-  encodeIndexKeys (record, context) {
+  encodeIndexKeys(record, context) {
     return [index4_key.encode([record.g, record.c, record.d])]
   },
   reconstruct: (keyBuf, valueBuf) => valueBuf,
@@ -277,11 +272,9 @@ const index4 = {
 collection0.indexes.push(index4)
 
 // '@x/f' collection key
-const index5_key = new IndexEncoder([
-  IndexEncoder.STRING
-], { prefix: 5 })
+const index5_key = new IndexEncoder([IndexEncoder.STRING], { prefix: 5 })
 
-function index5_indexify (record) {
+function index5_indexify(record) {
   const a = record.c
   return a === undefined ? [] : [a]
 }
@@ -290,10 +283,10 @@ function index5_indexify (record) {
 const index5 = {
   name: '@x/f',
   id: 5,
-  encodeKey (record) {
+  encodeKey(record) {
     return index5_key.encode(index5_indexify(record))
   },
-  encodeKeyRange ({ gt, lt, gte, lte } = {}) {
+  encodeKeyRange({ gt, lt, gte, lte } = {}) {
     return index5_key.encodeRange({
       gt: gt ? index5_indexify(gt) : null,
       lt: lt ? index5_indexify(lt) : null,
@@ -302,7 +295,7 @@ const index5 = {
     })
   },
   encodeValue: (doc) => index5.collection.encodeKey(doc),
-  encodeIndexKeys (record, context) {
+  encodeIndexKeys(record, context) {
     return [index5_key.encode([record.c])]
   },
   reconstruct: (keyBuf, valueBuf) => valueBuf,
@@ -312,12 +305,11 @@ const index5 = {
 collection1.indexes.push(index5)
 
 // '@x/g' collection key
-const index6_key = new IndexEncoder([
-  IndexEncoder.UINT,
-  IndexEncoder.UINT
-], { prefix: 6 })
+const index6_key = new IndexEncoder([IndexEncoder.UINT, IndexEncoder.UINT], {
+  prefix: 6
+})
 
-function index6_indexify (record) {
+function index6_indexify(record) {
   const arr = []
 
   const a0 = record.d
@@ -335,10 +327,10 @@ function index6_indexify (record) {
 const index6 = {
   name: '@x/g',
   id: 6,
-  encodeKey (record) {
+  encodeKey(record) {
     return index6_key.encode(index6_indexify(record))
   },
-  encodeKeyRange ({ gt, lt, gte, lte } = {}) {
+  encodeKeyRange({ gt, lt, gte, lte } = {}) {
     return index6_key.encodeRange({
       gt: gt ? index6_indexify(gt) : null,
       lt: lt ? index6_indexify(lt) : null,
@@ -347,7 +339,7 @@ const index6 = {
     })
   },
   encodeValue: (doc) => index6.collection.encodeKey(doc),
-  encodeIndexKeys (record, context) {
+  encodeIndexKeys(record, context) {
     return [index6_key.encode([record.d, record.b])]
   },
   reconstruct: (keyBuf, valueBuf) => valueBuf,
@@ -356,36 +348,42 @@ const index6 = {
 }
 collection1.indexes.push(index6)
 
-const collections = [
-  collection0,
-  collection1
-]
+const collections = [collection0, collection1]
 
-const indexes = [
-  index2,
-  index3,
-  index4,
-  index5,
-  index6
-]
+const indexes = [index2, index3, index4, index5, index6]
 
-module.exports = { version, collections, indexes, resolveCollection, resolveIndex }
+module.exports = {
+  version,
+  collections,
+  indexes,
+  resolveCollection,
+  resolveIndex
+}
 
-function resolveCollection (name) {
+function resolveCollection(name) {
   switch (name) {
-    case '@x/a': return collection0
-    case '@x/b': return collection1
-    default: return null
+    case '@x/a':
+      return collection0
+    case '@x/b':
+      return collection1
+    default:
+      return null
   }
 }
 
-function resolveIndex (name) {
+function resolveIndex(name) {
   switch (name) {
-    case '@x/c': return index2
-    case '@x/d': return index3
-    case '@x/e': return index4
-    case '@x/f': return index5
-    case '@x/g': return index6
-    default: return null
+    case '@x/c':
+      return index2
+    case '@x/d':
+      return index3
+    case '@x/e':
+      return index4
+    case '@x/f':
+      return index5
+    case '@x/g':
+      return index6
+    default:
+      return null
   }
 }

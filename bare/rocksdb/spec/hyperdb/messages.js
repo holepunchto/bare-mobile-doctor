@@ -12,7 +12,7 @@ let version = VERSION
 
 // @x/a
 const encoding0 = {
-  preencode (state, m) {
+  preencode(state, m) {
     c.string.preencode(state, m.a)
     c.uint.preencode(state, m.b)
     c.string.preencode(state, m.c)
@@ -27,12 +27,8 @@ const encoding0 = {
     if (m.j) c.string.preencode(state, m.j)
     if (m.k) c.string.preencode(state, m.k)
   },
-  encode (state, m) {
-    const flags =
-      (m.h ? 1 : 0) |
-      (m.i ? 2 : 0) |
-      (m.j ? 4 : 0) |
-      (m.k ? 8 : 0)
+  encode(state, m) {
+    const flags = (m.h ? 1 : 0) | (m.i ? 2 : 0) | (m.j ? 4 : 0) | (m.k ? 8 : 0)
 
     c.string.encode(state, m.a)
     c.uint.encode(state, m.b)
@@ -48,7 +44,7 @@ const encoding0 = {
     if (m.j) c.string.encode(state, m.j)
     if (m.k) c.string.encode(state, m.k)
   },
-  decode (state) {
+  decode(state) {
     const r0 = c.string.decode(state)
     const r1 = c.uint.decode(state)
     const r2 = c.string.decode(state)
@@ -76,19 +72,19 @@ const encoding0 = {
 
 // @x/b
 const encoding1 = {
-  preencode (state, m) {
+  preencode(state, m) {
     c.string.preencode(state, m.a)
     c.uint.preencode(state, m.b)
     c.string.preencode(state, m.c)
     c.uint.preencode(state, m.d)
   },
-  encode (state, m) {
+  encode(state, m) {
     c.string.encode(state, m.a)
     c.uint.encode(state, m.b)
     c.string.encode(state, m.c)
     c.uint.encode(state, m.d)
   },
-  decode (state) {
+  decode(state) {
     const r0 = c.string.decode(state)
     const r1 = c.uint.decode(state)
     const r2 = c.string.decode(state)
@@ -105,7 +101,7 @@ const encoding1 = {
 
 // @x/a/hyperdb#0
 const encoding2 = {
-  preencode (state, m) {
+  preencode(state, m) {
     c.string.preencode(state, m.a)
     c.uint.preencode(state, m.b)
     c.string.preencode(state, m.e)
@@ -118,12 +114,8 @@ const encoding2 = {
     if (m.j) c.string.preencode(state, m.j)
     if (m.k) c.string.preencode(state, m.k)
   },
-  encode (state, m) {
-    const flags =
-      (m.h ? 1 : 0) |
-      (m.i ? 2 : 0) |
-      (m.j ? 4 : 0) |
-      (m.k ? 8 : 0)
+  encode(state, m) {
+    const flags = (m.h ? 1 : 0) | (m.i ? 2 : 0) | (m.j ? 4 : 0) | (m.k ? 8 : 0)
 
     c.string.encode(state, m.a)
     c.uint.encode(state, m.b)
@@ -137,7 +129,7 @@ const encoding2 = {
     if (m.j) c.string.encode(state, m.j)
     if (m.k) c.string.encode(state, m.k)
   },
-  decode (state) {
+  decode(state) {
     const r0 = c.string.decode(state)
     const r1 = c.uint.decode(state)
     const r4 = c.string.decode(state)
@@ -163,17 +155,17 @@ const encoding2 = {
 
 // @x/b/hyperdb#1
 const encoding3 = {
-  preencode (state, m) {
+  preencode(state, m) {
     c.string.preencode(state, m.a)
     c.string.preencode(state, m.c)
     c.uint.preencode(state, m.d)
   },
-  encode (state, m) {
+  encode(state, m) {
     c.string.encode(state, m.a)
     c.string.encode(state, m.c)
     c.uint.encode(state, m.d)
   },
-  decode (state) {
+  decode(state) {
     const r0 = c.string.decode(state)
     const r2 = c.string.decode(state)
     const r3 = c.uint.decode(state)
@@ -187,48 +179,54 @@ const encoding3 = {
   }
 }
 
-function setVersion (v) {
+function setVersion(v) {
   version = v
 }
 
-function encode (name, value, v = VERSION) {
+function encode(name, value, v = VERSION) {
   version = v
   return c.encode(getEncoding(name), value)
 }
 
-function decode (name, buffer, v = VERSION) {
+function decode(name, buffer, v = VERSION) {
   version = v
   return c.decode(getEncoding(name), buffer)
 }
 
-function getEnum (name) {
+function getEnum(name) {
   switch (name) {
-    default: throw new Error('Enum not found ' + name)
+    default:
+      throw new Error('Enum not found ' + name)
   }
 }
 
-function getEncoding (name) {
+function getEncoding(name) {
   switch (name) {
-    case '@x/a': return encoding0
-    case '@x/b': return encoding1
-    case '@x/a/hyperdb#0': return encoding2
-    case '@x/b/hyperdb#1': return encoding3
-    default: throw new Error('Encoder not found ' + name)
+    case '@x/a':
+      return encoding0
+    case '@x/b':
+      return encoding1
+    case '@x/a/hyperdb#0':
+      return encoding2
+    case '@x/b/hyperdb#1':
+      return encoding3
+    default:
+      throw new Error('Encoder not found ' + name)
   }
 }
 
-function getStruct (name, v = VERSION) {
+function getStruct(name, v = VERSION) {
   const enc = getEncoding(name)
   return {
-    preencode (state, m) {
+    preencode(state, m) {
       version = v
       enc.preencode(state, m)
     },
-    encode (state, m) {
+    encode(state, m) {
       version = v
       enc.encode(state, m)
     },
-    decode (state) {
+    decode(state) {
       version = v
       return enc.decode(state)
     }
@@ -237,4 +235,13 @@ function getStruct (name, v = VERSION) {
 
 const resolveStruct = getStruct // compat
 
-module.exports = { resolveStruct, getStruct, getEnum, getEncoding, encode, decode, setVersion, version }
+module.exports = {
+  resolveStruct,
+  getStruct,
+  getEnum,
+  getEncoding,
+  encode,
+  decode,
+  setVersion,
+  version
+}

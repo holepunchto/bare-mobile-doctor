@@ -7,17 +7,10 @@
       "namespace": "x",
       "id": 0,
       "type": 1,
-      "indexes": [
-        "@x/c",
-        "@x/d",
-        "@x/e"
-      ],
+      "indexes": ["@x/c", "@x/d", "@x/e"],
       "schema": "@x/a",
       "derived": false,
-      "key": [
-        "c",
-        "d"
-      ],
+      "key": ["c", "d"],
       "trigger": null
     },
     {
@@ -25,15 +18,10 @@
       "namespace": "x",
       "id": 1,
       "type": 1,
-      "indexes": [
-        "@x/f",
-        "@x/g"
-      ],
+      "indexes": ["@x/f", "@x/g"],
       "schema": "@x/b",
       "derived": false,
-      "key": [
-        "b"
-      ],
+      "key": ["b"],
       "trigger": null
     },
     {
@@ -43,9 +31,7 @@
       "type": 2,
       "collection": "@x/a",
       "unique": false,
-      "key": [
-        "b"
-      ]
+      "key": ["b"]
     },
     {
       "name": "d",
@@ -54,9 +40,7 @@
       "type": 2,
       "collection": "@x/a",
       "unique": false,
-      "key": [
-        "c"
-      ]
+      "key": ["c"]
     },
     {
       "name": "e",
@@ -65,9 +49,7 @@
       "type": 2,
       "collection": "@x/a",
       "unique": false,
-      "key": [
-        "g"
-      ]
+      "key": ["g"]
     },
     {
       "name": "f",
@@ -76,9 +58,7 @@
       "type": 2,
       "collection": "@x/b",
       "unique": true,
-      "key": [
-        "c"
-      ]
+      "key": ["c"]
     },
     {
       "name": "g",
@@ -87,9 +67,7 @@
       "type": 2,
       "collection": "@x/b",
       "unique": false,
-      "key": [
-        "d"
-      ]
+      "key": ["d"]
     }
   ]
 }
