@@ -116,21 +116,6 @@ function TestResult({
   )
 }
 
-const ErrorList = ({ errors }: { errors: string[] }) => {
-  if (!errors || errors.length === 0) return null
-
-  return (
-    <View style={styles.errorContainer}>
-      <Text style={styles.errorTitle}>❌ Errors</Text>
-      {errors.map((error: any, index: any) => (
-        <Text key={index} style={styles.errorText}>
-          • {error}
-        </Text>
-      ))}
-    </View>
-  )
-}
-
 export default function RocksDBTests() {
   const worklet = React.useRef<any>(null)
   const ipc = useRef<any>(null)
