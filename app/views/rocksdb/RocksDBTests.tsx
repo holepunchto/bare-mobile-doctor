@@ -283,6 +283,15 @@ export default function RocksDBTests() {
         </TouchableOpacity>
       </View>
 
+      <View style={styles.tipContainer}>
+        <Text style={styles.tipIcon}>💡</Text>
+        <Text style={styles.tipTitle}>Tip: Generate Databases First</Text>
+        <Text style={styles.tipText}>
+          Before running benchmarks, you need to generate the test databases. 
+          Click "Generate Databases" to create the required data files.
+        </Text>
+      </View>
+
       <View style={styles.resultsContainer}>
         <Text style={styles.sectionTitle}>📈 Benchmark Results</Text>
         {benchmarkResults.map((result, index) => (
@@ -298,12 +307,12 @@ export default function RocksDBTests() {
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateIcon}>📊</Text>
             <Text style={styles.emptyStateText}>No benchmark results yet</Text>
-            <Text style={styles.emptyStateSubtext}>Run benchmarks to see performance data</Text>
+            <Text style={styles.emptyStateSubtext}>Click "Run Benchmarks" to test the generated databases</Text>
           </View>
         )}
       </View>
 
-             <GenerationLog results={generationResults} />
+      <GenerationLog results={generationResults} />
       
       <ErrorList errors={errors} />
     </ScrollView>
@@ -618,5 +627,31 @@ const styles = StyleSheet.create({
   logNumber: {
     color: '#ffc107',
     fontWeight: 'bold'
+  },
+  tipContainer: {
+    margin: 20,
+    backgroundColor: '#fff3cd',
+    borderWidth: 1,
+    borderColor: '#ffeaa7',
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center'
+  },
+  tipIcon: {
+    fontSize: 24,
+    marginBottom: 8
+  },
+  tipTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#856404',
+    marginBottom: 8,
+    textAlign: 'center'
+  },
+  tipText: {
+    fontSize: 14,
+    color: '#856404',
+    textAlign: 'center',
+    lineHeight: 20
   }
 })
