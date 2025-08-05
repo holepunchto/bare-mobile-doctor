@@ -148,13 +148,6 @@ function sendResponse(data) {
   ipc.write(Buffer.from(message))
 }
 
-// await bench('./dbs/1e6', 1e6)
-// await bench('./dbs/1e5', 1e5)
-// await bench('./dbs/1e4', 1e4)
-// await benchRaw('./dbs/raw-1e6', 1e6)
-// await benchRaw('./dbs/raw-1e5', 1e5)
-// await benchRaw('./dbs/raw-1e4', 1e4)
-
 async function bench(dir, count) {
   let db
   try {

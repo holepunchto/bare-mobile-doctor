@@ -4,13 +4,6 @@ import spec from './spec/hyperdb/index.js'
 
 const BATCH_SIZE = 10000
 
-// await generateDatabase('./dbs/1e6', 1e6)
-// await generateDatabase('./dbs/1e5', 1e5)
-// await generateDatabase('./dbs/1e4', 1e4)
-// await generateRawDatabase('./dbs/raw-1e6', 1e6)
-// await generateRawDatabase('./dbs/raw-1e5', 1e5)
-// await generateRawDatabase('./dbs/raw-1e4', 1e4)
-
 async function generateDatabase(dir, size) {
   const db = HyperDB.rocks(dir, spec)
 
