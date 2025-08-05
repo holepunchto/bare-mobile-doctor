@@ -186,13 +186,13 @@ export default function RocksDBTests() {
     <ScrollView
       style={[
         styles.container,
-        { backgroundColor: isDark ? '#1a1a1a' : '#f8f9fa' }
+        { backgroundColor: isDark ? '#000000' : '#f8f9fa' }
       ]}
     >
       <View
         style={[
           styles.header,
-          { backgroundColor: isDark ? '#2d2d2d' : '#fff' }
+          { backgroundColor: isDark ? '#1a1a1a' : '#fff' }
         ]}
       >
         <ThemedText style={styles.title}>🚀 RocksDB Benchmark</ThemedText>
@@ -237,8 +237,8 @@ export default function RocksDBTests() {
         style={[
           styles.tipContainer,
           {
-            backgroundColor: isDark ? '#2d2d2d' : '#fff3cd',
-            borderColor: isDark ? '#444' : '#ffeaa7'
+            backgroundColor: isDark ? '#1a1a1a' : '#fff3cd',
+            borderColor: isDark ? '#333' : '#ffeaa7'
           }
         ]}
       >
@@ -269,7 +269,7 @@ export default function RocksDBTests() {
           <View
             style={[
               styles.emptyState,
-              { backgroundColor: isDark ? '#2d2d2d' : '#fff' }
+              { backgroundColor: isDark ? '#1a1a1a' : '#fff' }
             ]}
           >
             <ThemedText style={styles.emptyStateIcon}>📊</ThemedText>

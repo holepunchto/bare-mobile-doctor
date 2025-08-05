@@ -50,7 +50,7 @@ function TestResult({
     <View
       style={[
         styles.resultCard,
-        { backgroundColor: isDark ? '#2d2d2d' : '#fff' }
+        { backgroundColor: isDark ? '#1a1a1a' : '#fff' }
       ]}
     >
       <View style={styles.cardHeader}>
@@ -66,7 +66,7 @@ function TestResult({
           <View
             style={[
               styles.statusBadge,
-              { backgroundColor: isDark ? '#444' : '#f8f9fa' }
+              { backgroundColor: isDark ? '#333' : '#f8f9fa' }
             ]}
           >
             <ThemedText style={styles.statusText}>⏳ Running</ThemedText>
@@ -75,7 +75,7 @@ function TestResult({
           <View
             style={[
               styles.statusBadge,
-              { backgroundColor: isDark ? '#444' : '#f8f9fa' }
+              { backgroundColor: isDark ? '#333' : '#f8f9fa' }
             ]}
           >
             <ThemedText style={styles.statusText}>-</ThemedText>
@@ -95,7 +95,7 @@ function TestResult({
         <View
           style={[
             styles.metricsContainer,
-            { backgroundColor: isDark ? '#444' : '#f8f9fa' }
+            { backgroundColor: isDark ? '#333' : '#f8f9fa' }
           ]}
         >
           <View style={styles.metricRow}>
