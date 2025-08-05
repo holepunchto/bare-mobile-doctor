@@ -115,7 +115,7 @@ const ErrorList = ({ errors }: { errors: string[] }) => {
 }
 
 export default function RocksDBTests() {
-  const worklet = React.useRef(new Worklet()).current
+  const worklet = React.useRef<any>(null)
   const ipc = useRef<any>(null)
 
   const [isGenerating, setIsGenerating] = React.useState(false)
@@ -127,9 +127,11 @@ export default function RocksDBTests() {
   useEffect(() => {
     const setup = async () => {
       const bareDir = await useBareDir()
-      worklet.start('rocksdb.bundle', source, [bareDir])
 
-      ipc.current = new FramedStream(worklet.IPC)
+      worklet.current = new Worklet()
+      worklet.current.start('rocksdb.bundle', source, [bareDir])
+
+      ipc.current = new FramedStream(worklet.current.IPC)
       ipc.current.on('data', (data: string) => {
       try {
         const dataString = b4a.toString(data)
@@ -161,7 +163,7 @@ export default function RocksDBTests() {
     setup()
 
     return () => {
-      if (worklet?.terminate) worklet.terminate()
+      if (worklet.current && worklet.current.terminate) worklet.current.terminate()
     }
   }, [])
 
@@ -234,19 +236,6 @@ export default function RocksDBTests() {
         </TouchableOpacity>
       </View>
 
-      {generationResults.length > 0 && (
-        <View style={styles.generationContainer}>
-          <Text style={styles.sectionTitle}>📁 Generated Databases</Text>
-          {generationResults.map((result, index) => (
-            <View key={index} style={styles.generationItem}>
-              <Text style={styles.generationText}>
-                ✅ {result.type} database with {result.size.toLocaleString()} records
-              </Text>
-            </View>
-          ))}
-        </View>
-      )}
-
       <View style={styles.resultsContainer}>
         <Text style={styles.sectionTitle}>📈 Benchmark Results</Text>
         {benchmarkResults.map((result, index) => (
@@ -266,6 +255,19 @@ export default function RocksDBTests() {
           </View>
         )}
       </View>
+
+      {generationResults.length > 0 && (
+        <View style={styles.generationContainer}>
+          <Text style={styles.sectionTitle}>📁 Generated Databases</Text>
+          {generationResults.map((result, index) => (
+            <View key={index} style={styles.generationItem}>
+              <Text style={styles.generationText}>
+                ✅ {result.type} database with {result.size.toLocaleString()} records
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
       
       <ErrorList errors={errors} />
     </ScrollView>
