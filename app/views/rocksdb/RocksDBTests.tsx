@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native'
 
 import FramedStream from 'framed-stream'
@@ -110,6 +110,53 @@ const ErrorList = ({ errors }: { errors: string[] }) => {
           • {error}
         </Text>
       ))}
+    </View>
+  )
+}
+
+const GenerationLog = ({ results }: { results: GenerationResults[] }) => {
+  const [isExpanded, setIsExpanded] = useState(false)
+  
+  if (results.length === 0) return null
+
+  const formatTimestamp = () => {
+    const now = new Date()
+    return now.toLocaleTimeString()
+  }
+
+  return (
+    <View style={styles.logContainer}>
+      <TouchableOpacity 
+        style={styles.logHeader}
+        onPress={() => setIsExpanded(!isExpanded)}
+      >
+        <View style={styles.logHeaderLeft}>
+          <Text style={styles.logIcon}>📋</Text>
+          <Text style={styles.logTitle}>Generation Log</Text>
+          <View style={styles.logBadge}>
+            <Text style={styles.logBadgeText}>{results.length}</Text>
+          </View>
+        </View>
+        <Text style={styles.logToggle}>{isExpanded ? '▼' : '▶'}</Text>
+      </TouchableOpacity>
+      
+      {isExpanded && (
+        <View style={styles.logContent}>
+          <Text style={styles.logTimestamp}>// Generated at {formatTimestamp()}</Text>
+          {results.map((result, index) => (
+            <View key={index} style={styles.logEntry}>
+              <Text style={styles.logLine}>
+                <Text style={styles.logSuccess}>✓</Text>
+                <Text style={styles.logType}> {result.type}</Text>
+                <Text style={styles.logText}> database created with </Text>
+                <Text style={styles.logNumber}>{result.size.toLocaleString()}</Text>
+                <Text style={styles.logText}> records</Text>
+              </Text>
+            </View>
+          ))}
+          <Text style={styles.logTimestamp}>// Generation complete</Text>
+        </View>
+      )}
     </View>
   )
 }
@@ -256,18 +303,7 @@ export default function RocksDBTests() {
         )}
       </View>
 
-      {generationResults.length > 0 && (
-        <View style={styles.generationContainer}>
-          <Text style={styles.sectionTitle}>📁 Generated Databases</Text>
-          {generationResults.map((result, index) => (
-            <View key={index} style={styles.generationItem}>
-              <Text style={styles.generationText}>
-                ✅ {result.type} database with {result.size.toLocaleString()} records
-              </Text>
-            </View>
-          ))}
-        </View>
-      )}
+             <GenerationLog results={generationResults} />
       
       <ErrorList errors={errors} />
     </ScrollView>
@@ -495,5 +531,91 @@ const styles = StyleSheet.create({
     color: '#721c24',
     fontSize: 14,
     marginBottom: 5
+  },
+  logContainer: {
+    margin: 20,
+    backgroundColor: '#1e1e1e',
+    borderRadius: 8,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3
+  },
+  logHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#2d2d2d',
+    borderBottomWidth: 1,
+    borderBottomColor: '#404040'
+  },
+  logHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1
+  },
+  logIcon: {
+    fontSize: 16,
+    marginRight: 8
+  },
+  logTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#e0e0e0',
+    flex: 1
+  },
+  logBadge: {
+    backgroundColor: '#007bff',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginLeft: 8
+  },
+  logBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold'
+  },
+  logToggle: {
+    fontSize: 12,
+    color: '#e0e0e0',
+    fontWeight: 'bold'
+  },
+  logContent: {
+    padding: 12,
+    backgroundColor: '#1e1e1e'
+  },
+  logTimestamp: {
+    fontSize: 12,
+    color: '#6c757d',
+    fontFamily: 'monospace',
+    marginBottom: 8
+  },
+  logEntry: {
+    marginBottom: 4
+  },
+  logLine: {
+    fontSize: 13,
+    fontFamily: 'monospace',
+    color: '#e0e0e0',
+    lineHeight: 18
+  },
+  logSuccess: {
+    color: '#28a745',
+    fontWeight: 'bold'
+  },
+  logType: {
+    color: '#007bff',
+    fontWeight: 'bold'
+  },
+  logText: {
+    color: '#e0e0e0'
+  },
+  logNumber: {
+    color: '#ffc107',
+    fontWeight: 'bold'
   }
 })
