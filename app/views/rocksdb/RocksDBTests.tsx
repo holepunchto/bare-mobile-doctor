@@ -8,6 +8,12 @@ import useBareDir from '../../hooks/useBareDir'
 
 const source = require('./rocksdb.bundle')
 
+interface GenerationResults {
+  success: boolean
+  type: string
+  size: number
+}
+
 interface BenchmarkResult {
   dir: string
   recordsRead: number
@@ -66,7 +72,7 @@ export default function RocksDBTests() {
 
   const [isGenerating, setIsGenerating] = React.useState(false)
   const [isRunning, setIsRunning] = React.useState(false)
-  const [generationStatus, setGenerationStatus] = React.useState<string>('')
+  const [generationResults, setGenerationResults] = React.useState<GenerationResults[]>([])
   const [benchmarkResults, setBenchmarkResults] = React.useState<BenchmarkResult[]>([])
   const [errors, setErrors] = React.useState<string[]>([])
 
@@ -76,7 +82,7 @@ export default function RocksDBTests() {
       worklet.start('rocksdb.bundle', source, [bareDir])
 
       ipc.current = new FramedStream(worklet.IPC)
-    ipc.current.on('data', (data: string) => {
+      ipc.current.on('data', (data: string) => {
       try {
         const dataString = b4a.toString(data)
         const message = JSON.parse(dataString)
@@ -86,9 +92,9 @@ export default function RocksDBTests() {
           // Benchmark result
           setBenchmarkResults(prev => [...prev, message.result])
           setIsRunning(false)
-        } else if (message.success && message.message) {
+        } else if (message.success) {
           // Generation success
-          setGenerationStatus(message.message)
+          setGenerationResults(prev => [...prev, message])
           setIsGenerating(false)
         } else if (message.error) {
           // Error occurred
@@ -107,14 +113,14 @@ export default function RocksDBTests() {
     setup()
 
     return () => {
-      if (worklet.terminate) worklet.terminate()
+      if (worklet?.terminate) worklet.terminate()
     }
   }, [])
 
   const generateDatabases = () => {
     setIsGenerating(true)
     setErrors([])
-    setGenerationStatus('')
+    setGenerationResults([])
     
     // Generate databases for different sizes
     const sizes = [1e4, 1e5, 1e6]
@@ -175,11 +181,11 @@ export default function RocksDBTests() {
         </TouchableOpacity>
       </View>
 
-      {generationStatus && (
-        <View style={styles.statusContainer}>
-          <Text style={styles.statusText}>{generationStatus}</Text>
-        </View>
-      )}
+      {generationResults && generationResults.map((result, index) => (
+        <Text key={index} style={styles.statusText}>
+          {`Generation done for ${result.type} of ${result.size}`}
+        </Text>
+      ))}
 
       <View style={styles.resultsContainer}>
         <Text style={styles.resultTitle}>Benchmark Results</Text>

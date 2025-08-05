@@ -51,10 +51,10 @@ async function handleGenerate(payload) {
     
     if (type === 'hyperdb') {
       await generateDatabase(path + `/dbs/${size}`, size)
-      sendResponse({ success: true, message: `Generated HyperDB database with ${size} records` })
+      sendResponse({ success: true, type: 'hyperdb', size })
     } else if (type === 'raw') {
       await generateRawDatabase(path + `/dbs/raw-${size}`, size)
-      sendResponse({ success: true, message: `Generated raw RocksDB database with ${size} records` })
+      sendResponse({ success: true, type: 'rocksdb', size })
     } else {
       sendResponse({ error: 'Invalid type. Use "hyperdb" or "raw"' })
     }
