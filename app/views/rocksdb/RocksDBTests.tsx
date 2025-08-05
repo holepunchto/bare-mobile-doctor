@@ -16,6 +16,9 @@ import ExecutionLog from './ExecutionLog'
 import TestResult from './TestResult'
 
 const source = require('./rocksdb.bundle')
+const dbSizes = [1e4, 1e5, 1e6]
+const dbTypes = ['hyperdb', 'raw']
+const expectedDatabases = 6
 
 interface GenerationResults {
   success: boolean
@@ -45,7 +48,6 @@ export default function RocksDBTests() {
   const [errors, setErrors] = React.useState<string[]>([])
 
   // Calculate expected total databases (3 sizes × 2 types = 6)
-  const expectedDatabases = 6
   const generationProgress = generationResults.length
 
   useEffect(() => {
@@ -103,12 +105,8 @@ export default function RocksDBTests() {
     setErrors([])
     setGenerationResults([])
 
-    // Generate databases for different sizes
-    const sizes = [1e4, 1e5, 1e6]
-    const types = ['hyperdb', 'raw']
-
-    sizes.forEach((size) => {
-      types.forEach((type) => {
+    dbSizes.forEach((size) => {
+      dbTypes.forEach((type) => {
         const message = JSON.stringify({
           action: 'generate',
           payload: { type, size }
@@ -123,12 +121,8 @@ export default function RocksDBTests() {
     setErrors([])
     setBenchmarkResults([])
 
-    // Run benchmarks for different sizes
-    const sizes = [1e4, 1e5, 1e6]
-    const types = ['hyperdb', 'raw']
-
-    sizes.forEach((size) => {
-      types.forEach((type) => {
+    dbSizes.forEach((size) => {
+      dbTypes.forEach((type) => {
         const message = JSON.stringify({
           action: 'bench',
           payload: { type, size }
