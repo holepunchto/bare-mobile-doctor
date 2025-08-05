@@ -292,6 +292,8 @@ export default function RocksDBTests() {
         </Text>
       </View>
 
+      <ErrorList errors={errors} />
+
       <View style={styles.resultsContainer}>
         <Text style={styles.sectionTitle}>📈 Benchmark Results</Text>
         {benchmarkResults.map((result, index) => (
@@ -313,8 +315,6 @@ export default function RocksDBTests() {
       </View>
 
       <GenerationLog results={generationResults} />
-      
-      <ErrorList errors={errors} />
     </ScrollView>
   )
 }
