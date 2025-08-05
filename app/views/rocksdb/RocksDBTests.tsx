@@ -572,7 +572,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 2,
-    marginLeft: 8
+    marginLeft: 8,
+    marginRight: 12
   },
   logBadgeText: {
     color: '#fff',
