@@ -33,6 +33,32 @@ interface BenchmarkResult {
   rate: number
 }
 
+// Message type definitions
+type MessageType = 'benchmark' | 'generation' | 'error'
+
+interface BaseMessage {
+  type: MessageType
+}
+
+interface BenchmarkMessage extends BaseMessage {
+  type: 'benchmark'
+  result: BenchmarkResult
+}
+
+interface GenerationMessage extends BaseMessage {
+  type: 'generation'
+  success: boolean
+  dbType: string
+  size: number
+}
+
+interface ErrorMessage extends BaseMessage {
+  type: 'error'
+  error: string
+}
+
+type Message = BenchmarkMessage | GenerationMessage | ErrorMessage
+
 export default function RocksDBTests() {
   const worklet = React.useRef<any>(null)
   const ipc = useRef<any>(null)
@@ -50,6 +76,31 @@ export default function RocksDBTests() {
   // Calculate expected total databases (3 sizes × 2 types = 6)
   const generationProgress = generationResults.length
 
+  // Message handler functions
+  const handleBenchmarkMessage = (message: BenchmarkMessage) => {
+    setBenchmarkResults((prev) => [...prev, message.result])
+    setIsRunning(false)
+  }
+
+  const handleGenerationMessage = (message: GenerationMessage) => {
+    setGenerationResults((prev) => {
+      const newResults = [
+        ...prev,
+        { success: message.success, type: message.dbType, size: message.size }
+      ]
+      if (newResults.length >= expectedDatabases) {
+        setIsGenerating(false)
+      }
+      return newResults
+    })
+  }
+
+  const handleErrorMessage = (message: ErrorMessage) => {
+    setErrors((prev) => [...prev, message.error])
+    setIsGenerating(false)
+    setIsRunning(false)
+  }
+
   useEffect(() => {
     const setup = async () => {
       const bareDir = await useBareDir()
@@ -59,35 +110,30 @@ export default function RocksDBTests() {
 
       ipc.current = new FramedStream(worklet.current.IPC)
       ipc.current.on('data', (data: string) => {
-        try {
-          const dataString = b4a.toString(data)
-          const message = JSON.parse(dataString)
-          console.log('Received response:', message)
+        const dataString = b4a.toString(data)
+        console.log('Received response:', dataString)
 
-          if (message.success && message.result) {
-            // Benchmark result
-            setBenchmarkResults((prev) => [...prev, message.result])
-            setIsRunning(false)
-          } else if (message.success) {
-            // Generation success
-            setGenerationResults((prev) => {
-              const newResults = [...prev, message]
-              // Check if we've generated all expected databases
-              if (newResults.length >= expectedDatabases) {
-                setIsGenerating(false)
-              }
-              return newResults
-            })
-          } else if (message.error) {
-            // Error occurred
-            setErrors((prev) => [...prev, message.error])
-            setIsGenerating(false)
-            setIsRunning(false)
+        try {
+          const message = JSON.parse(dataString) as Message
+
+          // Route message to appropriate handler
+          switch (message.type) {
+            case 'benchmark':
+              handleBenchmarkMessage(message)
+              break
+            case 'generation':
+              handleGenerationMessage(message)
+              break
+            case 'error':
+              handleErrorMessage(message)
+              break
           }
         } catch (err) {
           console.error('Failed to parse response:', err)
-          setIsGenerating(false)
-          setIsRunning(false)
+          handleErrorMessage({
+            type: 'error',
+            error: 'Failed to parse response'
+          })
         }
       })
     }

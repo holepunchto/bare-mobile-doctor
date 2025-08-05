@@ -35,7 +35,7 @@ ipc.on('data', (data) => {
     }
   } catch (error) {
     console.error('Parse error:', error.message, 'for message:', message)
-    sendResponse({ error: error.message })
+    sendResponse({ type: 'error', error: error.message })
   }
 })
 
@@ -51,15 +51,28 @@ async function handleGenerate(payload) {
 
     if (type === 'hyperdb') {
       await generateDatabase(path + `/dbs/${size}`, size)
-      sendResponse({ success: true, type: 'hyperdb', size })
+      sendResponse({
+        type: 'generation',
+        success: true,
+        dbType: 'hyperdb',
+        size
+      })
     } else if (type === 'raw') {
       await generateRawDatabase(path + `/dbs/raw-${size}`, size)
-      sendResponse({ success: true, type: 'rocksdb', size })
+      sendResponse({
+        type: 'generation',
+        success: true,
+        dbType: 'rocksdb',
+        size
+      })
     } else {
-      sendResponse({ error: 'Invalid type. Use "hyperdb" or "raw"' })
+      sendResponse({
+        type: 'error',
+        error: 'Invalid type. Use "hyperdb" or "raw"'
+      })
     }
   } catch (error) {
-    sendResponse({ error: error.message })
+    sendResponse({ type: 'error', error: error.message })
   }
 }
 
@@ -71,6 +84,7 @@ async function handleBench(payload) {
     const dbsDir = path + '/dbs'
     if (!fs.existsSync(dbsDir)) {
       sendResponse({
+        type: 'error',
         error:
           'Database directory does not exist. Please generate databases first.'
       })
@@ -84,7 +98,10 @@ async function handleBench(payload) {
     } else if (type === 'raw') {
       dbPath = path + `/dbs/raw-${size}`
     } else {
-      sendResponse({ error: 'Invalid type. Use "hyperdb" or "raw"' })
+      sendResponse({
+        type: 'error',
+        error: 'Invalid type. Use "hyperdb" or "raw"'
+      })
       return
     }
 
@@ -93,6 +110,7 @@ async function handleBench(payload) {
     // Check if the specific database exists
     if (!fs.existsSync(dbPath)) {
       sendResponse({
+        type: 'error',
         error: `Database ${type} with size ${size} does not exist. Please generate it first.`
       })
       return
@@ -106,6 +124,7 @@ async function handleBench(payload) {
 
     if (!hasRocksDBFiles) {
       sendResponse({
+        type: 'error',
         error: `Database ${type} with size ${size} exists but is not properly initialized. Please regenerate it.`
       })
       return
@@ -118,9 +137,9 @@ async function handleBench(payload) {
       result = await benchRaw(dbPath, size)
     }
 
-    sendResponse({ success: true, result })
+    sendResponse({ type: 'benchmark', result })
   } catch (error) {
-    sendResponse({ error: error.message })
+    sendResponse({ type: 'error', error: error.message })
   }
 }
 
