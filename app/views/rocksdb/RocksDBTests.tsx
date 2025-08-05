@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native'
 
 import FramedStream from 'framed-stream'
 import { Worklet } from 'react-native-bare-kit'
@@ -29,24 +29,71 @@ interface TestResultProps {
 }
 
 function TestResult({ testName, hasSucceeded, isRunning, result }: TestResultProps) {
+  const formatNumber = (num: number) => {
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
+    return num.toString()
+  }
+
+  const getDatabaseType = (dir: string) => {
+    if (dir.includes('raw-')) return 'Raw RocksDB'
+    return 'HyperDB'
+  }
+
+  const getDatabaseSize = (dir: string) => {
+    const match = dir.match(/(\d+)/)
+    if (match) {
+      const size = parseInt(match[1])
+      if (size >= 1000000) return `${(size / 1000000).toFixed(1)}M records`
+      if (size >= 1000) return `${(size / 1000).toFixed(1)}K records`
+      return `${size} records`
+    }
+    return 'Unknown size'
+  }
+
   return (
-    <View style={styles.resultItem}>
-      <Text style={styles.testName}>{testName}:</Text>
-      {isRunning ? (
-        <Text style={styles.pending}>⏳ Running...</Text>
-      ) : hasSucceeded === null ? (
-        <Text style={styles.neutral}>-</Text>
-      ) : hasSucceeded ? (
-        <View>
-          <Text style={styles.success}>✅ Completed</Text>
-          {result && (
-            <Text style={styles.resultDetails}>
-              {result.recordsRead} records in {result.duration}s ({result.rate} records/s)
-            </Text>
-          )}
+    <View style={styles.resultCard}>
+      <View style={styles.cardHeader}>
+        <View style={styles.databaseInfo}>
+          <Text style={styles.databaseType}>{getDatabaseType(testName)}</Text>
+          <Text style={styles.databaseSize}>{getDatabaseSize(testName)}</Text>
         </View>
-      ) : (
-        <Text style={styles.error}>❌ Failed</Text>
+        {isRunning ? (
+          <View style={styles.statusBadge}>
+            <Text style={styles.statusText}>⏳ Running</Text>
+          </View>
+        ) : hasSucceeded === null ? (
+          <View style={styles.statusBadge}>
+            <Text style={styles.statusText}>-</Text>
+          </View>
+        ) : hasSucceeded ? (
+          <View style={[styles.statusBadge, styles.successBadge]}>
+            <Text style={styles.successText}>✅ Complete</Text>
+          </View>
+        ) : (
+          <View style={[styles.statusBadge, styles.errorBadge]}>
+            <Text style={styles.errorText}>❌ Failed</Text>
+          </View>
+        )}
+      </View>
+      
+      {result && (
+        <View style={styles.metricsContainer}>
+          <View style={styles.metricRow}>
+            <View style={styles.metric}>
+              <Text style={styles.metricLabel}>Records Read</Text>
+              <Text style={styles.metricValue}>{formatNumber(result.recordsRead)}</Text>
+            </View>
+            <View style={styles.metric}>
+              <Text style={styles.metricLabel}>Duration</Text>
+              <Text style={styles.metricValue}>{result.duration}s</Text>
+            </View>
+            <View style={styles.metric}>
+              <Text style={styles.metricLabel}>Rate</Text>
+              <Text style={styles.metricValue}>{formatNumber(result.rate)}/s</Text>
+            </View>
+          </View>
+        </View>
       )}
     </View>
   )
@@ -57,6 +104,7 @@ const ErrorList = ({ errors }: { errors: string[] }) => {
 
   return (
     <View style={styles.errorContainer}>
+      <Text style={styles.errorTitle}>❌ Errors</Text>
       {errors.map((error: any, index: any) => (
         <Text key={index} style={styles.errorText}>
           • {error}
@@ -159,14 +207,19 @@ export default function RocksDBTests() {
 
   return (
     <ScrollView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>🚀 RocksDB Benchmark</Text>
+        <Text style={styles.subtitle}>Performance testing for HyperDB vs Raw RocksDB</Text>
+      </View>
+
       <View style={styles.buttonContainer}>
         <TouchableOpacity
-          style={[styles.button, isGenerating && styles.buttonDisabled]}
+          style={[styles.button, styles.generateButton, isGenerating && styles.buttonDisabled]}
           onPress={generateDatabases}
           disabled={isGenerating || isRunning}
         >
           <Text style={styles.buttonText}>
-            {isGenerating ? 'Generating...' : 'Generate Databases'}
+            {isGenerating ? '🔄 Generating...' : '📊 Generate Databases'}
           </Text>
         </TouchableOpacity>
 
@@ -176,19 +229,26 @@ export default function RocksDBTests() {
           disabled={isGenerating || isRunning}
         >
           <Text style={styles.buttonText}>
-            {isRunning ? 'Running...' : 'Run Benchmarks'}
+            {isRunning ? '⚡ Running...' : '🏃 Run Benchmarks'}
           </Text>
         </TouchableOpacity>
       </View>
 
-      {generationResults && generationResults.map((result, index) => (
-        <Text key={index} style={styles.statusText}>
-          {`Generation done for ${result.type} of ${result.size}`}
-        </Text>
-      ))}
+      {generationResults.length > 0 && (
+        <View style={styles.generationContainer}>
+          <Text style={styles.sectionTitle}>📁 Generated Databases</Text>
+          {generationResults.map((result, index) => (
+            <View key={index} style={styles.generationItem}>
+              <Text style={styles.generationText}>
+                ✅ {result.type} database with {result.size.toLocaleString()} records
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
 
       <View style={styles.resultsContainer}>
-        <Text style={styles.resultTitle}>Benchmark Results</Text>
+        <Text style={styles.sectionTitle}>📈 Benchmark Results</Text>
         {benchmarkResults.map((result, index) => (
           <TestResult
             key={index}
@@ -199,7 +259,11 @@ export default function RocksDBTests() {
           />
         ))}
         {benchmarkResults.length === 0 && !isRunning && (
-          <Text style={styles.noResults}>No benchmark results yet</Text>
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateIcon}>📊</Text>
+            <Text style={styles.emptyStateText}>No benchmark results yet</Text>
+            <Text style={styles.emptyStateSubtext}>Run benchmarks to see performance data</Text>
+          </View>
         )}
       </View>
       
@@ -208,106 +272,226 @@ export default function RocksDBTests() {
   )
 }
 
+const { width } = Dimensions.get('window')
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20
+    backgroundColor: '#f8f9fa'
+  },
+  header: {
+    padding: 20,
+    paddingTop: 40,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef'
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    textAlign: 'center',
+    marginBottom: 5
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#6c757d',
+    textAlign: 'center'
   },
   buttonContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-    gap: 10
+    padding: 20,
+    gap: 15
   },
   button: {
-    backgroundColor: '#007AFF',
-    padding: 12,
-    borderRadius: 5,
     flex: 1,
-    alignItems: 'center'
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3
+  },
+  generateButton: {
+    backgroundColor: '#007bff',
+    borderWidth: 1,
+    borderColor: '#0056b3'
   },
   runButton: {
-    backgroundColor: '#28A745'
+    backgroundColor: '#28a745',
+    borderWidth: 1,
+    borderColor: '#1e7e34'
   },
   buttonDisabled: {
-    backgroundColor: '#B0B0B0'
+    backgroundColor: '#6c757d',
+    borderColor: '#6c757d'
   },
   buttonText: {
-    color: '#FFF',
-    fontWeight: 'bold'
-  },
-  statusContainer: {
-    backgroundColor: '#E8F5E8',
-    padding: 10,
-    borderRadius: 5,
-    marginBottom: 20
-  },
-  statusText: {
-    color: '#28A745',
-    textAlign: 'center',
-    fontWeight: '500'
-  },
-  neutral: {
-    color: '#666',
-    fontWeight: 'bold'
-  },
-  resultsContainer: {
-    width: '100%',
-    padding: 15,
-    backgroundColor: '#FFF',
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 3,
-    marginBottom: 20
-  },
-  resultTitle: {
-    fontSize: 18,
+    color: '#fff',
     fontWeight: 'bold',
-    marginBottom: 10,
+    fontSize: 16
+  },
+  generationContainer: {
+    margin: 20,
+    padding: 15,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 15,
     textAlign: 'center'
   },
-  resultItem: {
+  generationItem: {
+    paddingVertical: 8
+  },
+  generationText: {
+    color: '#28a745',
+    fontSize: 14,
+    fontWeight: '500'
+  },
+  resultsContainer: {
+    margin: 20,
+    marginBottom: 40
+  },
+  resultCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    borderLeftWidth: 4,
+    borderLeftColor: '#007bff'
+  },
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 5,
-    alignItems: 'flex-start'
+    alignItems: 'center',
+    marginBottom: 15
   },
-  testName: {
-    fontSize: 16,
-    fontWeight: '500',
+  databaseInfo: {
     flex: 1
   },
-  success: {
-    color: '#28A745',
-    fontWeight: 'bold'
+  databaseType: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 2
   },
-  error: {
-    color: '#DC3545',
-    fontWeight: 'bold'
+  databaseSize: {
+    fontSize: 14,
+    color: '#6c757d'
   },
-  pending: {
-    color: '#FFA500',
-    fontWeight: 'bold'
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#f8f9fa'
   },
-  resultDetails: {
-    color: '#666',
+  successBadge: {
+    backgroundColor: '#d4edda',
+    borderColor: '#c3e6cb'
+  },
+  errorBadge: {
+    backgroundColor: '#f8d7da',
+    borderColor: '#f5c6cb'
+  },
+  statusText: {
     fontSize: 12,
-    marginTop: 2
+    fontWeight: 'bold',
+    color: '#6c757d'
   },
-  noResults: {
-    textAlign: 'center',
-    color: '#666',
-    fontStyle: 'italic'
-  },
-  errorContainer: {
-    marginTop: 5,
-    paddingLeft: 10
+  successText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#155724'
   },
   errorText: {
-    color: '#DC3545',
-    fontSize: 14
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#721c24'
+  },
+  metricsContainer: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 15
+  },
+  metricRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between'
+  },
+  metric: {
+    alignItems: 'center',
+    flex: 1
+  },
+  metricLabel: {
+    fontSize: 12,
+    color: '#6c757d',
+    marginBottom: 4,
+    fontWeight: '500'
+  },
+  metricValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2c3e50'
+  },
+  emptyState: {
+    alignItems: 'center',
+    padding: 40,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3
+  },
+  emptyStateIcon: {
+    fontSize: 48,
+    marginBottom: 15
+  },
+  emptyStateText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#6c757d',
+    marginBottom: 5
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#adb5bd',
+    textAlign: 'center'
+  },
+  errorContainer: {
+    margin: 20,
+    padding: 15,
+    backgroundColor: '#f8d7da',
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#dc3545'
+  },
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#721c24',
+    marginBottom: 10
+  },
+  errorText: {
+    color: '#721c24',
+    fontSize: 14,
+    marginBottom: 5
   }
 })

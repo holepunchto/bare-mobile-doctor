@@ -116,7 +116,7 @@ async function bench (dir, count) {
   }
   const rate = (i / duration) * 1000
   const result = {
-    dir,
+    dir: `./dbs/${count}`,
     recordsRead: i,
     duration: duration / 1000,
     rate: Math.round(rate * 10) / 10
@@ -140,7 +140,7 @@ async function benchRaw (dir, count) {
   }
   const rate = (i / duration) * 1000
   const result = {
-    dir,
+    dir: `./dbs/raw-${count}`,
     recordsRead: i,
     duration: duration / 1000,
     rate: Math.round(rate * 10) / 10
