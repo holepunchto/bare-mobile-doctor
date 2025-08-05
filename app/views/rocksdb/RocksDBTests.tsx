@@ -114,10 +114,11 @@ const ErrorList = ({ errors }: { errors: string[] }) => {
   )
 }
 
-const GenerationLog = ({ results }: { results: GenerationResults[] }) => {
+const ExecutionLog = ({ results, errors }: { results: GenerationResults[], errors: string[] }) => {
   const [isExpanded, setIsExpanded] = useState(false)
   
-  if (results.length === 0) return null
+  const totalEvents = results.length + errors.length
+  if (totalEvents === 0) return null
 
   const formatTimestamp = () => {
     const now = new Date()
@@ -132,9 +133,9 @@ const GenerationLog = ({ results }: { results: GenerationResults[] }) => {
       >
         <View style={styles.logHeaderLeft}>
           <Text style={styles.logIcon}>📋</Text>
-          <Text style={styles.logTitle}>Generation Log</Text>
+          <Text style={styles.logTitle}>Execution Log</Text>
           <View style={styles.logBadge}>
-            <Text style={styles.logBadgeText}>{results.length}</Text>
+            <Text style={styles.logBadgeText}>{totalEvents}</Text>
           </View>
         </View>
         <Text style={styles.logToggle}>{isExpanded ? '▼' : '▶'}</Text>
@@ -142,9 +143,10 @@ const GenerationLog = ({ results }: { results: GenerationResults[] }) => {
       
       {isExpanded && (
         <View style={styles.logContent}>
-          <Text style={styles.logTimestamp}>// Generated at {formatTimestamp()}</Text>
+          <Text style={styles.logTimestamp}>// Started at {formatTimestamp()}</Text>
+          
           {results.map((result, index) => (
-            <View key={index} style={styles.logEntry}>
+            <View key={`result-${index}`} style={styles.logEntry}>
               <Text style={styles.logLine}>
                 <Text style={styles.logSuccess}>✓</Text>
                 <Text style={styles.logType}> {result.type}</Text>
@@ -154,7 +156,17 @@ const GenerationLog = ({ results }: { results: GenerationResults[] }) => {
               </Text>
             </View>
           ))}
-          <Text style={styles.logTimestamp}>// Generation complete</Text>
+          
+          {errors.map((error, index) => (
+            <View key={`error-${index}`} style={styles.logEntry}>
+              <Text style={styles.logLine}>
+                <Text style={styles.logError}>✗</Text>
+                <Text style={styles.logText}> {error}</Text>
+              </Text>
+            </View>
+          ))}
+          
+          <Text style={styles.logTimestamp}>// Execution complete</Text>
         </View>
       )}
     </View>
@@ -292,8 +304,6 @@ export default function RocksDBTests() {
         </Text>
       </View>
 
-      <ErrorList errors={errors} />
-
       <View style={styles.resultsContainer}>
         <Text style={styles.sectionTitle}>📈 Benchmark Results</Text>
         {benchmarkResults.map((result, index) => (
@@ -314,7 +324,7 @@ export default function RocksDBTests() {
         )}
       </View>
 
-      <GenerationLog results={generationResults} />
+      <ExecutionLog results={generationResults} errors={errors} />
     </ScrollView>
   )
 }
@@ -610,6 +620,10 @@ const styles = StyleSheet.create({
   },
   logSuccess: {
     color: '#28a745',
+    fontWeight: 'bold'
+  },
+  logError: {
+    color: '#dc3545',
     fontWeight: 'bold'
   },
   logType: {
