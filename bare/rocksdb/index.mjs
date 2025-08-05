@@ -70,17 +70,43 @@ async function handleBench(payload) {
     // Ensure the dbs directory exists using the base path
     const dbsDir = path + '/dbs'
     if (!fs.existsSync(dbsDir)) {
-      fs.mkdirSync(dbsDir, { recursive: true })
+      sendResponse({ error: 'Database directory does not exist. Please generate databases first.' })
+      return
+    }
+    console.log('dbsDir', dbsDir)
+    
+    let dbPath
+    if (type === 'hyperdb') {
+      dbPath = path + `/dbs/${size}`
+    } else if (type === 'raw') {
+      dbPath = path + `/dbs/raw-${size}`
+    } else {
+      sendResponse({ error: 'Invalid type. Use "hyperdb" or "raw"' })
+      return
+    }
+
+    console.log('dbPath', dbPath)
+    
+    // Check if the specific database exists
+    if (!fs.existsSync(dbPath)) {
+      sendResponse({ error: `Database ${type} with size ${size} does not exist. Please generate it first.` })
+      return
+    }
+    
+    // Check if RocksDB files exist (CURRENT, MANIFEST, etc.)
+    const rocksdbFiles = ['CURRENT', 'MANIFEST', 'LOCK']
+    const hasRocksDBFiles = rocksdbFiles.some(file => fs.existsSync(`${dbPath}/${file}`))
+    
+    if (!hasRocksDBFiles) {
+      sendResponse({ error: `Database ${type} with size ${size} exists but is not properly initialized. Please regenerate it.` })
+      return
     }
     
     let result
     if (type === 'hyperdb') {
-      result = await bench(path + `/dbs/${size}`, size)
+      result = await bench(dbPath, size)
     } else if (type === 'raw') {
-      result = await benchRaw(path + `/dbs/raw-${size}`, size)
-    } else {
-      sendResponse({ error: 'Invalid type. Use "hyperdb" or "raw"' })
-      return
+      result = await benchRaw(dbPath, size)
     }
     
     sendResponse({ success: true, result })
@@ -102,49 +128,79 @@ function sendResponse(data) {
 // await benchRaw('./dbs/raw-1e4', 1e4)
 
 async function bench (dir, count) {
-  const db = HyperDB.rocks(dir, spec)
-  const start = Date.now()
-  let duration = 0
-  let i = 0
-  while (true) {
-    const key = Math.floor(Math.random() * count)
-    const res = await db.get('@x/b', { b: key })
-    if (!res) throw new Error(`Key is not there but should be there: ${key}`)
-    i++
-    duration = Date.now() - start
-    if (duration >= DURATION) break
+  let db
+  try {
+    db = HyperDB.rocks(dir, spec)
+    const start = Date.now()
+    let duration = 0
+    let i = 0
+    while (true) {
+      const key = Math.floor(Math.random() * count)
+      const res = await db.get('@x/b', { b: key })
+      if (!res) throw new Error(`Key is not there but should be there: ${key}`)
+      i++
+      duration = Date.now() - start
+      if (duration >= DURATION) break
+    }
+    const rate = (i / duration) * 1000
+    const result = {
+      dir: `./dbs/${count}`,
+      recordsRead: i,
+      duration: duration / 1000,
+      rate: Math.round(rate * 10) / 10
+    }
+    return result
+  } catch (error) {
+    if (error.message.includes('Key is not there')) {
+      throw new Error(`The database was not properly generated or is incomplete. Please regenerate the databases.`)
+    }
+    throw new Error(`HyperDB benchmark failed: ${error.message}`)
+  } finally {
+    if (db) {
+      try {
+        await db.close()
+      } catch (closeError) {
+        console.error('Error closing HyperDB:', closeError)
+      }
+    }
   }
-  const rate = (i / duration) * 1000
-  const result = {
-    dir: `./dbs/${count}`,
-    recordsRead: i,
-    duration: duration / 1000,
-    rate: Math.round(rate * 10) / 10
-  }
-  await db.close()
-  return result
 }
 
 async function benchRaw (dir, count) {
-  const db = new RocksDB(dir)
-  const start = Date.now()
-  let duration = 0
-  let i = 0
-  while (true) {
-    const key = '' + Math.floor(Math.random() * count)
-    const res = await db.get(key)
-    if (!res) throw new Error(`Key is not there but should be there: ${key}`)
-    i++
-    duration = Date.now() - start
-    if (duration >= DURATION) break
+  let db
+  try {
+    db = new RocksDB(dir)
+    const start = Date.now()
+    let duration = 0
+    let i = 0
+    while (true) {
+      const key = '' + Math.floor(Math.random() * count)
+      const res = await db.get(key)
+      if (!res) throw new Error(`Key is not there but should be there: ${key}`)
+      i++
+      duration = Date.now() - start
+      if (duration >= DURATION) break
+    }
+    const rate = (i / duration) * 1000
+    const result = {
+      dir: `./dbs/raw-${count}`,
+      recordsRead: i,
+      duration: duration / 1000,
+      rate: Math.round(rate * 10) / 10
+    }
+    return result
+  } catch (error) {
+    if (error.message.includes('Key is not there')) {
+      throw new Error(`The database was not properly generated or is incomplete. Please regenerate the databases.`)
+    }
+    throw new Error(`Raw RocksDB benchmark failed: ${error.message}`)
+  } finally {
+    if (db) {
+      try {
+        await db.close()
+      } catch (closeError) {
+        console.error('Error closing RocksDB:', closeError)
+      }
+    }
   }
-  const rate = (i / duration) * 1000
-  const result = {
-    dir: `./dbs/raw-${count}`,
-    recordsRead: i,
-    duration: duration / 1000,
-    rate: Math.round(rate * 10) / 10
-  }
-  await db.close()
-  return result
 }

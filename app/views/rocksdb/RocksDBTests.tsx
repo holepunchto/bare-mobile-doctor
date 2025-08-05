@@ -536,11 +536,6 @@ const styles = StyleSheet.create({
     color: '#721c24',
     marginBottom: 10
   },
-  errorText: {
-    color: '#721c24',
-    fontSize: 14,
-    marginBottom: 5
-  },
   logContainer: {
     margin: 20,
     backgroundColor: '#1e1e1e',
