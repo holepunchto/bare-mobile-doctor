@@ -4,8 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
-  Dimensions
+  ScrollView
 } from 'react-native'
 
 import FramedStream from 'framed-stream'
@@ -31,13 +30,6 @@ interface BenchmarkResult {
   rate: number
 }
 
-interface TestResultProps {
-  testName: string
-  hasSucceeded: boolean | null
-  isRunning: boolean
-  result?: BenchmarkResult
-}
-
 export default function RocksDBTests() {
   const worklet = React.useRef<any>(null)
   const ipc = useRef<any>(null)
@@ -55,7 +47,6 @@ export default function RocksDBTests() {
   // Calculate expected total databases (3 sizes × 2 types = 6)
   const expectedDatabases = 6
   const generationProgress = generationResults.length
-  const isGenerationComplete = generationProgress >= expectedDatabases
 
   useEffect(() => {
     const setup = async () => {
@@ -224,8 +215,6 @@ export default function RocksDBTests() {
   )
 }
 
-const { width } = Dimensions.get('window')
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -286,31 +275,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16
   },
-  generationContainer: {
-    margin: 20,
-    padding: 15,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3
-  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#2c3e50',
     marginBottom: 15,
     textAlign: 'center'
-  },
-  generationItem: {
-    paddingVertical: 8
-  },
-  generationText: {
-    color: '#28a745',
-    fontSize: 14,
-    fontWeight: '500'
   },
   resultsContainer: {
     margin: 20,
@@ -342,20 +312,7 @@ const styles = StyleSheet.create({
     color: '#adb5bd',
     textAlign: 'center'
   },
-  errorContainer: {
-    margin: 20,
-    padding: 15,
-    backgroundColor: '#f8d7da',
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#dc3545'
-  },
-  errorTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#721c24',
-    marginBottom: 10
-  },
+
   tipContainer: {
     margin: 20,
     backgroundColor: '#fff3cd',
@@ -381,27 +338,5 @@ const styles = StyleSheet.create({
     color: '#856404',
     textAlign: 'center',
     lineHeight: 20
-  },
-  progressContainer: {
-    marginTop: 12,
-    alignItems: 'center'
-  },
-  progressText: {
-    fontSize: 12,
-    color: '#856404',
-    marginBottom: 6,
-    fontWeight: '500'
-  },
-  progressBar: {
-    width: '100%',
-    height: 6,
-    backgroundColor: '#ffeaa7',
-    borderRadius: 3,
-    overflow: 'hidden'
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#28a745',
-    borderRadius: 3
   }
 })
