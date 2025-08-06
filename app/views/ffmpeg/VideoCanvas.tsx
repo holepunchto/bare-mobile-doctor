@@ -11,6 +11,9 @@ import {
 
 import ThemedText from '../../components/ThemedText'
 
+const IMAGE_KEY = 0
+const DATA_KEY = 1
+
 const VideoCanvas = ({
   data,
   width,
@@ -20,12 +23,16 @@ const VideoCanvas = ({
   width: number
   height: number
 }) => {
+  // Ref: https://github.com/Shopify/react-native-skia/issues/2909#issuecomment-2670523371
+  // This is way to reduce memory pressure
   const cache = {}
   const [skiaImage, setSkiaImage] = useState<SkImage>()
 
   useEffect(() => {
-    cache[0]?.dispose()
+    cache[IMAGE_KEY]?.dispose()
+    cache[DATA_KEY]?.dispose()
 
+    const skiaData = Skia.Data.fromBytes(data)
     const image = Skia.Image.MakeImage(
       {
         width,
@@ -33,10 +40,12 @@ const VideoCanvas = ({
         alphaType: AlphaType.Opaque,
         colorType: ColorType.RGBA_8888
       },
-      Skia.Data.fromBytes(data),
+      skiaData,
       width * 4
     )
-    cache[0] = image
+
+    cache[IMAGE_KEY] = image
+    cache[DATA_KEY] = skiaData
     setSkiaImage(cache[0])
   }, [data])
 
