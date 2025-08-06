@@ -1,43 +1,15 @@
-// TODO: remove memo
 import React, { useState, useEffect } from 'react'
 import { View, Platform } from 'react-native'
 import {
   Canvas,
   Skia,
+  SkImage,
   Image,
   AlphaType,
   ColorType
 } from '@shopify/react-native-skia'
 
 import ThemedText from '../../components/ThemedText'
-
-function createImage(
-  data: Uint8Array,
-  width: number,
-  height: number
-): Uint8Array | null {
-  if (!data || !data.length) {
-    return null
-  }
-
-  try {
-    const result = Skia.Image.MakeImage(
-      {
-        width,
-        height,
-        alphaType: AlphaType.Opaque,
-        colorType: ColorType.RGBA_8888
-      },
-      Skia.Data.fromBytes(data),
-      width * 4
-    )
-
-    return result
-  } catch (error) {
-    console.error('Error creating Skia image:', error)
-    return null
-  }
-}
 
 const VideoCanvas = ({
   data,
@@ -48,11 +20,22 @@ const VideoCanvas = ({
   width: number
   height: number
 }) => {
-  const [image, setImage] = useState<Uint8Array | null>(null)
+  const cache = {}
+  const [skiaImage, setSkiaImage] = useState<SkImage>()
 
   useEffect(() => {
-    const image = createImage(data, width, height)
-    setImage(image)
+    const image = Skia.Image.MakeImage(
+      {
+        width,
+        height,
+        alphaType: AlphaType.Opaque,
+        colorType: ColorType.RGBA_8888
+      },
+      Skia.Data.fromBytes(data),
+      width * 4
+    )
+    cache[0] = image
+    setSkiaImage(cache[0])
   }, [data])
 
   if (!data || !data.length) {
@@ -71,7 +54,7 @@ const VideoCanvas = ({
     )
   }
 
-  if (!image) {
+  if (!skiaImage) {
     return (
       <View
         style={{
@@ -92,7 +75,7 @@ const VideoCanvas = ({
   return (
     <Canvas style={{ width, height, backgroundColor: 'red' }}>
       <Image
-        image={image}
+        image={skiaImage}
         fit='cover'
         x={0}
         y={0}
