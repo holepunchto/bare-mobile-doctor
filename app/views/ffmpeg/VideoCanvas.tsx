@@ -24,6 +24,8 @@ const VideoCanvas = ({
   const [skiaImage, setSkiaImage] = useState<SkImage>()
 
   useEffect(() => {
+    cache[0]?.dispose()
+
     const image = Skia.Image.MakeImage(
       {
         width,
