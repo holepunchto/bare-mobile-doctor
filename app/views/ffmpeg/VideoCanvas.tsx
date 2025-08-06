@@ -1,9 +1,9 @@
-// TODO: remove memo
 import React, { useState, useEffect } from 'react'
 import { View, Platform } from 'react-native'
 import {
   Canvas,
   Skia,
+  SkImage,
   Image,
   AlphaType,
   ColorType
@@ -11,33 +11,8 @@ import {
 
 import ThemedText from '../../components/ThemedText'
 
-function createImage(
-  data: Uint8Array,
-  width: number,
-  height: number
-): Uint8Array | null {
-  if (!data || !data.length) {
-    return null
-  }
-
-  try {
-    const result = Skia.Image.MakeImage(
-      {
-        width,
-        height,
-        alphaType: AlphaType.Opaque,
-        colorType: ColorType.RGBA_8888
-      },
-      Skia.Data.fromBytes(data),
-      width * 4
-    )
-
-    return result
-  } catch (error) {
-    console.error('Error creating Skia image:', error)
-    return null
-  }
-}
+const IMAGE_KEY = 0
+const DATA_KEY = 1
 
 const VideoCanvas = ({
   data,
@@ -48,11 +23,30 @@ const VideoCanvas = ({
   width: number
   height: number
 }) => {
-  const [image, setImage] = useState<Uint8Array | null>(null)
+  // Ref: https://github.com/Shopify/react-native-skia/issues/2909#issuecomment-2670523371
+  // This is way to reduce memory pressure
+  const cache = {}
+  const [skiaImage, setSkiaImage] = useState<SkImage>()
 
   useEffect(() => {
-    const image = createImage(data, width, height)
-    setImage(image)
+    cache[IMAGE_KEY]?.dispose()
+    cache[DATA_KEY]?.dispose()
+
+    const skiaData = Skia.Data.fromBytes(data)
+    const image = Skia.Image.MakeImage(
+      {
+        width,
+        height,
+        alphaType: AlphaType.Opaque,
+        colorType: ColorType.RGBA_8888
+      },
+      skiaData,
+      width * 4
+    )
+
+    cache[IMAGE_KEY] = image
+    cache[DATA_KEY] = skiaData
+    setSkiaImage(cache[0])
   }, [data])
 
   if (!data || !data.length) {
@@ -71,7 +65,7 @@ const VideoCanvas = ({
     )
   }
 
-  if (!image) {
+  if (!skiaImage) {
     return (
       <View
         style={{
@@ -92,7 +86,7 @@ const VideoCanvas = ({
   return (
     <Canvas style={{ width, height, backgroundColor: 'red' }}>
       <Image
-        image={image}
+        image={skiaImage}
         fit='cover'
         x={0}
         y={0}
