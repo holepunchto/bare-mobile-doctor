@@ -113,6 +113,9 @@ Bare.on('exit', () => {
   rawFrame.destroy()
   rgbaFrame.destroy()
   toRGBA.destroy()
+  toDowngradedRGBA.destroy()
+  scaler = null
+  log('Worklet ffmpeg closed')
 })
 
 ipc.on('data', (data) => {
