@@ -33,7 +33,7 @@
     "b4a": "^1.6.7",
     "bare-assert": "^1.0.2",
     "bare-buffer": "^3.1.2",
-    "bare-ffmpeg": "^1.0.0-8",
+    "bare-ffmpeg": "^1.0.0-22",
     "bare-fs": "^4.1.2",
     "bare-http1": "^4.0.2",
     "bare-rpc": "^0.2.5",

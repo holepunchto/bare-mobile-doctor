@@ -83,7 +83,7 @@ const rawFrame = new ffmpeg.Frame()
 const rgbaFrame = new ffmpeg.Frame()
 rgbaFrame.width = decoder.width
 rgbaFrame.height = decoder.height
-rgbaFrame.pixelFormat = ffmpeg.constants.pixelFormats.RGBA
+rgbaFrame.format = ffmpeg.constants.pixelFormats.RGBA
 rgbaFrame.alloc()
 
 log('Frames set!')
