@@ -46,14 +46,7 @@ if (Bare.platform === 'ios') {
 
 log('Options set!')
 
-let inputFormat
-
-if (Bare.platform === 'ios') {
-  inputFormat = new ffmpeg.InputFormat()
-} else {
-  // TODO: add it as default in `bare-ffmpeg`
-  inputFormat = new ffmpeg.InputFormat('android_camera')
-}
+let inputFormat = new ffmpeg.InputFormat()
 
 log('InputFormat set!')
 
