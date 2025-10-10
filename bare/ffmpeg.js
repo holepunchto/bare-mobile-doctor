@@ -131,6 +131,13 @@ setInterval(() => {
     log('1 - read frame', ret)
     if (!ret) return
 
+    const expectedSize = decoder.width * decoder.height * 1.5
+    if (packet.data.byteLength < expectedSize) {
+      log('2 - Skip too small packet')
+      packet.unref()
+      return
+    }
+
     ret = decoder.sendPacket(packet)
     log('2 - send packet', ret)
     packet.unref()
