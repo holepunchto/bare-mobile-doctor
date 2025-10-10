@@ -70,7 +70,10 @@ if (!bestStream) {
 log('Get best stream', bestStream)
 
 const decoder = bestStream.decoder()
-log('Get decoder for pixel format:', ffmpeg.constants.getPixelFormatName(decoder.pixelFormat))
+log(
+  'Get decoder for pixel format:',
+  ffmpeg.constants.getPixelFormatName(decoder.pixelFormat)
+)
 
 decoder.open()
 log('Setup decoder')
