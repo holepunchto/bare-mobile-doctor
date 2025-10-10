@@ -70,7 +70,13 @@ if (!bestStream) {
 log('Get best stream', bestStream)
 
 const decoder = bestStream.decoder()
-log('Get decoder')
+log(
+  'Get decoder for pixel format:',
+  ffmpeg.constants.getPixelFormatName(decoder.pixelFormat)
+)
+
+decoder.open()
+log('Setup decoder')
 
 const rawFrame = new ffmpeg.Frame()
 const rgbaFrame = new ffmpeg.Frame()
@@ -130,6 +136,13 @@ setInterval(() => {
     let ret = inputFormatContext.readFrame(packet)
     log('1 - read frame', ret)
     if (!ret) return
+
+    const expectedSize = decoder.width * decoder.height * 1.5
+    if (packet.data.byteLength < expectedSize) {
+      log('2 - Skip too small packet')
+      packet.unref()
+      return
+    }
 
     ret = decoder.sendPacket(packet)
     log('2 - send packet', ret)

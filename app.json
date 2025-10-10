@@ -17,7 +17,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "to.holepunch.bare.doctor.mobile",
       "infoPlist": {
-        "NSCameraUsageDescription": "This app uses the camera to capture video content"
+        "NSCameraUsageDescription": "This app uses the camera to capture video content",
+        "NSMicrophoneUsageDescription": "This app uses the microphone to capture audio content"
       }
     },
     "android": {
