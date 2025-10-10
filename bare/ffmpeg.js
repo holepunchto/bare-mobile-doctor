@@ -70,7 +70,10 @@ if (!bestStream) {
 log('Get best stream', bestStream)
 
 const decoder = bestStream.decoder()
-log('Get decoder')
+log('Get decoder for pixel format:', ffmpeg.constants.getPixelFormatName(decoder.pixelFormat))
+
+decoder.open()
+log('Setup decoder')
 
 const rawFrame = new ffmpeg.Frame()
 const rgbaFrame = new ffmpeg.Frame()
