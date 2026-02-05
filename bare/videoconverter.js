@@ -229,58 +229,64 @@ function startPlayback() {
     if (!isPlaying) return
 
     try {
-      const packet = new ffmpeg.Packet()
-      const ret = inputFormatContext.readFrame(packet)
+      let frameSent = false
 
-      log('readFrame ret:', ret, 'streamIndex:', packet.streamIndex)
+      // Keep reading packets until we decode and send at least one video frame
+      while (!frameSent) {
+        const packet = new ffmpeg.Packet()
+        const ret = inputFormatContext.readFrame(packet)
 
-      if (!ret) {
-        // End of video - loop back
-        log('End of video, looping...')
-        packet.unref()
+        log('readFrame ret:', ret, 'streamIndex:', packet.streamIndex)
 
-        // Reopen the video to loop
-        const currentPath = videoPath
-        cleanup()
-        setTimeout(() => {
-          if (openVideo(currentPath)) {
-            startPlayback()
-          }
-        }, 100)
-        return
-      }
+        if (!ret) {
+          // End of video - loop back
+          log('End of video, looping...')
+          packet.unref()
 
-      // Only process video packets
-      if (packet.streamIndex === videoStreamIndex) {
-        log('Processing video packet')
-        const sendResult = decoder.sendPacket(packet)
-        log('sendPacket result:', sendResult)
-
-        if (sendResult) {
-          while (decoder.receiveFrame(rawFrame)) {
-            log('Received frame', frameCount++)
-
-            // Create image
-            const image = new ffmpeg.Image(
-              ffmpeg.constants.pixelFormats.RGBA,
-              rgbaFrame.width,
-              rgbaFrame.height
-            )
-            image.fill(rgbaFrame)
-
-            // Scale to RGBA (updates the buffer referenced by image)
-            scaler.scale(rawFrame, rgbaFrame)
-
-            const buf = b4a.from(image.data.buffer)
-            log('Sending frame buffer, size:', buf.length)
-            ipc.write(buf)
-          }
+          // Reopen the video to loop
+          const currentPath = videoPath
+          cleanup()
+          setTimeout(() => {
+            if (openVideo(currentPath)) {
+              startPlayback()
+            }
+          }, 100)
+          return
         }
-      } else {
-        log('Skipping non-video packet, streamIndex:', packet.streamIndex)
-      }
 
-      packet.unref()
+        // Only process video packets
+        if (packet.streamIndex === videoStreamIndex) {
+          log('Processing video packet')
+          const sendResult = decoder.sendPacket(packet)
+          log('sendPacket result:', sendResult)
+
+          if (sendResult) {
+            while (decoder.receiveFrame(rawFrame)) {
+              log('Received frame', frameCount++)
+
+              // Create image
+              const image = new ffmpeg.Image(
+                ffmpeg.constants.pixelFormats.RGBA,
+                rgbaFrame.width,
+                rgbaFrame.height
+              )
+              image.fill(rgbaFrame)
+
+              // Scale to RGBA (updates the buffer referenced by image)
+              scaler.scale(rawFrame, rgbaFrame)
+
+              const buf = b4a.from(image.data.buffer)
+              log('Sending frame buffer, size:', buf.length)
+              ipc.write(buf)
+              frameSent = true
+            }
+          }
+        } else {
+          log('Skipping non-video packet, streamIndex:', packet.streamIndex)
+        }
+
+        packet.unref()
+      }
     } catch (error) {
       log('Playback error:', error.message)
       sendError(error.message)
