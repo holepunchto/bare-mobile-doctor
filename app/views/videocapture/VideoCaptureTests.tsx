@@ -9,7 +9,7 @@ import b4a from 'b4a'
 import VideoCanvas from './VideoCanvas'
 import ThemedText from '../../components/ThemedText'
 
-const source = require('./ffmpeg.bundle')
+const source = require('./videocapture.bundle')
 
 function isCpuInfo(data: Uint8Array): boolean {
   return (
@@ -19,7 +19,7 @@ function isCpuInfo(data: Uint8Array): boolean {
   )
 }
 
-export default function FFmpegTest() {
+export default function VideoCaptureTest() {
   const [permission, requestPermission] = useCameraPermissions()
   const [data, setData] = useState<Uint8Array | null>(null)
   const [cpuInfo, setCpuInfo] = useState<string>('')
@@ -38,7 +38,7 @@ export default function FFmpegTest() {
       const enableDebug = 'false'
       // - choose camera
       const camera = 'front'
-      worklet.start('ffmpeg.bundle', source, [enableDebug, camera])
+      worklet.start('videocapture.bundle', source, [enableDebug, camera])
 
       console.log('worklet started')
 

@@ -9,7 +9,7 @@ import HyperdbTests from './views/hyperdb/HyperdbTests'
 import HypercoreTests from './views/hypercore/HypercoreTests'
 import OSTests from './views/os/OSTests'
 import ChecksumTests from './views/checksum/ChecksumTests'
-import FFmpegTests from './views/ffmpeg/FFmpegTests'
+import VideoCaptureTests from './views/videocapture/VideoCaptureTests'
 import RocksDBTests from './views/rocksdb/RocksDBTests'
 
 export type TestModule =
@@ -20,7 +20,7 @@ export type TestModule =
   | 'Hypercore'
   | 'Checksum'
   | 'OS'
-  | 'FFmpeg'
+  | 'VideoCapture'
   | 'RocksDB'
 
 export default function () {
@@ -42,8 +42,8 @@ export default function () {
         return <OSTests />
       case 'Checksum':
         return <ChecksumTests />
-      case 'FFmpeg':
-        return <FFmpegTests />
+      case 'VideoCapture':
+        return <VideoCaptureTests />
       case 'RocksDB':
         return <RocksDBTests />
     }
@@ -60,7 +60,7 @@ export default function () {
           'Hypercore',
           'Checksum',
           'OS',
-          'FFmpeg',
+          'VideoCapture',
           'RocksDB'
         ]}
         activeModule={activeModule}
