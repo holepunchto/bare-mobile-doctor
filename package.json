@@ -36,6 +36,7 @@
     "bare-ffmpeg": "^1.1.0",
     "bare-fs": "^4.4.9",
     "bare-http1": "^4.0.2",
+    "bare-media": "^2.3.0-0",
     "bare-rpc": "^1.1.0",
     "corestore": "^7.0.23",
     "events": "^3.3.0",
