@@ -10,6 +10,7 @@ import HypercoreTests from './views/hypercore/HypercoreTests'
 import OSTests from './views/os/OSTests'
 import ChecksumTests from './views/checksum/ChecksumTests'
 import VideoCaptureTests from './views/videocapture/VideoCaptureTests'
+import VideoConverterTests from './views/videoconverter/VideoConverterTests'
 import RocksDBTests from './views/rocksdb/RocksDBTests'
 
 export type TestModule =
@@ -21,6 +22,7 @@ export type TestModule =
   | 'Checksum'
   | 'OS'
   | 'VideoCapture'
+  | 'VideoConverter'
   | 'RocksDB'
 
 export default function () {
@@ -44,6 +46,8 @@ export default function () {
         return <ChecksumTests />
       case 'VideoCapture':
         return <VideoCaptureTests />
+      case 'VideoConverter':
+        return <VideoConverterTests />
       case 'RocksDB':
         return <RocksDBTests />
     }
@@ -61,6 +65,7 @@ export default function () {
           'Checksum',
           'OS',
           'VideoCapture',
+          'VideoConverter',
           'RocksDB'
         ]}
         activeModule={activeModule}

@@ -15,8 +15,9 @@
     "gen:os": "npx bare-pack --out app/views/os/os.bundle.js bare/os.js --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
     "gen:checksum": "npx bare-pack --out app/views/checksum/checksum.bundle.js bare/checksum.js --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
     "gen:videocapture": "npx bare-pack --out app/views/videocapture/videocapture.bundle.js bare/videocapture.js --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
+    "gen:videoconverter": "npx bare-pack --out app/views/videoconverter/videoconverter.bundle.js bare/videoconverter.js --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
     "gen:rocksdb": "npx bare-pack --out app/views/rocksdb/rocksdb.bundle.js bare/rocksdb/index.mjs --target ios-arm64 --target ios-arm64-simulator --target ios-x64-simulator --target android-arm --target android-arm64 --target android-ia32 --target android-x64 --linked",
-    "bundle": "npm run gen:udx && npm run gen:hyperdb && npm run gen:ipc && npm run gen:hypercore && npm run gen:os && npm run gen:checksum && npm run gen:videocapture && npm run gen:rocksdb"
+    "bundle": "npm run gen:udx && npm run gen:hyperdb && npm run gen:ipc && npm run gen:hypercore && npm run gen:os && npm run gen:checksum && npm run gen:videocapture && npm run gen:videoconverter && npm run gen:rocksdb"
   },
   "repository": {
     "type": "git",
