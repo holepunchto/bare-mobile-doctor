@@ -4,9 +4,9 @@ import {
   StyleSheet,
   View,
   ScrollView,
-  Platform,
-  Dimensions
+  Platform
 } from 'react-native'
+import { Video, ResizeMode } from 'expo-av'
 
 import { Worklet } from 'react-native-bare-kit'
 import FramedStream from 'framed-stream'
@@ -14,19 +14,12 @@ import b4a from 'b4a'
 import * as FileSystem from 'expo-file-system'
 import { Asset } from 'expo-asset'
 
-import VideoCanvas from './VideoCanvas'
 import ThemedText from '../../components/ThemedText'
 import useBareDir from '../../hooks/useBareDir'
 
 const source = require('./videoconverter.bundle')
 
-type PlayerStatus = 'idle' | 'ready' | 'playing' | 'stopped' | 'error'
-
-interface VideoMetadata {
-  width: number
-  height: number
-  frameRate: number
-}
+type PlayerStatus = 'idle' | 'converting' | 'streaming' | 'ready' | 'playing' | 'done' | 'stopped' | 'error'
 
 function isCpuInfo(data: Uint8Array): boolean {
   return (
@@ -54,27 +47,23 @@ function isError(data: Uint8Array): boolean {
   )
 }
 
-function isMetadata(data: Uint8Array): boolean {
+function isUrl(data: Uint8Array): boolean {
   return (
-    data[0] === 'm'.charCodeAt(0) &&
-    data[1] === 'e'.charCodeAt(0) &&
-    data[2] === 't'.charCodeAt(0) &&
-    data[3] === 'a'.charCodeAt(0) &&
-    data[4] === ':'.charCodeAt(0)
+    data[0] === 'u'.charCodeAt(0) &&
+    data[1] === 'r'.charCodeAt(0) &&
+    data[2] === 'l'.charCodeAt(0) &&
+    data[3] === ':'.charCodeAt(0)
   )
 }
 
 export default function VideoConverterTest() {
   const worklet = useRef(new Worklet()).current
   const [cpuInfo, setCpuInfo] = useState<string>('')
-  const [videoData, setVideoData] = useState<Uint8Array | null>(null)
+  const [videoUrl, setVideoUrl] = useState<string>('')
   const [status, setStatus] = useState<PlayerStatus>('idle')
   const [error, setError] = useState<string>('')
-  const [metadata, setMetadata] = useState<VideoMetadata | null>(null)
   const [selectedVideo, setSelectedVideo] = useState<string>('sample_30s.mkv')
   const [bareDir, setBareDir] = useState<string>('')
-  const [canvasWidth, setCanvasWidth] = useState<number>(0)
-  const [canvasHeight, setCanvasHeight] = useState<number>(0)
 
   const stream = useRef<any>(null)
 
@@ -135,30 +124,12 @@ export default function VideoConverterTest() {
           return
         }
 
-        if (isMetadata(data)) {
-          const metadataStr = b4a.toString(data.subarray(5))
-          console.log('Metadata:', metadataStr)
-          try {
-            const meta = JSON.parse(metadataStr)
-            setMetadata(meta)
-
-            // Calculate canvas dimensions to maintain aspect ratio
-            const screenWidth = Dimensions.get('window').width - 40 // padding
-            const aspectRatio = meta.width / meta.height
-            const calculatedWidth = screenWidth
-            const calculatedHeight = screenWidth / aspectRatio
-
-            setCanvasWidth(calculatedWidth)
-            setCanvasHeight(calculatedHeight)
-          } catch (e) {
-            console.error('Failed to parse metadata:', e)
-          }
+        if (isUrl(data)) {
+          const url = b4a.toString(data.subarray(4))
+          console.log('Video URL:', url)
+          setVideoUrl(url)
           return
         }
-
-        // Video frame data
-        console.log('Received video frame data, size:', data.length)
-        setVideoData(data)
       })
     }
 
@@ -174,17 +145,8 @@ export default function VideoConverterTest() {
     const videoPath = `${bareDir}/${filename}`
     console.log('Opening video:', videoPath)
     setError('')
-    setMetadata(null)
-    setVideoData(null)
+    setVideoUrl('')
     stream.current.write(b4a.from(`open:${videoPath}`))
-  }
-
-  const playVideo = () => {
-    stream.current.write(b4a.from('play'))
-  }
-
-  const stopVideo = () => {
-    stream.current.write(b4a.from('stop'))
   }
 
   const getVideoPath = () => {
@@ -233,30 +195,7 @@ export default function VideoConverterTest() {
             style={[styles.button, styles.openButton]}
             onPress={() => openVideo(selectedVideo)}
           >
-            <ThemedText style={styles.buttonText}>Open</ThemedText>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.button,
-              status !== 'ready' && status !== 'stopped' && styles.buttonDisabled
-            ]}
-            onPress={playVideo}
-            disabled={status !== 'ready' && status !== 'stopped'}
-          >
-            <ThemedText style={styles.buttonText}>Play</ThemedText>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.button,
-              styles.stopButton,
-              status !== 'playing' && styles.buttonDisabled
-            ]}
-            onPress={stopVideo}
-            disabled={status !== 'playing'}
-          >
-            <ThemedText style={styles.buttonText}>Stop</ThemedText>
+            <ThemedText style={styles.buttonText}>Stream</ThemedText>
           </TouchableOpacity>
         </View>
 
@@ -265,7 +204,8 @@ export default function VideoConverterTest() {
           <ThemedText
             style={[
               styles.statusText,
-              status === 'playing' && styles.statusPlaying,
+              status === 'ready' && styles.statusReady,
+              (status === 'converting' || status === 'streaming') && styles.statusConverting,
               status === 'error' && styles.statusError
             ]}
           >
@@ -279,30 +219,30 @@ export default function VideoConverterTest() {
           </View>
         ) : null}
 
-        {metadata && (
-          <View style={styles.metadataSection}>
-            <ThemedText style={styles.metadataTitle}>Video Info</ThemedText>
-            <ThemedText style={styles.metadataText}>
-              {metadata.width}x{metadata.height} @ {metadata.frameRate.toFixed(1)} fps
-            </ThemedText>
-          </View>
-        )}
-
-        {videoData && metadata && canvasWidth > 0 ? (
-          <View style={styles.canvasContainer}>
-            <VideoCanvas
-              data={videoData}
-              width={canvasWidth}
-              height={canvasHeight}
-              videoWidth={metadata.width}
-              videoHeight={metadata.height}
+        {videoUrl ? (
+          <View style={styles.videoContainer}>
+            <Video
+              source={{ uri: videoUrl }}
+              style={styles.video}
+              useNativeControls
+              resizeMode={ResizeMode.CONTAIN}
+              shouldPlay
+              isLooping={false}
+              onError={(e) => {
+                console.log('Video error:', e)
+                setError('Video playback error')
+              }}
+              onLoad={() => {
+                console.log('Video loaded')
+                setStatus('playing')
+              }}
             />
           </View>
         ) : (
           <View style={styles.placeholderContainer}>
             <ThemedText style={styles.placeholderText}>
-              {status === 'idle' ? 'Select and open a video' :
-               status === 'ready' ? 'Press Play to start' :
+              {status === 'idle' ? 'Select a video and press Stream' :
+               status === 'converting' || status === 'streaming' ? 'Streaming video...' :
                status === 'error' ? 'An error occurred' :
                'Loading...'}
             </ThemedText>
@@ -386,12 +326,6 @@ const styles = StyleSheet.create({
   openButton: {
     backgroundColor: '#5856D6'
   },
-  stopButton: {
-    backgroundColor: '#FF3B30'
-  },
-  buttonDisabled: {
-    opacity: 0.3
-  },
   buttonText: {
     color: 'white',
     fontSize: 16,
@@ -417,8 +351,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#666'
   },
-  statusPlaying: {
+  statusReady: {
     color: '#34C759'
+  },
+  statusConverting: {
+    color: '#FF9500'
   },
   statusError: {
     color: '#FF3B30'
@@ -433,26 +370,16 @@ const styles = StyleSheet.create({
     color: '#FF3B30',
     fontSize: 14
   },
-  metadataSection: {
-    backgroundColor: '#f5f5f5',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16
-  },
-  metadataTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 8
-  },
-  metadataText: {
-    fontSize: 14
-  },
-  canvasContainer: {
+  videoContainer: {
     backgroundColor: '#000',
     borderRadius: 8,
     overflow: 'hidden',
     marginBottom: 16,
-    alignItems: 'center'
+    height: 250
+  },
+  video: {
+    flex: 1,
+    backgroundColor: '#000'
   },
   placeholderContainer: {
     backgroundColor: '#000',

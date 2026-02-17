@@ -1,7 +1,8 @@
-const ffmpeg = require('bare-ffmpeg')
 const fs = require('bare-fs')
+const http = require('bare-http1')
+const ffmpeg = require('bare-ffmpeg')
+const { video } = require('bare-media')
 const Buffer = require('bare-buffer')
-const b4a = require('b4a')
 const FramedStream = require('framed-stream')
 const top = require('process-top')
 
@@ -9,24 +10,20 @@ const debug = Bare.argv[0] === 'true'
 const processTop = new top()
 const ipc = new FramedStream(BareKit.IPC)
 
-let isPlaying = false
+const HTTP_PORT = 8765
+let httpServer = null
 let videoPath = null
-let inputFormatContext = null
-let decoder = null
-let scaler = null
-let rawFrame = null
-let rgbaFrame = null
-let playInterval = null
-let videoWidth = 0
-let videoHeight = 0
-let frameRate = 30
-let videoStreamIndex = -1
 
-function log(...message) {
+// Growing buffer: chunks are appended as transcode progresses
+let transcodedChunks = []
+let transcodedSize = 0
+let transcodeFinished = false
+
+function log (...message) {
   if (debug) console.log(...message)
 }
 
-function cpu() {
+function cpu () {
   const cpuInfo = processTop.toString()
   const prefix = Buffer.from('cpu')
   const body = Buffer.from(cpuInfo)
@@ -34,7 +31,7 @@ function cpu() {
   ipc.write(message)
 }
 
-function sendError(error) {
+function sendError (error) {
   const prefix = Buffer.from('err:')
   const body = Buffer.from(error)
   const message = Buffer.concat([prefix, body])
@@ -42,7 +39,7 @@ function sendError(error) {
   log('Error sent:', error)
 }
 
-function sendStatus(status) {
+function sendStatus (status) {
   const prefix = Buffer.from('sts:')
   const body = Buffer.from(status)
   const message = Buffer.concat([prefix, body])
@@ -50,263 +47,168 @@ function sendStatus(status) {
   log('Status sent:', status)
 }
 
-function sendMetadata() {
-  const metadata = JSON.stringify({
-    width: videoWidth,
-    height: videoHeight,
-    frameRate
-  })
-  const prefix = Buffer.from('meta:')
-  const body = Buffer.from(metadata)
+function sendUrl (url) {
+  const prefix = Buffer.from('url:')
+  const body = Buffer.from(url)
   const message = Buffer.concat([prefix, body])
   ipc.write(message)
-  log('Metadata sent:', metadata)
+  log('URL sent:', url)
 }
 
-function cleanup() {
-  if (playInterval) {
-    clearInterval(playInterval)
-    playInterval = null
-  }
-  if (scaler) {
-    scaler.destroy()
-    scaler = null
-  }
-  if (rawFrame) {
-    rawFrame.destroy()
-    rawFrame = null
-  }
-  if (rgbaFrame) {
-    rgbaFrame.destroy()
-    rgbaFrame = null
-  }
-  if (decoder) {
-    decoder.destroy()
-    decoder = null
-  }
-  if (inputFormatContext) {
-    inputFormatContext.destroy()
-    inputFormatContext = null
-  }
-  isPlaying = false
-  videoStreamIndex = -1
+// Register iOS-compatible format for fragmented MP4 streaming
+async function registerFormats () {
+  const formatRegistry = await video.getFormatRegistry()
+
+  formatRegistry.register('mp4-ios', {
+    container: 'mp4',
+    video: {
+      id: ffmpeg.constants.codecs.H264,
+      format: ffmpeg.constants.pixelFormats.YUV420P,
+      encoder: 'h264_videotoolbox'
+    },
+    audio: {
+      id: ffmpeg.constants.codecs.AAC,
+      format: ffmpeg.constants.sampleFormats.FLTP,
+      sampleRate: 48000,
+      encoder: 'aac'
+    },
+    muxer: {
+      movflags: 'frag_keyframe+empty_moov+default_base_moof'
+    },
+    encoderOptions: { allow_sw: '1', realtime: '1' }
+  })
 }
 
-function openVideo(path) {
+// Read a byte range from the growing transcoded buffer
+function readRange (start, end) {
+  const length = end - start + 1
+  const result = Buffer.alloc(length)
+  let written = 0
+  let chunkOffset = 0
+
+  for (const chunk of transcodedChunks) {
+    const chunkEnd = chunkOffset + chunk.length
+
+    if (chunkEnd > start && chunkOffset < end + 1) {
+      const readStart = Math.max(0, start - chunkOffset)
+      const readEnd = Math.min(chunk.length, end + 1 - chunkOffset)
+      const slice = chunk.subarray(readStart, readEnd)
+      slice.copy(result, written)
+      written += slice.length
+    }
+
+    chunkOffset = chunkEnd
+    if (chunkOffset > end) break
+  }
+
+  return result.subarray(0, written)
+}
+
+async function startTranscode (path) {
+  transcodedChunks = []
+  transcodedSize = 0
+  transcodeFinished = false
+
+  sendStatus('streaming')
+
   try {
-    log('Opening video:', path)
+    const startTime = Date.now()
+    let chunkCount = 0
 
-    // Clean up any existing resources
-    cleanup()
-
-    // Check if file exists
-    if (!fs.existsSync(path)) {
-      sendError(`File not found: ${path}`)
-      return false
-    }
-
-    const fileSize = fs.statSync(path).size
-    log('File size:', fileSize)
-
-    // Read first 16 bytes to check file integrity
-    const testFd = fs.openSync(path, 'r')
-    const headerBuf = Buffer.alloc(16)
-    const bytesRead = fs.readSync(testFd, headerBuf, 0, 16, 0)
-    fs.closeSync(testFd)
-    log('First 16 bytes:', headerBuf.toString('hex'))
-    log('Bytes read:', bytesRead)
-
-    // Open file
-    const fd = fs.openSync(path, 'r')
-    let offset = 0
-
-    // Create IO context
-    const io = new ffmpeg.IOContext(4096, {
-      onread: (buffer, requested) => {
-        const read = fs.readSync(fd, buffer, 0, requested, offset)
-        if (read === 0) return 0
-        offset += read
-        return read
-      },
-      onseek: (o, whence) => {
-        if (whence === ffmpeg.constants.seek.SIZE) return fileSize
-        if (whence === ffmpeg.constants.seek.SET) offset = o
-        else if (whence === ffmpeg.constants.seek.CUR) offset += o
-        else if (whence === ffmpeg.constants.seek.END) offset = fileSize + o
-        else return -1
-        return offset
+    for await (const chunk of video(path).transcode({ format: 'mp4-ios' })) {
+      transcodedChunks.push(Buffer.from(chunk.buffer))
+      transcodedSize += chunk.buffer.length
+      chunkCount++
+      if (chunkCount % 50 === 0) {
+        log('Transcoded', chunkCount, 'chunks,', (transcodedSize / 1024).toFixed(0), 'KB')
       }
-    })
-
-    // Open input format context
-    inputFormatContext = new ffmpeg.InputFormatContext(io)
-    log('Input format context created')
-
-    // Get best video stream
-    const bestStream = inputFormatContext.getBestStream(ffmpeg.constants.mediaTypes.VIDEO)
-    if (!bestStream) {
-      sendError('No video stream found in file')
-      cleanup()
-      fs.closeSync(fd)
-      return false
     }
 
-    log('Best stream found:', bestStream.index)
-
-    // Save video stream index
-    videoStreamIndex = bestStream.index
-    log('Video stream index:', videoStreamIndex)
-
-    // Get decoder
-    decoder = bestStream.decoder()
-    decoder.open()
-
-    videoWidth = decoder.width
-    videoHeight = decoder.height
-
-    // Try to get frame rate
-    if (decoder.frameRate && decoder.frameRate.valid) {
-      frameRate = decoder.frameRate.numerator / decoder.frameRate.denominator
-    } else {
-      frameRate = 30 // Default
-    }
-
-    log('Video metadata:', { width: videoWidth, height: videoHeight, frameRate })
-
-    // Create frames
-    rawFrame = new ffmpeg.Frame()
-    rgbaFrame = new ffmpeg.Frame()
-    rgbaFrame.width = videoWidth
-    rgbaFrame.height = videoHeight
-    rgbaFrame.format = ffmpeg.constants.pixelFormats.RGBA
-    rgbaFrame.alloc()
-
-    // Create scaler
-    scaler = new ffmpeg.Scaler(
-      decoder.pixelFormat,
-      videoWidth,
-      videoHeight,
-      ffmpeg.constants.pixelFormats.RGBA,
-      videoWidth,
-      videoHeight
-    )
-
-    log('Decoder and scaler ready')
-
-    videoPath = path
-    sendStatus('ready')
-    sendMetadata()
-
-    return true
+    transcodeFinished = true
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
+    log('Transcode complete:', chunkCount, 'chunks,', (transcodedSize / 1024).toFixed(0), 'KB in', elapsed, 's')
+    sendStatus('done')
   } catch (error) {
-    log('Error opening video:', error.message)
+    transcodeFinished = true
+    log('Transcode error:', error.message)
     sendError(error.message)
-    cleanup()
-    return false
   }
 }
 
-function startPlayback() {
-  if (!inputFormatContext || !decoder) {
-    sendError('No video loaded')
-    return
-  }
+function startHTTPServer () {
+  if (httpServer) return
 
-  if (isPlaying) {
-    log('Already playing')
-    return
-  }
+  httpServer = http.createServer((req, res) => {
+    log('HTTP request:', req.method, req.url, 'range:', req.headers.range || 'none')
 
-  isPlaying = true
-  sendStatus('playing')
-  log('Starting playback at', frameRate, 'fps')
+    if (req.url !== '/video.mp4') {
+      res.writeHead(404)
+      res.end('Not found')
+      return
+    }
 
-  // Calculate frame interval in ms
-  const frameInterval = 1000 / frameRate
+    if (transcodedSize === 0) {
+      res.writeHead(503)
+      res.end('Not ready')
+      return
+    }
 
-  let frameCount = 0
-  playInterval = setInterval(() => {
-    if (!isPlaying) return
+    const rangeHeader = req.headers.range
+    // Use current transcoded size as the "total" — AVPlayer will re-request
+    // as more data becomes available
+    const totalSize = transcodedSize
 
-    try {
-      let frameSent = false
+    if (rangeHeader) {
+      const match = rangeHeader.match(/bytes=(\d+)-(\d*)/)
+      if (match) {
+        const start = parseInt(match[1], 10)
+        const requestedEnd = match[2] ? parseInt(match[2], 10) : totalSize - 1
+        const end = Math.min(requestedEnd, totalSize - 1)
 
-      // Keep reading packets until we decode and send at least one video frame
-      while (!frameSent) {
-        const packet = new ffmpeg.Packet()
-        const ret = inputFormatContext.readFrame(packet)
-
-        log('readFrame ret:', ret, 'streamIndex:', packet.streamIndex)
-
-        if (!ret) {
-          // End of video - loop back
-          log('End of video, looping...')
-          packet.unref()
-
-          // Reopen the video to loop
-          const currentPath = videoPath
-          cleanup()
-          setTimeout(() => {
-            if (openVideo(currentPath)) {
-              startPlayback()
-            }
-          }, 100)
+        if (start >= totalSize) {
+          // Range not satisfiable yet — data hasn't been transcoded that far
+          res.writeHead(416, {
+            'Content-Range': 'bytes */' + totalSize
+          })
+          res.end()
           return
         }
 
-        // Only process video packets
-        if (packet.streamIndex === videoStreamIndex) {
-          log('Processing video packet')
-          const sendResult = decoder.sendPacket(packet)
-          log('sendPacket result:', sendResult)
+        const data = readRange(start, end)
+        const chunkSize = data.length
 
-          if (sendResult) {
-            while (decoder.receiveFrame(rawFrame)) {
-              log('Received frame', frameCount++)
+        log('Serving range:', start, '-', end, '/', totalSize, '(' + chunkSize + ' bytes)')
 
-              // Create image
-              const image = new ffmpeg.Image(
-                ffmpeg.constants.pixelFormats.RGBA,
-                rgbaFrame.width,
-                rgbaFrame.height
-              )
-              image.fill(rgbaFrame)
-
-              // Scale to RGBA (updates the buffer referenced by image)
-              scaler.scale(rawFrame, rgbaFrame)
-
-              const buf = b4a.from(image.data.buffer)
-              log('Sending frame buffer, size:', buf.length)
-              ipc.write(buf)
-              frameSent = true
-            }
-          }
-        } else {
-          log('Skipping non-video packet, streamIndex:', packet.streamIndex)
-        }
-
-        packet.unref()
+        res.writeHead(206, {
+          'Content-Type': 'video/mp4',
+          'Content-Range': 'bytes ' + start + '-' + (start + chunkSize - 1) + '/' + (transcodeFinished ? totalSize : '*'),
+          'Content-Length': chunkSize,
+          'Accept-Ranges': 'bytes',
+          'Cache-Control': 'no-cache'
+        })
+        res.end(data)
+        return
       }
-    } catch (error) {
-      log('Playback error:', error.message)
-      sendError(error.message)
-      stopPlayback()
     }
-  }, frameInterval)
-}
 
-function stopPlayback() {
-  isPlaying = false
-  if (playInterval) {
-    clearInterval(playInterval)
-    playInterval = null
-  }
-  sendStatus('stopped')
-  log('Playback stopped')
+    // No range — serve what we have
+    const data = readRange(0, totalSize - 1)
+    res.writeHead(200, {
+      'Content-Type': 'video/mp4',
+      'Content-Length': data.length,
+      'Accept-Ranges': 'bytes',
+      'Cache-Control': 'no-cache'
+    })
+    res.end(data)
+  })
+
+  httpServer.listen(HTTP_PORT, () => {
+    log('HTTP server listening on port', HTTP_PORT)
+  })
 }
 
 // Handle IPC messages
-ipc.on('data', (data) => {
+ipc.on('data', async (data) => {
   try {
     const message = data.toString()
     const parts = message.split(':')
@@ -316,14 +218,24 @@ ipc.on('data', (data) => {
 
     if (command === 'open') {
       const path = parts.slice(1).join(':')
-      openVideo(path)
-    } else if (command === 'play') {
-      startPlayback()
-    } else if (command === 'stop') {
-      stopPlayback()
+      if (!fs.existsSync(path)) {
+        sendError('File not found: ' + path)
+        return
+      }
+      videoPath = path
+      // Start transcoding immediately — don't wait for HTTP request
+      startTranscode(path)
+      // Send URL to RN so it starts the player
+      // Small delay to let initial chunks buffer
+      setTimeout(() => {
+        sendUrl('http://localhost:' + HTTP_PORT + '/video.mp4')
+      }, 500)
     } else if (command === 'close') {
-      cleanup()
-      sendStatus('closed')
+      videoPath = null
+      transcodedChunks = []
+      transcodedSize = 0
+      transcodeFinished = false
+      sendStatus('idle')
     }
   } catch (error) {
     log('Command error:', error.message)
@@ -338,9 +250,16 @@ setInterval(() => {
 
 // Cleanup on exit
 Bare.on('exit', () => {
-  cleanup()
+  if (httpServer) httpServer.close()
   log('Worklet exiting')
 })
 
-log('Video Converter Worklet ready!')
-sendStatus('idle')
+// Initialize
+async function init () {
+  await registerFormats()
+  startHTTPServer()
+  log('Video Converter Worklet ready!')
+  sendStatus('idle')
+}
+
+init()
