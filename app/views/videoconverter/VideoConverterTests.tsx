@@ -80,25 +80,23 @@ export default function VideoConverterTest() {
 
       // Copy video assets to Documents folder
       const videos = [
-        { name: 'sample_30s.mkv', asset: require('../../../assets/videos/sample_30s.mkv') }
+        { name: 'sample_30s.mkv', asset: require('../../../assets/videos/sample_30s.mkv') },
+        { name: 'sample_30s.avi', asset: require('../../../assets/videos/sample_30s.avi') }
       ]
 
-      for (const video of videos) {
-        const destPath = `${dir}/${video.name}`
+      for (const v of videos) {
+        const destPath = `${dir}/${v.name}`
         const fileInfo = await FileSystem.getInfoAsync(destPath)
+        if (fileInfo.exists) await FileSystem.deleteAsync(destPath)
 
-        if (!fileInfo.exists) {
-          console.log(`Copying ${video.name}...`)
-          const asset = Asset.fromModule(video.asset)
-          await asset.downloadAsync()
+        const asset = Asset.fromModule(v.asset)
+        await asset.downloadAsync()
 
-          if (asset.localUri) {
-            await FileSystem.copyAsync({
-              from: asset.localUri,
-              to: destPath
-            })
-            console.log(`Copied ${video.name}`)
-          }
+        if (asset.localUri) {
+          await FileSystem.copyAsync({
+            from: asset.localUri,
+            to: destPath
+          })
         }
       }
 
