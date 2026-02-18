@@ -42,6 +42,7 @@ export default function VideoConverterTest() {
   const [bareDir, setBareDir] = useState('')
 
   const stream = useRef<any>(null)
+  const videoRef = useRef<Video>(null)
 
   useEffect(() => {
     const setup = async () => {
@@ -52,7 +53,8 @@ export default function VideoConverterTest() {
 
       const videos = [
         { name: 'sample_30s.mkv', asset: require('../../../assets/videos/sample_30s.mkv') },
-        { name: 'sample_30s.avi', asset: require('../../../assets/videos/sample_30s.avi') }
+        { name: 'sample_30s.avi', asset: require('../../../assets/videos/sample_30s.avi') },
+        { name: 'sample_4min.mkv', asset: require('../../../assets/videos/sample_4min.mkv') }
       ]
 
       for (const v of videos) {
@@ -103,7 +105,7 @@ export default function VideoConverterTest() {
         </ThemedText>
 
         <View style={styles.videoButtons}>
-          {['sample_30s.mkv', 'sample_30s.avi'].map((name) => (
+          {['sample_30s.mkv', 'sample_30s.avi', 'sample_4min.mkv'].map((name) => (
             <TouchableOpacity
               key={name}
               style={[styles.videoButton, selectedVideo === name && styles.videoButtonActive]}
@@ -146,14 +148,25 @@ export default function VideoConverterTest() {
         {videoUrl ? (
           <View style={styles.videoContainer}>
             <Video
+              ref={videoRef}
               source={{ uri: videoUrl }}
               style={styles.video}
               useNativeControls
               resizeMode={ResizeMode.CONTAIN}
               shouldPlay
               isLooping={false}
-              onError={() => { setError('Video playback error'); setStatus('error') }}
-              onLoad={() => setStatus('playing')}
+              onError={(e) => { console.log('Video error:', e); setError('Video playback error'); setStatus('error') }}
+              onReadyForDisplay={() => {
+                videoRef.current?.playAsync()
+                setStatus('playing')
+              }}
+              onPlaybackStatusUpdate={(s) => {
+                if (s.isLoaded && stream.current) {
+                  const posSec = Math.floor(s.positionMillis / 1000)
+                  stream.current.write(b4a.from('pos:' + posSec))
+                }
+              }}
+              progressUpdateIntervalMillis={1000}
             />
           </View>
         ) : (

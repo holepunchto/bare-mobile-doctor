@@ -10,29 +10,42 @@ const processTop = new top()
 const ipc = new FramedStream(BareKit.IPC)
 
 const HTTP_PORT = 8765
+const PREFETCH_AHEAD = 2
 let httpServer = null
-let transcodedChunks = []
-let transcodedSize = 0
+let transcoder = null
 let transcodeFinished = false
+let transcoding = false
+let lastRequestedSegment = -1 // highest segment index AVPlayer has requested
+let playbackPosition = 0 // current playback position in seconds (from frontend)
 
-function cpu () {
+// HLS state
+let initSegment = null // Buffer: ftyp + moov
+let segments = [] // Array of Buffers (each is moof + mdat)
+let segmentDurations = [] // Duration per segment in seconds
+let pendingWaiters = new Map() // segmentIndex -> [resolve, ...]
+
+// MP4 box parser accumulator
+let parseBuffer = Buffer.alloc(0)
+let currentMoof = null // pending moof box
+
+function cpu() {
   const cpuInfo = processTop.toString()
   ipc.write(Buffer.concat([Buffer.from('cpu'), Buffer.from(cpuInfo)]))
 }
 
-function sendError (error) {
+function sendError(error) {
   ipc.write(Buffer.concat([Buffer.from('err:'), Buffer.from(error)]))
 }
 
-function sendStatus (status) {
+function sendStatus(status) {
   ipc.write(Buffer.concat([Buffer.from('sts:'), Buffer.from(status)]))
 }
 
-function sendUrl (url) {
+function sendUrl(url) {
   ipc.write(Buffer.concat([Buffer.from('url:'), Buffer.from(url)]))
 }
 
-async function registerFormats () {
+async function registerFormats() {
   const formatRegistry = await video.getFormatRegistry()
 
   formatRegistry.register('mp4', {
@@ -53,109 +66,293 @@ async function registerFormats () {
   })
 }
 
-function readRange (start, end) {
-  const length = end - start + 1
-  const result = Buffer.alloc(length)
-  let written = 0
-  let chunkOffset = 0
+// --- MP4 Box Parser ---
 
-  for (const chunk of transcodedChunks) {
-    const chunkEnd = chunkOffset + chunk.length
+function parseBoxes(data) {
+  parseBuffer = Buffer.concat([parseBuffer, Buffer.from(data)])
 
-    if (chunkEnd > start && chunkOffset < end + 1) {
-      const readStart = Math.max(0, start - chunkOffset)
-      const readEnd = Math.min(chunk.length, end + 1 - chunkOffset)
-      const slice = chunk.subarray(readStart, readEnd)
-      slice.copy(result, written)
-      written += slice.length
-    }
+  while (parseBuffer.length >= 8) {
+    const size = parseBuffer.readUInt32BE(0)
+    if (size < 8 || parseBuffer.length < size) break
 
-    chunkOffset = chunkEnd
-    if (chunkOffset > end) break
+    const type = parseBuffer.slice(4, 8).toString('ascii')
+    const box = parseBuffer.slice(0, size)
+    parseBuffer = parseBuffer.slice(size)
+
+    handleBox(type, box)
   }
-
-  return result.subarray(0, written)
 }
 
-async function startTranscode (path) {
-  transcodedChunks = []
-  transcodedSize = 0
-  transcodeFinished = false
-  sendStatus('streaming')
+function handleBox(type, box) {
+  if (type === 'ftyp' || type === 'moov') {
+    if (!initSegment) {
+      initSegment = box
+    } else {
+      initSegment = Buffer.concat([initSegment, box])
+    }
+    console.log('[hls] init box:', type, box.length, 'bytes')
+    return
+  }
 
+  if (type === 'moof') {
+    currentMoof = box
+    return
+  }
+
+  if (type === 'mdat' && currentMoof) {
+    const segment = Buffer.concat([currentMoof, box])
+    currentMoof = null
+    const index = segments.length
+    segments.push(segment)
+    // Estimate ~1s per segment (gopSize=30 @ 30fps)
+    segmentDurations.push(1.0)
+    console.log('[hls] segment', index, ':', segment.length, 'bytes')
+
+    // Resolve any waiters for this segment
+    const waiters = pendingWaiters.get(index)
+    if (waiters) {
+      for (const resolve of waiters) resolve(segment)
+      pendingWaiters.delete(index)
+    }
+    return
+  }
+
+  // Other boxes (styp, sidx, etc.) — append to current segment if mid-fragment
+  if (currentMoof) {
+    currentMoof = Buffer.concat([currentMoof, box])
+  }
+}
+
+// --- On-demand transcoding ---
+
+async function transcodeNext() {
+  if (!transcoder || transcodeFinished || transcoding) return false
+  transcoding = true
   try {
-    for await (const chunk of video(path).transcode({ format: 'mp4' })) {
-      const buf = Buffer.from(chunk.buffer)
-      transcodedChunks.push(buf)
-      transcodedSize += buf.length
+    const { value, done } = await transcoder.next()
+    if (done) {
+      transcodeFinished = true
+      console.log('[hls] transcode finished, segments:', segments.length)
+      sendStatus('done')
+      // Resolve all pending waiters with null (segment won't exist)
+      for (const [, waiters] of pendingWaiters) {
+        for (const resolve of waiters) resolve(null)
+      }
+      pendingWaiters.clear()
+      return false
     }
-
+    parseBoxes(value.buffer)
+    return true
+  } catch (err) {
     transcodeFinished = true
-    sendStatus('done')
-  } catch (error) {
-    transcodeFinished = true
-    sendError(error.message)
+    sendError(err.message)
+    return false
+  } finally {
+    transcoding = false
   }
 }
 
-function startHTTPServer () {
+async function transcodeUntilSegment(index) {
+  // Already have it
+  if (index < segments.length) return segments[index]
+
+  // Transcode finished and segment doesn't exist
+  if (transcodeFinished) return null
+
+  // Transcode until we have this segment
+  while (segments.length <= index && !transcodeFinished) {
+    const produced = await transcodeNext()
+    if (!produced && !transcodeFinished) {
+      // transcoding is busy, wait for the segment
+      return new Promise((resolve) => {
+        const waiters = pendingWaiters.get(index) || []
+        waiters.push(resolve)
+        pendingWaiters.set(index, waiters)
+      })
+    }
+  }
+
+  if (index < segments.length) return segments[index]
+
+  return null
+}
+
+function prefetch(fromIndex) {
+  const target = fromIndex + PREFETCH_AHEAD
+  // Fire and forget — transcode ahead
+  ;(async () => {
+    while (segments.length <= target && !transcodeFinished) {
+      await transcodeNext()
+    }
+  })()
+}
+
+// --- HLS Playlist ---
+
+function generatePlaylist() {
+  // Only advertise segments near the current playback position
+  // This prevents AVPlayer from buffering the entire file
+  const BUFFER_WINDOW = 5 // segments ahead of playback to show
+  const playbackSegment = Math.floor(playbackPosition) // ~1s per segment
+  const maxVisible = transcodeFinished
+    ? segments.length
+    : Math.min(segments.length, playbackSegment + BUFFER_WINDOW + 1)
+
+  const maxDuration = 2
+  const lines = [
+    '#EXTM3U',
+    '#EXT-X-VERSION:7',
+    '#EXT-X-TARGETDURATION:' + maxDuration,
+    '#EXT-X-PLAYLIST-TYPE:EVENT',
+    '#EXT-X-INDEPENDENT-SEGMENTS',
+    '#EXT-X-MEDIA-SEQUENCE:0',
+    '#EXT-X-MAP:URI="init.mp4"'
+  ]
+
+  for (let i = 0; i < maxVisible; i++) {
+    const dur = segmentDurations[i] || 1.0
+    lines.push('#EXTINF:' + dur.toFixed(6) + ',')
+    lines.push('segment' + i + '.mp4')
+  }
+
+  if (transcodeFinished && maxVisible === segments.length) {
+    lines.push('#EXT-X-ENDLIST')
+  }
+
+  return lines.join('\n') + '\n'
+}
+
+// --- HTTP Server ---
+
+function startHTTPServer() {
   if (httpServer) return
 
-  httpServer = http.createServer((req, res) => {
-    if (req.url !== '/video.mp4') {
-      res.writeHead(404)
-      res.end('Not found')
+  httpServer = http.createServer(async (req, res) => {
+    const url = req.url.split('?')[0]
+    console.log('[http]', req.method, url)
+
+    if (url === '/stream.m3u8') {
+      const playlist = generatePlaylist()
+      console.log('[hls] playlist:', segments.length, 'segments', transcodeFinished ? '(final)' : '(live)')
+      const playlistBuf = Buffer.from(playlist)
+      res.writeHead(200, {
+        'Content-Type': 'application/vnd.apple.mpegurl',
+        'Cache-Control': 'no-cache, no-store',
+        'Content-Length': '' + playlistBuf.length
+      })
+      res.write(playlistBuf)
+      res.end()
       return
     }
 
-    if (transcodedSize === 0) {
-      res.writeHead(503)
-      res.end('Not ready')
-      return
-    }
-
-    const totalSize = transcodedSize
-    const rangeHeader = req.headers.range
-
-    if (rangeHeader) {
-      const match = rangeHeader.match(/bytes=(\d+)-(\d*)/)
-      if (match) {
-        const start = parseInt(match[1], 10)
-        const requestedEnd = match[2] ? parseInt(match[2], 10) : totalSize - 1
-        const end = Math.min(requestedEnd, totalSize - 1)
-
-        if (start >= totalSize) {
-          res.writeHead(416, { 'Content-Range': 'bytes */' + totalSize })
-          res.end()
-          return
-        }
-
-        const data = readRange(start, end)
-
-        res.writeHead(206, {
-          'Content-Type': 'video/mp4',
-          'Content-Range': 'bytes ' + start + '-' + (start + data.length - 1) + '/' + (transcodeFinished ? totalSize : '*'),
-          'Content-Length': data.length,
-          'Accept-Ranges': 'bytes',
-          'Cache-Control': 'no-cache'
-        })
-        res.end(data)
+    if (url === '/init.mp4') {
+      if (!initSegment) {
+        res.writeHead(503)
+        res.end('Not ready')
         return
       }
+      console.log('[http] serving init.mp4:', initSegment.length, 'bytes')
+      res.writeHead(200, {
+        'Content-Type': 'video/mp4',
+        'Content-Length': '' + initSegment.length
+      })
+      res.write(initSegment)
+      res.end()
+      return
     }
 
-    const data = readRange(0, totalSize - 1)
-    res.writeHead(200, {
-      'Content-Type': 'video/mp4',
-      'Content-Length': data.length,
-      'Accept-Ranges': 'bytes',
-      'Cache-Control': 'no-cache'
-    })
-    res.end(data)
+    if (url === '/debug.mp4') {
+      // Serve init + all available segments as a single fMP4
+      if (!initSegment) {
+        res.writeHead(503)
+        res.end('Not ready')
+        return
+      }
+      const parts = [initSegment, ...segments]
+      let totalLen = 0
+      for (const p of parts) totalLen += p.length
+      console.log('[http] serving debug.mp4:', totalLen, 'bytes,', segments.length, 'segments')
+      res.writeHead(200, {
+        'Content-Type': 'video/mp4',
+        'Content-Length': '' + totalLen
+      })
+      for (const p of parts) res.write(p)
+      res.end()
+      return
+    }
+
+    const segMatch = url.match(/^\/segment(\d+)\.mp4$/)
+    if (segMatch) {
+      const index = parseInt(segMatch[1], 10)
+      if (index > lastRequestedSegment) lastRequestedSegment = index
+
+      // Trigger on-demand transcoding
+      const segment = await transcodeUntilSegment(index)
+
+      if (!segment) {
+        res.writeHead(404)
+        res.end('Segment not available')
+        return
+      }
+
+      console.log('[http] serving segment' + index + '.mp4:', segment.length, 'bytes')
+      res.writeHead(200, {
+        'Content-Type': 'video/mp4',
+        'Content-Length': '' + segment.length
+      })
+      res.write(segment)
+      res.end()
+
+      // Prefetch ahead
+      prefetch(index)
+      return
+    }
+
+    res.writeHead(404)
+    res.end('Not found')
   })
 
   httpServer.listen(HTTP_PORT)
 }
+
+// --- File open + initial transcode ---
+
+async function openFile(path) {
+  // Reset state
+  initSegment = null
+  segments = []
+  segmentDurations = []
+  pendingWaiters.clear()
+  parseBuffer = Buffer.alloc(0)
+  currentMoof = null
+  transcodeFinished = false
+  transcoding = false
+  lastRequestedSegment = -1
+  playbackPosition = 0
+
+  transcoder = video(path).transcode({ format: 'mp4' })[Symbol.asyncIterator]()
+
+  // Transcode until we have init segment + enough segments for AVPlayer to start
+  const MIN_SEGMENTS = 5
+  while (!initSegment || segments.length < MIN_SEGMENTS) {
+    const produced = await transcodeNext()
+    if (!produced) break
+  }
+
+  if (!initSegment) {
+    sendError('Failed to produce init segment')
+    return
+  }
+
+  // Set lastRequestedSegment so the first playlist shows all initial segments
+  lastRequestedSegment = segments.length - 1
+  console.log('[hls] ready: init', initSegment.length, 'bytes,', segments.length, 'segments')
+
+  sendStatus('streaming')
+  sendUrl('http://localhost:' + HTTP_PORT + '/stream.m3u8?t=' + Date.now())
+}
+
+// --- IPC ---
 
 ipc.on('data', async (data) => {
   try {
@@ -163,29 +360,33 @@ ipc.on('data', async (data) => {
     const parts = message.split(':')
     const command = parts[0]
 
+    if (command === 'pos') {
+      playbackPosition = parseInt(parts[1], 10) || 0
+      return
+    }
+
     if (command === 'open') {
-      const path = parts.slice(1).join(':')
-      if (!fs.existsSync(path)) {
-        sendError('File not found: ' + path)
+      const filePath = parts.slice(1).join(':')
+      if (!fs.existsSync(filePath)) {
+        sendError('File not found: ' + filePath)
         return
       }
-      startTranscode(path)
-      setTimeout(() => {
-        sendUrl('http://localhost:' + HTTP_PORT + '/video.mp4')
-      }, 500)
+      openFile(filePath)
     }
   } catch (error) {
     sendError(error.message)
   }
 })
 
-setInterval(() => { cpu() }, 1000)
+setInterval(() => {
+  cpu()
+}, 1000)
 
 Bare.on('exit', () => {
   if (httpServer) httpServer.close()
 })
 
-async function init () {
+async function init() {
   await registerFormats()
   startHTTPServer()
   sendStatus('idle')
