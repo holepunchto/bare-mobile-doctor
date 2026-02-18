@@ -6,7 +6,7 @@ import {
   ScrollView,
   Platform
 } from 'react-native'
-import { Video, ResizeMode } from 'expo-av'
+import { Audio, Video, ResizeMode } from 'expo-av'
 
 import { Worklet } from 'react-native-bare-kit'
 import FramedStream from 'framed-stream'
@@ -69,6 +69,11 @@ export default function VideoConverterTest() {
 
   useEffect(() => {
     const setup = async () => {
+      // Enable audio playback even in silent mode
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true
+      })
+
       const dir = await useBareDir()
       setBareDir(dir)
       console.log('Bare directory:', dir)

@@ -13,8 +13,6 @@ const ipc = new FramedStream(BareKit.IPC)
 const HTTP_PORT = 8765
 let httpServer = null
 let videoPath = null
-
-// Growing buffer: chunks are appended as transcode progresses
 let transcodedChunks = []
 let transcodedSize = 0
 let transcodeFinished = false
@@ -27,39 +25,24 @@ function cpu () {
   const cpuInfo = processTop.toString()
   const prefix = Buffer.from('cpu')
   const body = Buffer.from(cpuInfo)
-  const message = Buffer.concat([prefix, body])
-  ipc.write(message)
+  ipc.write(Buffer.concat([prefix, body]))
 }
 
 function sendError (error) {
-  const prefix = Buffer.from('err:')
-  const body = Buffer.from(error)
-  const message = Buffer.concat([prefix, body])
-  ipc.write(message)
-  log('Error sent:', error)
+  ipc.write(Buffer.concat([Buffer.from('err:'), Buffer.from(error)]))
 }
 
 function sendStatus (status) {
-  const prefix = Buffer.from('sts:')
-  const body = Buffer.from(status)
-  const message = Buffer.concat([prefix, body])
-  ipc.write(message)
-  log('Status sent:', status)
+  ipc.write(Buffer.concat([Buffer.from('sts:'), Buffer.from(status)]))
 }
 
 function sendUrl (url) {
-  const prefix = Buffer.from('url:')
-  const body = Buffer.from(url)
-  const message = Buffer.concat([prefix, body])
-  ipc.write(message)
-  log('URL sent:', url)
+  ipc.write(Buffer.concat([Buffer.from('url:'), Buffer.from(url)]))
 }
 
-// Register iOS-compatible format for fragmented MP4 streaming
 async function registerFormats () {
   const formatRegistry = await video.getFormatRegistry()
 
-  // Override default mp4 format with iOS-compatible H264/AAC via VideoToolbox
   formatRegistry.register('mp4', {
     video: {
       id: ffmpeg.constants.codecs.H264,
@@ -78,7 +61,6 @@ async function registerFormats () {
   })
 }
 
-// Read a byte range from the growing transcoded buffer
 function readRange (start, end) {
   const length = end - start + 1
   const result = Buffer.alloc(length)
@@ -107,29 +89,19 @@ async function startTranscode (path) {
   transcodedChunks = []
   transcodedSize = 0
   transcodeFinished = false
-
   sendStatus('streaming')
 
   try {
-    const startTime = Date.now()
-    let chunkCount = 0
-
     for await (const chunk of video(path).transcode({ format: 'mp4' })) {
-      transcodedChunks.push(Buffer.from(chunk.buffer))
-      transcodedSize += chunk.buffer.length
-      chunkCount++
-      if (chunkCount % 50 === 0) {
-        log('Transcoded', chunkCount, 'chunks,', (transcodedSize / 1024).toFixed(0), 'KB')
-      }
+      const buf = Buffer.from(chunk.buffer)
+      transcodedChunks.push(buf)
+      transcodedSize += buf.length
     }
 
     transcodeFinished = true
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
-    log('Transcode complete:', chunkCount, 'chunks,', (transcodedSize / 1024).toFixed(0), 'KB in', elapsed, 's')
     sendStatus('done')
   } catch (error) {
     transcodeFinished = true
-    log('Transcode error:', error.message)
     sendError(error.message)
   }
 }
@@ -138,8 +110,6 @@ function startHTTPServer () {
   if (httpServer) return
 
   httpServer = http.createServer((req, res) => {
-    log('HTTP request:', req.method, req.url, 'range:', req.headers.range || 'none')
-
     if (req.url !== '/video.mp4') {
       res.writeHead(404)
       res.end('Not found')
@@ -152,10 +122,8 @@ function startHTTPServer () {
       return
     }
 
-    const rangeHeader = req.headers.range
-    // Use current transcoded size as the "total" — AVPlayer will re-request
-    // as more data becomes available
     const totalSize = transcodedSize
+    const rangeHeader = req.headers.range
 
     if (rangeHeader) {
       const match = rangeHeader.match(/bytes=(\d+)-(\d*)/)
@@ -165,23 +133,17 @@ function startHTTPServer () {
         const end = Math.min(requestedEnd, totalSize - 1)
 
         if (start >= totalSize) {
-          // Range not satisfiable yet — data hasn't been transcoded that far
-          res.writeHead(416, {
-            'Content-Range': 'bytes */' + totalSize
-          })
+          res.writeHead(416, { 'Content-Range': 'bytes */' + totalSize })
           res.end()
           return
         }
 
         const data = readRange(start, end)
-        const chunkSize = data.length
-
-        log('Serving range:', start, '-', end, '/', totalSize, '(' + chunkSize + ' bytes)')
 
         res.writeHead(206, {
           'Content-Type': 'video/mp4',
-          'Content-Range': 'bytes ' + start + '-' + (start + chunkSize - 1) + '/' + (transcodeFinished ? totalSize : '*'),
-          'Content-Length': chunkSize,
+          'Content-Range': 'bytes ' + start + '-' + (start + data.length - 1) + '/' + (transcodeFinished ? totalSize : '*'),
+          'Content-Length': data.length,
           'Accept-Ranges': 'bytes',
           'Cache-Control': 'no-cache'
         })
@@ -190,7 +152,6 @@ function startHTTPServer () {
       }
     }
 
-    // No range — serve what we have
     const data = readRange(0, totalSize - 1)
     res.writeHead(200, {
       'Content-Type': 'video/mp4',
@@ -201,19 +162,14 @@ function startHTTPServer () {
     res.end(data)
   })
 
-  httpServer.listen(HTTP_PORT, () => {
-    log('HTTP server listening on port', HTTP_PORT)
-  })
+  httpServer.listen(HTTP_PORT)
 }
 
-// Handle IPC messages
 ipc.on('data', async (data) => {
   try {
     const message = data.toString()
     const parts = message.split(':')
     const command = parts[0]
-
-    log('Received command:', command)
 
     if (command === 'open') {
       const path = parts.slice(1).join(':')
@@ -222,10 +178,7 @@ ipc.on('data', async (data) => {
         return
       }
       videoPath = path
-      // Start transcoding immediately — don't wait for HTTP request
       startTranscode(path)
-      // Send URL to RN so it starts the player
-      // Small delay to let initial chunks buffer
       setTimeout(() => {
         sendUrl('http://localhost:' + HTTP_PORT + '/video.mp4')
       }, 500)
@@ -237,27 +190,19 @@ ipc.on('data', async (data) => {
       sendStatus('idle')
     }
   } catch (error) {
-    log('Command error:', error.message)
     sendError(error.message)
   }
 })
 
-// CPU monitoring
-setInterval(() => {
-  cpu()
-}, 1000)
+setInterval(() => { cpu() }, 1000)
 
-// Cleanup on exit
 Bare.on('exit', () => {
   if (httpServer) httpServer.close()
-  log('Worklet exiting')
 })
 
-// Initialize
 async function init () {
   await registerFormats()
   startHTTPServer()
-  log('Video Converter Worklet ready!')
   sendStatus('idle')
 }
 
