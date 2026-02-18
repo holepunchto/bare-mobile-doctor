@@ -59,8 +59,8 @@ function sendUrl (url) {
 async function registerFormats () {
   const formatRegistry = await video.getFormatRegistry()
 
-  formatRegistry.register('mp4-ios', {
-    container: 'mp4',
+  // Override default mp4 format with iOS-compatible H264/AAC via VideoToolbox
+  formatRegistry.register('mp4', {
     video: {
       id: ffmpeg.constants.codecs.H264,
       format: ffmpeg.constants.pixelFormats.YUV420P,
@@ -74,8 +74,7 @@ async function registerFormats () {
     },
     muxer: {
       movflags: 'frag_keyframe+empty_moov+default_base_moof'
-    },
-    encoderOptions: { allow_sw: '1', realtime: '1' }
+    }
   })
 }
 
@@ -115,7 +114,7 @@ async function startTranscode (path) {
     const startTime = Date.now()
     let chunkCount = 0
 
-    for await (const chunk of video(path).transcode({ format: 'mp4-ios' })) {
+    for await (const chunk of video(path).transcode({ format: 'mp4' })) {
       transcodedChunks.push(Buffer.from(chunk.buffer))
       transcodedSize += chunk.buffer.length
       chunkCount++
