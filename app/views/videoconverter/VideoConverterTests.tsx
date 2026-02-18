@@ -19,66 +19,37 @@ import useBareDir from '../../hooks/useBareDir'
 
 const source = require('./videoconverter.bundle')
 
-type PlayerStatus = 'idle' | 'converting' | 'streaming' | 'ready' | 'playing' | 'done' | 'stopped' | 'error'
+type PlayerStatus = 'idle' | 'streaming' | 'playing' | 'done' | 'error'
 
-function isCpuInfo(data: Uint8Array): boolean {
-  return (
-    data[0] === 'c'.charCodeAt(0) &&
-    data[1] === 'p'.charCodeAt(0) &&
-    data[2] === 'u'.charCodeAt(0)
-  )
-}
+function parseMessage(data: Uint8Array): { type: string; body: string } | null {
+  const str = b4a.toString(data)
 
-function isStatus(data: Uint8Array): boolean {
-  return (
-    data[0] === 's'.charCodeAt(0) &&
-    data[1] === 't'.charCodeAt(0) &&
-    data[2] === 's'.charCodeAt(0) &&
-    data[3] === ':'.charCodeAt(0)
-  )
-}
+  if (str.startsWith('cpu')) return { type: 'cpu', body: str.slice(3) }
+  if (str.startsWith('sts:')) return { type: 'status', body: str.slice(4) }
+  if (str.startsWith('err:')) return { type: 'error', body: str.slice(4) }
+  if (str.startsWith('url:')) return { type: 'url', body: str.slice(4) }
 
-function isError(data: Uint8Array): boolean {
-  return (
-    data[0] === 'e'.charCodeAt(0) &&
-    data[1] === 'r'.charCodeAt(0) &&
-    data[2] === 'r'.charCodeAt(0) &&
-    data[3] === ':'.charCodeAt(0)
-  )
-}
-
-function isUrl(data: Uint8Array): boolean {
-  return (
-    data[0] === 'u'.charCodeAt(0) &&
-    data[1] === 'r'.charCodeAt(0) &&
-    data[2] === 'l'.charCodeAt(0) &&
-    data[3] === ':'.charCodeAt(0)
-  )
+  return null
 }
 
 export default function VideoConverterTest() {
   const worklet = useRef(new Worklet()).current
-  const [cpuInfo, setCpuInfo] = useState<string>('')
-  const [videoUrl, setVideoUrl] = useState<string>('')
+  const [cpuInfo, setCpuInfo] = useState('')
+  const [videoUrl, setVideoUrl] = useState('')
   const [status, setStatus] = useState<PlayerStatus>('idle')
-  const [error, setError] = useState<string>('')
-  const [selectedVideo, setSelectedVideo] = useState<string>('sample_30s.mkv')
-  const [bareDir, setBareDir] = useState<string>('')
+  const [error, setError] = useState('')
+  const [selectedVideo, setSelectedVideo] = useState('sample_30s.mkv')
+  const [bareDir, setBareDir] = useState('')
 
   const stream = useRef<any>(null)
 
   useEffect(() => {
     const setup = async () => {
-      // Enable audio playback even in silent mode
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true
-      })
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true })
 
       const dir = await useBareDir()
       setBareDir(dir)
-      console.log('Bare directory:', dir)
 
-      // Copy video assets to Documents folder
       const videos = [
         { name: 'sample_30s.mkv', asset: require('../../../assets/videos/sample_30s.mkv') },
         { name: 'sample_30s.avi', asset: require('../../../assets/videos/sample_30s.avi') }
@@ -93,123 +64,73 @@ export default function VideoConverterTest() {
         await asset.downloadAsync()
 
         if (asset.localUri) {
-          await FileSystem.copyAsync({
-            from: asset.localUri,
-            to: destPath
-          })
+          await FileSystem.copyAsync({ from: asset.localUri, to: destPath })
         }
       }
 
-      // Start worklet (enable debug to see logs)
-      worklet.start('videoconverter.bundle', source, ['true'])
+      worklet.start('videoconverter.bundle', source, ['false'])
 
       stream.current = new FramedStream(worklet.IPC)
 
       stream.current.on('data', (data: any) => {
-        // Check message type
-        if (isCpuInfo(data)) {
-          setCpuInfo(b4a.toString(data.subarray(3)))
-          return
-        }
+        const msg = parseMessage(data)
+        if (!msg) return
 
-        if (isStatus(data)) {
-          const statusMsg = b4a.toString(data.subarray(4))
-          console.log('Status:', statusMsg)
-          setStatus(statusMsg as PlayerStatus)
-          return
-        }
-
-        if (isError(data)) {
-          const errorMsg = b4a.toString(data.subarray(4))
-          console.log('Error:', errorMsg)
-          setError(errorMsg)
-          setStatus('error')
-          return
-        }
-
-        if (isUrl(data)) {
-          const url = b4a.toString(data.subarray(4))
-          console.log('Video URL:', url)
-          setVideoUrl(url)
-          return
-        }
+        if (msg.type === 'cpu') setCpuInfo(msg.body)
+        if (msg.type === 'status') setStatus(msg.body as PlayerStatus)
+        if (msg.type === 'error') { setError(msg.body); setStatus('error') }
+        if (msg.type === 'url') setVideoUrl(msg.body)
       })
     }
 
     setup()
-
-    return () => {
-      worklet.terminate()
-    }
+    return () => { worklet.terminate() }
   }, [])
 
-  const openVideo = (filename: string) => {
+  const openVideo = () => {
     if (!bareDir) return
-    const videoPath = `${bareDir}/${filename}`
-    console.log('Opening video:', videoPath)
     setError('')
     setVideoUrl('')
-    stream.current.write(b4a.from(`open:${videoPath}`))
-  }
-
-  const getVideoPath = () => {
-    if (!bareDir) return 'Loading...'
-    return `${bareDir}/${selectedVideo}`
+    stream.current.write(b4a.from(`open:${bareDir}/${selectedVideo}`))
   }
 
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView}>
-        <ThemedText style={styles.title}>Video Player</ThemedText>
+        <ThemedText style={styles.title}>Video Converter</ThemedText>
         <ThemedText style={styles.subtitle}>
-          Live streaming with MKV/AVI transcoding
+          Live transcoding MKV/AVI to MP4 via bare-media
         </ThemedText>
 
-        <View style={styles.videoSection}>
-          <ThemedText style={styles.label}>Select Test Video:</ThemedText>
-          <View style={styles.videoButtons}>
-            {['sample_30s.mkv', 'sample_30s.avi'].map((video) => (
-              <TouchableOpacity
-                key={video}
-                style={[
-                  styles.videoButton,
-                  selectedVideo === video && styles.videoButtonActive
-                ]}
-                onPress={() => setSelectedVideo(video)}
+        <View style={styles.videoButtons}>
+          {['sample_30s.mkv', 'sample_30s.avi'].map((name) => (
+            <TouchableOpacity
+              key={name}
+              style={[styles.videoButton, selectedVideo === name && styles.videoButtonActive]}
+              onPress={() => setSelectedVideo(name)}
+            >
+              <ThemedText
+                style={[styles.videoButtonText, selectedVideo === name && styles.videoButtonTextActive]}
               >
-                <ThemedText
-                  style={[
-                    styles.videoButtonText,
-                    selectedVideo === video && styles.videoButtonTextActive
-                  ]}
-                >
-                  {video}
-                </ThemedText>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <ThemedText style={styles.pathText}>
-            Path: {getVideoPath()}
-          </ThemedText>
+                {name}
+              </ThemedText>
+            </TouchableOpacity>
+          ))}
         </View>
 
-        <View style={styles.controls}>
-          <TouchableOpacity
-            style={[styles.button, styles.openButton]}
-            onPress={() => openVideo(selectedVideo)}
-          >
-            <ThemedText style={styles.buttonText}>Stream</ThemedText>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.streamButton} onPress={openVideo}>
+          <ThemedText style={styles.streamButtonText}>Stream</ThemedText>
+        </TouchableOpacity>
 
         <View style={styles.statusSection}>
           <ThemedText style={styles.statusLabel}>Status:</ThemedText>
           <ThemedText
             style={[
               styles.statusText,
-              status === 'ready' && styles.statusReady,
-              (status === 'converting' || status === 'streaming') && styles.statusConverting,
-              status === 'error' && styles.statusError
+              status === 'streaming' && { color: '#FF9500' },
+              status === 'playing' && { color: '#34C759' },
+              status === 'done' && { color: '#34C759' },
+              status === 'error' && { color: '#FF3B30' }
             ]}
           >
             {status.toUpperCase()}
@@ -231,21 +152,15 @@ export default function VideoConverterTest() {
               resizeMode={ResizeMode.CONTAIN}
               shouldPlay
               isLooping={false}
-              onError={(e) => {
-                console.log('Video error:', e)
-                setError('Video playback error')
-              }}
-              onLoad={() => {
-                console.log('Video loaded')
-                setStatus('playing')
-              }}
+              onError={() => { setError('Video playback error'); setStatus('error') }}
+              onLoad={() => setStatus('playing')}
             />
           </View>
         ) : (
           <View style={styles.placeholderContainer}>
             <ThemedText style={styles.placeholderText}>
               {status === 'idle' ? 'Select a video and press Stream' :
-               status === 'converting' || status === 'streaming' ? 'Streaming video...' :
+               status === 'streaming' ? 'Transcoding...' :
                status === 'error' ? 'An error occurred' :
                'Loading...'}
             </ThemedText>
@@ -261,35 +176,11 @@ export default function VideoConverterTest() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1
-  },
-  scrollView: {
-    flex: 1
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 8
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 20
-  },
-  videoSection: {
-    marginBottom: 20
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8
-  },
-  videoButtons: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 8
-  },
+  container: { flex: 1 },
+  scrollView: { flex: 1 },
+  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 8 },
+  subtitle: { fontSize: 14, color: '#666', marginBottom: 20 },
+  videoButtons: { flexDirection: 'row', gap: 10, marginBottom: 16 },
   videoButton: {
     backgroundColor: '#ccc',
     paddingHorizontal: 16,
@@ -297,44 +188,17 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     flex: 1
   },
-  videoButtonActive: {
-    backgroundColor: '#007AFF'
-  },
-  videoButtonText: {
-    color: '#666',
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center'
-  },
-  videoButtonTextActive: {
-    color: 'white'
-  },
-  pathText: {
-    fontSize: 12,
-    color: '#666',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace'
-  },
-  controls: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 20
-  },
-  button: {
-    backgroundColor: '#007AFF',
+  videoButtonActive: { backgroundColor: '#007AFF' },
+  videoButtonText: { color: '#666', fontSize: 14, fontWeight: '600', textAlign: 'center' },
+  videoButtonTextActive: { color: 'white' },
+  streamButton: {
+    backgroundColor: '#5856D6',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
-    flex: 1
+    marginBottom: 16
   },
-  openButton: {
-    backgroundColor: '#5856D6'
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center'
-  },
+  streamButtonText: { color: 'white', fontSize: 16, fontWeight: '600', textAlign: 'center' },
   statusSection: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -344,35 +208,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
     borderRadius: 8
   },
-  statusLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginRight: 8
-  },
-  statusText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#666'
-  },
-  statusReady: {
-    color: '#34C759'
-  },
-  statusConverting: {
-    color: '#FF9500'
-  },
-  statusError: {
-    color: '#FF3B30'
-  },
+  statusLabel: { fontSize: 16, fontWeight: '600', marginRight: 8 },
+  statusText: { fontSize: 16, fontWeight: 'bold', color: '#666' },
   errorSection: {
     backgroundColor: '#FFE5E5',
     padding: 12,
     borderRadius: 8,
     marginBottom: 16
   },
-  errorText: {
-    color: '#FF3B30',
-    fontSize: 14
-  },
+  errorText: { color: '#FF3B30', fontSize: 14 },
   videoContainer: {
     backgroundColor: '#000',
     borderRadius: 8,
@@ -380,10 +224,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     height: 250
   },
-  video: {
-    flex: 1,
-    backgroundColor: '#000'
-  },
+  video: { flex: 1, backgroundColor: '#000' },
   placeholderContainer: {
     backgroundColor: '#000',
     borderRadius: 8,
@@ -393,11 +234,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 200
   },
-  placeholderText: {
-    color: '#666',
-    fontSize: 16,
-    textAlign: 'center'
-  },
+  placeholderText: { color: '#666', fontSize: 16, textAlign: 'center' },
   cpuSection: {
     backgroundColor: '#f5f5f5',
     padding: 12,

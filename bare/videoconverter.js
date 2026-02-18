@@ -6,26 +6,18 @@ const Buffer = require('bare-buffer')
 const FramedStream = require('framed-stream')
 const top = require('process-top')
 
-const debug = Bare.argv[0] === 'true'
 const processTop = new top()
 const ipc = new FramedStream(BareKit.IPC)
 
 const HTTP_PORT = 8765
 let httpServer = null
-let videoPath = null
 let transcodedChunks = []
 let transcodedSize = 0
 let transcodeFinished = false
 
-function log (...message) {
-  if (debug) console.log(...message)
-}
-
 function cpu () {
   const cpuInfo = processTop.toString()
-  const prefix = Buffer.from('cpu')
-  const body = Buffer.from(cpuInfo)
-  ipc.write(Buffer.concat([prefix, body]))
+  ipc.write(Buffer.concat([Buffer.from('cpu'), Buffer.from(cpuInfo)]))
 }
 
 function sendError (error) {
@@ -177,17 +169,10 @@ ipc.on('data', async (data) => {
         sendError('File not found: ' + path)
         return
       }
-      videoPath = path
       startTranscode(path)
       setTimeout(() => {
         sendUrl('http://localhost:' + HTTP_PORT + '/video.mp4')
       }, 500)
-    } else if (command === 'close') {
-      videoPath = null
-      transcodedChunks = []
-      transcodedSize = 0
-      transcodeFinished = false
-      sendStatus('idle')
     }
   } catch (error) {
     sendError(error.message)
