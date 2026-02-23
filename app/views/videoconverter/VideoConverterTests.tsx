@@ -54,9 +54,18 @@ export default function VideoConverterTest() {
       setBareDir(dir)
 
       const videos = [
-        { name: 'sample_30s.mkv', asset: require('../../../assets/videos/sample_30s.mkv') },
-        { name: 'sample_30s.avi', asset: require('../../../assets/videos/sample_30s.avi') },
-        { name: 'sample_4min.mkv', asset: require('../../../assets/videos/sample_4min.mkv') }
+        {
+          name: 'sample_30s.mkv',
+          asset: require('../../../assets/videos/sample_30s.mkv')
+        },
+        {
+          name: 'sample_30s.avi',
+          asset: require('../../../assets/videos/sample_30s.avi')
+        },
+        {
+          name: 'sample_4min.mkv',
+          asset: require('../../../assets/videos/sample_4min.mkv')
+        }
       ]
 
       for (const v of videos) {
@@ -82,14 +91,19 @@ export default function VideoConverterTest() {
 
         if (msg.type === 'cpu') setCpuInfo(msg.body)
         if (msg.type === 'status') setStatus(msg.body as PlayerStatus)
-        if (msg.type === 'error') { setError(msg.body); setStatus('error') }
+        if (msg.type === 'error') {
+          setError(msg.body)
+          setStatus('error')
+        }
         if (msg.type === 'url') setVideoUrl(msg.body)
         if (msg.type === 'duration') setTotalDuration(parseInt(msg.body, 10))
       })
     }
 
     setup()
-    return () => { worklet.terminate() }
+    return () => {
+      worklet.terminate()
+    }
   }, [])
 
   const openVideo = () => {
@@ -109,19 +123,27 @@ export default function VideoConverterTest() {
         </ThemedText>
 
         <View style={styles.videoButtons}>
-          {['sample_30s.mkv', 'sample_30s.avi', 'sample_4min.mkv'].map((name) => (
-            <TouchableOpacity
-              key={name}
-              style={[styles.videoButton, selectedVideo === name && styles.videoButtonActive]}
-              onPress={() => setSelectedVideo(name)}
-            >
-              <ThemedText
-                style={[styles.videoButtonText, selectedVideo === name && styles.videoButtonTextActive]}
+          {['sample_30s.mkv', 'sample_30s.avi', 'sample_4min.mkv'].map(
+            (name) => (
+              <TouchableOpacity
+                key={name}
+                style={[
+                  styles.videoButton,
+                  selectedVideo === name && styles.videoButtonActive
+                ]}
+                onPress={() => setSelectedVideo(name)}
               >
-                {name}
-              </ThemedText>
-            </TouchableOpacity>
-          ))}
+                <ThemedText
+                  style={[
+                    styles.videoButtonText,
+                    selectedVideo === name && styles.videoButtonTextActive
+                  ]}
+                >
+                  {name}
+                </ThemedText>
+              </TouchableOpacity>
+            )
+          )}
         </View>
 
         <TouchableOpacity style={styles.streamButton} onPress={openVideo}>
@@ -159,7 +181,11 @@ export default function VideoConverterTest() {
               resizeMode={ResizeMode.CONTAIN}
               shouldPlay
               isLooping={false}
-              onError={(e) => { console.log('Video error:', e); setError('Video playback error'); setStatus('error') }}
+              onError={(e) => {
+                console.log('Video error:', e)
+                setError('Video playback error')
+                setStatus('error')
+              }}
               onReadyForDisplay={() => {
                 videoRef.current?.playAsync()
                 setStatus('playing')
@@ -181,10 +207,13 @@ export default function VideoConverterTest() {
         ) : (
           <View style={styles.placeholderContainer}>
             <ThemedText style={styles.placeholderText}>
-              {status === 'idle' ? 'Select a video and press Stream' :
-               status === 'streaming' ? 'Transcoding...' :
-               status === 'error' ? 'An error occurred' :
-               'Loading...'}
+              {status === 'idle'
+                ? 'Select a video and press Stream'
+                : status === 'streaming'
+                  ? 'Transcoding...'
+                  : status === 'error'
+                    ? 'An error occurred'
+                    : 'Loading...'}
             </ThemedText>
           </View>
         )}
@@ -211,7 +240,12 @@ const styles = StyleSheet.create({
     flex: 1
   },
   videoButtonActive: { backgroundColor: '#007AFF' },
-  videoButtonText: { color: '#666', fontSize: 14, fontWeight: '600', textAlign: 'center' },
+  videoButtonText: {
+    color: '#666',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center'
+  },
   videoButtonTextActive: { color: 'white' },
   streamButton: {
     backgroundColor: '#5856D6',
@@ -220,7 +254,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 16
   },
-  streamButtonText: { color: 'white', fontSize: 16, fontWeight: '600', textAlign: 'center' },
+  streamButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center'
+  },
   statusSection: {
     flexDirection: 'row',
     alignItems: 'center',
