@@ -11,22 +11,25 @@ const ipc = new FramedStream(BareKit.IPC)
 
 const HTTP_PORT = 8765
 const PREFETCH_AHEAD = 2
+const BUFFER_WINDOW = 5
+const MIN_SEGMENTS = 5
+
 let httpServer = null
 let transcoder = null
 let transcodeFinished = false
 let transcoding = false
-let lastRequestedSegment = -1 // highest segment index AVPlayer has requested
-let playbackPosition = 0 // current playback position in seconds (from frontend)
+let playbackPosition = 0
+let playerPaused = false
 
 // HLS state
-let initSegment = null // Buffer: ftyp + moov
-let segments = [] // Array of Buffers (each is moof + mdat)
-let segmentDurations = [] // Duration per segment in seconds
-let pendingWaiters = new Map() // segmentIndex -> [resolve, ...]
+let initSegment = null
+let segments = []
+let segmentDurations = []
+let pendingWaiters = new Map()
 
 // MP4 box parser accumulator
 let parseBuffer = Buffer.alloc(0)
-let currentMoof = null // pending moof box
+let currentMoof = null
 
 function cpu() {
   const cpuInfo = processTop.toString()
@@ -90,7 +93,6 @@ function handleBox(type, box) {
     } else {
       initSegment = Buffer.concat([initSegment, box])
     }
-    console.log('[hls] init box:', type, box.length, 'bytes')
     return
   }
 
@@ -104,11 +106,9 @@ function handleBox(type, box) {
     currentMoof = null
     const index = segments.length
     segments.push(segment)
-    // Estimate ~1s per segment (gopSize=30 @ 30fps)
     segmentDurations.push(1.0)
-    console.log('[hls] segment', index, ':', segment.length, 'bytes')
+    console.log('[transcode] segment', index, ':', segment.length, 'bytes')
 
-    // Resolve any waiters for this segment
     const waiters = pendingWaiters.get(index)
     if (waiters) {
       for (const resolve of waiters) resolve(segment)
@@ -117,7 +117,6 @@ function handleBox(type, box) {
     return
   }
 
-  // Other boxes (styp, sidx, etc.) — append to current segment if mid-fragment
   if (currentMoof) {
     currentMoof = Buffer.concat([currentMoof, box])
   }
@@ -132,9 +131,11 @@ async function transcodeNext() {
     const { value, done } = await transcoder.next()
     if (done) {
       transcodeFinished = true
-      console.log('[hls] transcode finished, segments:', segments.length)
+      console.log('[transcode] finished, total segments:', segments.length)
+      ipc.write(
+        Buffer.concat([Buffer.from('dur:'), Buffer.from('' + segments.length)])
+      )
       sendStatus('done')
-      // Resolve all pending waiters with null (segment won't exist)
       for (const [, waiters] of pendingWaiters) {
         for (const resolve of waiters) resolve(null)
       }
@@ -153,17 +154,12 @@ async function transcodeNext() {
 }
 
 async function transcodeUntilSegment(index) {
-  // Already have it
   if (index < segments.length) return segments[index]
-
-  // Transcode finished and segment doesn't exist
   if (transcodeFinished) return null
 
-  // Transcode until we have this segment
   while (segments.length <= index && !transcodeFinished) {
     const produced = await transcodeNext()
     if (!produced && !transcodeFinished) {
-      // transcoding is busy, wait for the segment
       return new Promise((resolve) => {
         const waiters = pendingWaiters.get(index) || []
         waiters.push(resolve)
@@ -173,13 +169,11 @@ async function transcodeUntilSegment(index) {
   }
 
   if (index < segments.length) return segments[index]
-
   return null
 }
 
 function prefetch(fromIndex) {
   const target = fromIndex + PREFETCH_AHEAD
-  // Fire and forget — transcode ahead
   ;(async () => {
     while (segments.length <= target && !transcodeFinished) {
       await transcodeNext()
@@ -190,20 +184,15 @@ function prefetch(fromIndex) {
 // --- HLS Playlist ---
 
 function generatePlaylist() {
-  // Only advertise segments near the current playback position
-  // This prevents AVPlayer from buffering the entire file
-  const BUFFER_WINDOW = 5 // segments ahead of playback to show
-  const playbackSegment = Math.floor(playbackPosition) // ~1s per segment
+  const playbackSegment = Math.floor(playbackPosition)
   const maxVisible = transcodeFinished
     ? segments.length
     : Math.min(segments.length, playbackSegment + BUFFER_WINDOW + 1)
 
-  const maxDuration = 2
   const lines = [
     '#EXTM3U',
     '#EXT-X-VERSION:7',
-    '#EXT-X-TARGETDURATION:' + maxDuration,
-    '#EXT-X-PLAYLIST-TYPE:EVENT',
+    '#EXT-X-TARGETDURATION:2',
     '#EXT-X-INDEPENDENT-SEGMENTS',
     '#EXT-X-MEDIA-SEQUENCE:0',
     '#EXT-X-MAP:URI="init.mp4"'
@@ -229,12 +218,22 @@ function startHTTPServer() {
 
   httpServer = http.createServer(async (req, res) => {
     const url = req.url.split('?')[0]
-    console.log('[http]', req.method, url)
 
     if (url === '/stream.m3u8') {
       const playlist = generatePlaylist()
-      console.log('[hls] playlist:', segments.length, 'segments', transcodeFinished ? '(final)' : '(live)')
       const playlistBuf = Buffer.from(playlist)
+      console.log(
+        '[http] playlist: pos=' +
+          playbackPosition +
+          's, visible=' +
+          Math.min(
+            segments.length,
+            Math.floor(playbackPosition) + BUFFER_WINDOW + 1
+          ) +
+          '/' +
+          segments.length,
+        playerPaused ? '(paused)' : ''
+      )
       res.writeHead(200, {
         'Content-Type': 'application/vnd.apple.mpegurl',
         'Cache-Control': 'no-cache, no-store',
@@ -251,7 +250,6 @@ function startHTTPServer() {
         res.end('Not ready')
         return
       }
-      console.log('[http] serving init.mp4:', initSegment.length, 'bytes')
       res.writeHead(200, {
         'Content-Type': 'video/mp4',
         'Content-Length': '' + initSegment.length
@@ -261,32 +259,9 @@ function startHTTPServer() {
       return
     }
 
-    if (url === '/debug.mp4') {
-      // Serve init + all available segments as a single fMP4
-      if (!initSegment) {
-        res.writeHead(503)
-        res.end('Not ready')
-        return
-      }
-      const parts = [initSegment, ...segments]
-      let totalLen = 0
-      for (const p of parts) totalLen += p.length
-      console.log('[http] serving debug.mp4:', totalLen, 'bytes,', segments.length, 'segments')
-      res.writeHead(200, {
-        'Content-Type': 'video/mp4',
-        'Content-Length': '' + totalLen
-      })
-      for (const p of parts) res.write(p)
-      res.end()
-      return
-    }
-
     const segMatch = url.match(/^\/segment(\d+)\.mp4$/)
     if (segMatch) {
       const index = parseInt(segMatch[1], 10)
-      if (index > lastRequestedSegment) lastRequestedSegment = index
-
-      // Trigger on-demand transcoding
       const segment = await transcodeUntilSegment(index)
 
       if (!segment) {
@@ -295,7 +270,7 @@ function startHTTPServer() {
         return
       }
 
-      console.log('[http] serving segment' + index + '.mp4:', segment.length, 'bytes')
+      console.log('[http] segment', index, ':', segment.length, 'bytes')
       res.writeHead(200, {
         'Content-Type': 'video/mp4',
         'Content-Length': '' + segment.length
@@ -303,7 +278,6 @@ function startHTTPServer() {
       res.write(segment)
       res.end()
 
-      // Prefetch ahead
       prefetch(index)
       return
     }
@@ -318,7 +292,6 @@ function startHTTPServer() {
 // --- File open + initial transcode ---
 
 async function openFile(path) {
-  // Reset state
   initSegment = null
   segments = []
   segmentDurations = []
@@ -327,13 +300,11 @@ async function openFile(path) {
   currentMoof = null
   transcodeFinished = false
   transcoding = false
-  lastRequestedSegment = -1
   playbackPosition = 0
+  playerPaused = false
 
   transcoder = video(path).transcode({ format: 'mp4' })[Symbol.asyncIterator]()
 
-  // Transcode until we have init segment + enough segments for AVPlayer to start
-  const MIN_SEGMENTS = 5
   while (!initSegment || segments.length < MIN_SEGMENTS) {
     const produced = await transcodeNext()
     if (!produced) break
@@ -344,10 +315,13 @@ async function openFile(path) {
     return
   }
 
-  // Set lastRequestedSegment so the first playlist shows all initial segments
-  lastRequestedSegment = segments.length - 1
-  console.log('[hls] ready: init', initSegment.length, 'bytes,', segments.length, 'segments')
-
+  console.log(
+    '[transcode] ready: init',
+    initSegment.length,
+    'bytes,',
+    segments.length,
+    'segments'
+  )
   sendStatus('streaming')
   sendUrl('http://localhost:' + HTTP_PORT + '/stream.m3u8?t=' + Date.now())
 }
@@ -362,6 +336,16 @@ ipc.on('data', async (data) => {
 
     if (command === 'pos') {
       playbackPosition = parseInt(parts[1], 10) || 0
+      return
+    }
+
+    if (command === 'pause') {
+      playerPaused = true
+      return
+    }
+
+    if (command === 'play') {
+      playerPaused = false
       return
     }
 

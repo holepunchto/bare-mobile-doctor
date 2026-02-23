@@ -28,6 +28,7 @@ function parseMessage(data: Uint8Array): { type: string; body: string } | null {
   if (str.startsWith('sts:')) return { type: 'status', body: str.slice(4) }
   if (str.startsWith('err:')) return { type: 'error', body: str.slice(4) }
   if (str.startsWith('url:')) return { type: 'url', body: str.slice(4) }
+  if (str.startsWith('dur:')) return { type: 'duration', body: str.slice(4) }
 
   return null
 }
@@ -39,6 +40,7 @@ export default function VideoConverterTest() {
   const [status, setStatus] = useState<PlayerStatus>('idle')
   const [error, setError] = useState('')
   const [selectedVideo, setSelectedVideo] = useState('sample_30s.mkv')
+  const [totalDuration, setTotalDuration] = useState(0)
   const [bareDir, setBareDir] = useState('')
 
   const stream = useRef<any>(null)
@@ -82,6 +84,7 @@ export default function VideoConverterTest() {
         if (msg.type === 'status') setStatus(msg.body as PlayerStatus)
         if (msg.type === 'error') { setError(msg.body); setStatus('error') }
         if (msg.type === 'url') setVideoUrl(msg.body)
+        if (msg.type === 'duration') setTotalDuration(parseInt(msg.body, 10))
       })
     }
 
@@ -93,6 +96,7 @@ export default function VideoConverterTest() {
     if (!bareDir) return
     setError('')
     setVideoUrl('')
+    setTotalDuration(0)
     stream.current.write(b4a.from(`open:${bareDir}/${selectedVideo}`))
   }
 
@@ -164,6 +168,11 @@ export default function VideoConverterTest() {
                 if (s.isLoaded && stream.current) {
                   const posSec = Math.floor(s.positionMillis / 1000)
                   stream.current.write(b4a.from('pos:' + posSec))
+                  if (s.isPlaying) {
+                    stream.current.write(b4a.from('play'))
+                  } else if (!s.isBuffering) {
+                    stream.current.write(b4a.from('pause'))
+                  }
                 }
               }}
               progressUpdateIntervalMillis={1000}
