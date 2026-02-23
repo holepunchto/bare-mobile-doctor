@@ -34,6 +34,17 @@ function parseMessage(data: Uint8Array): { type: string; body: string } | null {
 }
 
 export default function VideoConverterTest() {
+  if (Platform.OS !== 'ios') {
+    return (
+      <View style={styles.container}>
+        <ThemedText style={styles.title}>Video Converter</ThemedText>
+        <ThemedText style={{ color: '#999', fontSize: 16 }}>
+          iOS only — uses h264_videotoolbox and AVPlayer.
+        </ThemedText>
+      </View>
+    )
+  }
+
   const worklet = useRef(new Worklet()).current
   const [cpuInfo, setCpuInfo] = useState('')
   const [videoUrl, setVideoUrl] = useState('')

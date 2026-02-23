@@ -15,7 +15,7 @@ const ipc = new FramedStream(BareKit.IPC)
  * iOS only. Uses h264_videotoolbox (Apple HW encoder) and AVPlayer via expo-av.
  *
  * Key concepts:
- *  - HLS (HTTP Live Streaming): 
+ *  - HLS (HTTP Live Streaming):
  *      - https://developer.apple.com/streaming/
  *      - https://developer.apple.com/documentation/http-live-streaming/about-the-common-media-application-format-with-http-live-streaming-hls
  *  - FFmpeg Fragmentation: https://ffmpeg.org/ffmpeg-formats.html#Fragmentation
@@ -226,11 +226,11 @@ async function transcodeUntilSegment(index) {
 
 function prefetch(fromIndex) {
   const target = fromIndex + PREFETCH_AHEAD
-    ; (async () => {
-      while (segments.length <= target && !transcodeFinished) {
-        await transcodeNext()
-      }
-    })()
+  ;(async () => {
+    while (segments.length <= target && !transcodeFinished) {
+      await transcodeNext()
+    }
+  })()
 }
 
 function generatePlaylist() {
@@ -272,14 +272,14 @@ function startHTTPServer() {
       const playlistBuf = Buffer.from(playlist)
       console.log(
         '[http] playlist: pos=' +
-        playbackPosition +
-        's, visible=' +
-        Math.min(
+          playbackPosition +
+          's, visible=' +
+          Math.min(
+            segments.length,
+            Math.floor(playbackPosition) + BUFFER_WINDOW + 1
+          ) +
+          '/' +
           segments.length,
-          Math.floor(playbackPosition) + BUFFER_WINDOW + 1
-        ) +
-        '/' +
-        segments.length,
         playerPaused ? '(paused)' : ''
       )
       res.writeHead(200, {
