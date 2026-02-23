@@ -9,6 +9,62 @@ const top = require('process-top')
 const processTop = new top()
 const ipc = new FramedStream(BareKit.IPC)
 
+/*
+ * VideoConverter — Live MKV/AVI → MP4 transcoding via on-demand HLS
+ *
+ * iOS only. Uses h264_videotoolbox (Apple HW encoder) and AVPlayer via expo-av.
+ *
+ * Key concepts:
+ *  - HLS (HTTP Live Streaming): 
+ *      - https://developer.apple.com/streaming/
+ *      - https://developer.apple.com/documentation/http-live-streaming/about-the-common-media-application-format-with-http-live-streaming-hls
+ *  - FFmpeg Fragmentation: https://ffmpeg.org/ffmpeg-formats.html#Fragmentation
+ *
+ * Architecture overview:
+ *
+ *   ┌─────────────┐     IPC (framed-stream)      ┌──────────────────┐
+ *   │  React Native│◄────────────────────────────►│  Bare Worklet    │
+ *   │  (frontend)  │  open / pos / pause / play   │  (this file)     │
+ *   └──────┬───────┘                              └──────┬───────────┘
+ *          │                                             │
+ *          │ HTTP (AVPlayer)                              │
+ *          ▼                                             │
+ *   ┌──────────────┐                              ┌─────▼───────────┐
+ *   │  AVPlayer     │──GET /stream.m3u8──────────►│  HTTP Server     │
+ *   │               │──GET /init.mp4─────────────►│  :8765           │
+ *   │               │──GET /segmentN.mp4─────────►│                  │
+ *   └──────────────┘                              └─────┬───────────┘
+ *                                                       │
+ *                                             on-demand │ transcodeNext()
+ *                                                       ▼
+ *                                                ┌──────────────┐
+ *                                                │  bare-media   │
+ *                                                │  (ffmpeg)     │
+ *                                                │  input file   │
+ *                                                │  → fMP4 chunks│
+ *                                                └──────┬────────┘
+ *                                                       │
+ *                                                       ▼
+ *                                                ┌──────────────┐
+ *                                                │  Box Parser   │
+ *                                                │  ftyp+moov    │
+ *                                                │  → initSegment│
+ *                                                │  moof+mdat    │
+ *                                                │  → segments[] │
+ *                                                └──────────────┘
+ *
+ * Flow:
+ *  1. Frontend sends "open:<path>" → worklet starts bare-media async iterator
+ *  2. Transcoder outputs fragmented MP4 (ftyp, moov, then moof+mdat pairs)
+ *  3. Box parser splits output into init segment (ftyp+moov) and media segments (moof+mdat)
+ *  4. Pre-transcode MIN_SEGMENTS (5) then send HLS URL to frontend
+ *  5. AVPlayer polls /stream.m3u8 → playlist only advertises segments near playback pos
+ *  6. AVPlayer GETs /segmentN.mp4 → triggers transcodeNext() on-demand (lazy)
+ *  7. PREFETCH_AHEAD (2) extra segments are transcoded ahead on each request
+ *  8. Frontend sends "pos:<sec>" every 1s → controls playlist visibility window
+ *  9. When transcoder is done → #EXT-X-ENDLIST added to playlist
+ */
+
 const HTTP_PORT = 8765
 const PREFETCH_AHEAD = 2
 const BUFFER_WINDOW = 5
@@ -69,8 +125,6 @@ async function registerFormats() {
   })
 }
 
-// --- MP4 Box Parser ---
-
 function parseBoxes(data) {
   parseBuffer = Buffer.concat([parseBuffer, Buffer.from(data)])
 
@@ -122,8 +176,6 @@ function handleBox(type, box) {
   }
 }
 
-// --- On-demand transcoding ---
-
 async function transcodeNext() {
   if (!transcoder || transcodeFinished || transcoding) return false
   transcoding = true
@@ -174,14 +226,12 @@ async function transcodeUntilSegment(index) {
 
 function prefetch(fromIndex) {
   const target = fromIndex + PREFETCH_AHEAD
-  ;(async () => {
-    while (segments.length <= target && !transcodeFinished) {
-      await transcodeNext()
-    }
-  })()
+    ; (async () => {
+      while (segments.length <= target && !transcodeFinished) {
+        await transcodeNext()
+      }
+    })()
 }
-
-// --- HLS Playlist ---
 
 function generatePlaylist() {
   const playbackSegment = Math.floor(playbackPosition)
@@ -211,8 +261,6 @@ function generatePlaylist() {
   return lines.join('\n') + '\n'
 }
 
-// --- HTTP Server ---
-
 function startHTTPServer() {
   if (httpServer) return
 
@@ -224,14 +272,14 @@ function startHTTPServer() {
       const playlistBuf = Buffer.from(playlist)
       console.log(
         '[http] playlist: pos=' +
-          playbackPosition +
-          's, visible=' +
-          Math.min(
-            segments.length,
-            Math.floor(playbackPosition) + BUFFER_WINDOW + 1
-          ) +
-          '/' +
+        playbackPosition +
+        's, visible=' +
+        Math.min(
           segments.length,
+          Math.floor(playbackPosition) + BUFFER_WINDOW + 1
+        ) +
+        '/' +
+        segments.length,
         playerPaused ? '(paused)' : ''
       )
       res.writeHead(200, {
@@ -289,8 +337,6 @@ function startHTTPServer() {
   httpServer.listen(HTTP_PORT)
 }
 
-// --- File open + initial transcode ---
-
 async function openFile(path) {
   initSegment = null
   segments = []
@@ -325,8 +371,6 @@ async function openFile(path) {
   sendStatus('streaming')
   sendUrl('http://localhost:' + HTTP_PORT + '/stream.m3u8?t=' + Date.now())
 }
-
-// --- IPC ---
 
 ipc.on('data', async (data) => {
   try {
