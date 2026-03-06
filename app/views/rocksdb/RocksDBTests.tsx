@@ -1,12 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  useColorScheme
-} from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useColorScheme } from 'react-native'
 
 import FramedStream from 'framed-stream'
 import { Worklet } from 'react-native-bare-kit'
@@ -69,12 +62,8 @@ export default function RocksDBTests() {
 
   const [isGenerating, setIsGenerating] = React.useState(false)
   const [isRunning, setIsRunning] = React.useState(false)
-  const [generationResults, setGenerationResults] = React.useState<
-    GenerationResults[]
-  >([])
-  const [benchmarkResults, setBenchmarkResults] = React.useState<
-    BenchmarkResult[]
-  >([])
+  const [generationResults, setGenerationResults] = React.useState<GenerationResults[]>([])
+  const [benchmarkResults, setBenchmarkResults] = React.useState<BenchmarkResult[]>([])
   const [errors, setErrors] = React.useState<string[]>([])
 
   // Calculate expected total databases (3 sizes × 2 types = 6)
@@ -145,8 +134,7 @@ export default function RocksDBTests() {
     setup()
 
     return () => {
-      if (worklet.current && worklet.current.terminate)
-        worklet.current.terminate()
+      if (worklet.current && worklet.current.terminate) worklet.current.terminate()
     }
   }, [])
 
@@ -183,18 +171,8 @@ export default function RocksDBTests() {
   }
 
   return (
-    <ScrollView
-      style={[
-        styles.container,
-        { backgroundColor: isDark ? '#000000' : '#f8f9fa' }
-      ]}
-    >
-      <View
-        style={[
-          styles.header,
-          { backgroundColor: isDark ? '#1a1a1a' : '#fff' }
-        ]}
-      >
+    <ScrollView style={[styles.container, { backgroundColor: isDark ? '#000000' : '#f8f9fa' }]}>
+      <View style={[styles.header, { backgroundColor: isDark ? '#1a1a1a' : '#fff' }]}>
         <ThemedText style={styles.title}>🚀 RocksDB Benchmark</ThemedText>
         <ThemedText style={styles.subtitle}>
           Performance testing for HyperDB vs Raw RocksDB
@@ -203,11 +181,7 @@ export default function RocksDBTests() {
 
       <View style={styles.buttonContainer}>
         <TouchableOpacity
-          style={[
-            styles.button,
-            styles.generateButton,
-            isGenerating && styles.buttonDisabled
-          ]}
+          style={[styles.button, styles.generateButton, isGenerating && styles.buttonDisabled]}
           onPress={generateDatabases}
           disabled={isGenerating || isRunning}
         >
@@ -219,11 +193,7 @@ export default function RocksDBTests() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[
-            styles.button,
-            styles.runButton,
-            isRunning && styles.buttonDisabled
-          ]}
+          style={[styles.button, styles.runButton, isRunning && styles.buttonDisabled]}
           onPress={runBenchmarks}
           disabled={isGenerating || isRunning}
         >
@@ -243,19 +213,15 @@ export default function RocksDBTests() {
         ]}
       >
         <ThemedText style={styles.tipIcon}>💡</ThemedText>
-        <ThemedText style={styles.tipTitle}>
-          Tip: Generate Databases First
-        </ThemedText>
+        <ThemedText style={styles.tipTitle}>Tip: Generate Databases First</ThemedText>
         <ThemedText style={styles.tipText}>
-          Before running benchmarks, you need to generate the test databases.
-          Click "Generate Databases" to create the required data files.
+          Before running benchmarks, you need to generate the test databases. Click "Generate
+          Databases" to create the required data files.
         </ThemedText>
       </View>
 
       <View style={styles.resultsContainer}>
-        <ThemedText style={styles.sectionTitle}>
-          📈 Benchmark Results
-        </ThemedText>
+        <ThemedText style={styles.sectionTitle}>📈 Benchmark Results</ThemedText>
         {benchmarkResults.map((result, index) => (
           <TestResult
             key={index}
@@ -266,16 +232,9 @@ export default function RocksDBTests() {
           />
         ))}
         {benchmarkResults.length === 0 && !isRunning && (
-          <View
-            style={[
-              styles.emptyState,
-              { backgroundColor: isDark ? '#1a1a1a' : '#fff' }
-            ]}
-          >
+          <View style={[styles.emptyState, { backgroundColor: isDark ? '#1a1a1a' : '#fff' }]}>
             <ThemedText style={styles.emptyStateIcon}>📊</ThemedText>
-            <ThemedText style={styles.emptyStateText}>
-              No benchmark results yet
-            </ThemedText>
+            <ThemedText style={styles.emptyStateText}>No benchmark results yet</ThemedText>
             <ThemedText style={styles.emptyStateSubtext}>
               Click "Run Benchmarks" to test the generated databases
             </ThemedText>

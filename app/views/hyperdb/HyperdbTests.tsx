@@ -118,9 +118,7 @@ export default function HyperdbTests() {
   }, [])
 
   const toggleMode = (mode: string) => {
-    setModes((prev) =>
-      prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode]
-    )
+    setModes((prev) => (prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode]))
   }
 
   return (
@@ -129,10 +127,7 @@ export default function HyperdbTests() {
         {[1, 10, 100, 1000, 10000].map((value) => (
           <TouchableOpacity
             key={value}
-            style={[
-              styles.optionButton,
-              numCalls === value && styles.selectedOption
-            ]}
+            style={[styles.optionButton, numCalls === value && styles.selectedOption]}
             onPress={() => setNumCalls(value)}
           >
             <ThemedText style={styles.optionText}>{value}</ThemedText>
@@ -144,31 +139,20 @@ export default function HyperdbTests() {
         {['basic', 'intensive', 'bee', 'bee-local'].map((type) => (
           <TouchableOpacity
             key={type}
-            style={[
-              styles.optionButton,
-              modes.includes(type) && styles.selectedOption
-            ]}
+            style={[styles.optionButton, modes.includes(type) && styles.selectedOption]}
             onPress={() => toggleMode(type)}
           >
-            <ThemedText style={styles.optionText}>
-              {type.toUpperCase()}
-            </ThemedText>
+            <ThemedText style={styles.optionText}>{type.toUpperCase()}</ThemedText>
           </TouchableOpacity>
         ))}
       </View>
 
       <TouchableOpacity
-        style={
-          isButtonDisabled
-            ? [styles.button, styles.buttonDisabled]
-            : styles.button
-        }
+        style={isButtonDisabled ? [styles.button, styles.buttonDisabled] : styles.button}
         onPress={runTests}
         disabled={isButtonDisabled}
       >
-        <ThemedText
-          style={styles.buttonText}
-        >{`Run for ${numCalls} records`}</ThemedText>
+        <ThemedText style={styles.buttonText}>{`Run for ${numCalls} records`}</ThemedText>
       </TouchableOpacity>
 
       <ThemedText style={[styles.stats]}>

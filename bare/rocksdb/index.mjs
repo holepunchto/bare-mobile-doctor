@@ -85,8 +85,7 @@ async function handleBench(payload) {
     if (!fs.existsSync(dbsDir)) {
       sendResponse({
         type: 'error',
-        error:
-          'Database directory does not exist. Please generate databases first.'
+        error: 'Database directory does not exist. Please generate databases first.'
       })
       return
     }
@@ -118,9 +117,7 @@ async function handleBench(payload) {
 
     // Check if RocksDB files exist (CURRENT, MANIFEST, etc.)
     const rocksdbFiles = ['CURRENT', 'MANIFEST', 'LOCK']
-    const hasRocksDBFiles = rocksdbFiles.some((file) =>
-      fs.existsSync(`${dbPath}/${file}`)
-    )
+    const hasRocksDBFiles = rocksdbFiles.some((file) => fs.existsSync(`${dbPath}/${file}`))
 
     if (!hasRocksDBFiles) {
       sendResponse({

@@ -7,11 +7,7 @@ interface Props {
   onChangeModule: (module: TestModule) => void
 }
 
-export default function TabNavigator({
-  modules,
-  activeModule,
-  onChangeModule
-}: Props) {
+export default function TabNavigator({ modules, activeModule, onChangeModule }: Props) {
   return (
     <View style={styles.tabContainer}>
       {modules.map((module) => (
@@ -20,12 +16,7 @@ export default function TabNavigator({
           style={[styles.tab, activeModule === module && styles.activeTab]}
           onPress={() => onChangeModule(module)}
         >
-          <Text
-            style={[
-              styles.tabText,
-              activeModule === module && styles.activeTabText
-            ]}
-          >
+          <Text style={[styles.tabText, activeModule === module && styles.activeTabText]}>
             {module}
           </Text>
         </TouchableOpacity>

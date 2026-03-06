@@ -45,10 +45,8 @@ const ErrorList = ({ errors }: { errors: string[] }) => {
 
 export default function UDXTests() {
   const [isRunning, setIsRunning] = React.useState(false)
-  const [socketTestsHasSucceeded, setSocketTestsHasSucceeded] =
-    React.useState(null)
-  const [streamTestsHasSucceeded, setStreamTestsHasSucceeded] =
-    React.useState(null)
+  const [socketTestsHasSucceeded, setSocketTestsHasSucceeded] = React.useState(null)
+  const [streamTestsHasSucceeded, setStreamTestsHasSucceeded] = React.useState(null)
   const worklet = React.useRef(new Worklet()).current
   const [errors, setErrors] = React.useState<string[]>([])
 
@@ -102,9 +100,7 @@ export default function UDXTests() {
         onPress={runTests}
         disabled={isRunning}
       >
-        <Text style={styles.buttonText}>
-          {isRunning ? 'Running...' : 'Run UDX Tests'}
-        </Text>
+        <Text style={styles.buttonText}>{isRunning ? 'Running...' : 'Run UDX Tests'}</Text>
       </TouchableOpacity>
 
       <View style={styles.resultsContainer}>

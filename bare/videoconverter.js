@@ -184,9 +184,7 @@ async function transcodeNext() {
     if (done) {
       transcodeFinished = true
       console.log('[transcode] finished, total segments:', segments.length)
-      ipc.write(
-        Buffer.concat([Buffer.from('dur:'), Buffer.from('' + segments.length)])
-      )
+      ipc.write(Buffer.concat([Buffer.from('dur:'), Buffer.from('' + segments.length)]))
       sendStatus('done')
       for (const [, waiters] of pendingWaiters) {
         for (const resolve of waiters) resolve(null)
@@ -274,10 +272,7 @@ function startHTTPServer() {
         '[http] playlist: pos=' +
           playbackPosition +
           's, visible=' +
-          Math.min(
-            segments.length,
-            Math.floor(playbackPosition) + BUFFER_WINDOW + 1
-          ) +
+          Math.min(segments.length, Math.floor(playbackPosition) + BUFFER_WINDOW + 1) +
           '/' +
           segments.length,
         playerPaused ? '(paused)' : ''
@@ -361,13 +356,7 @@ async function openFile(path) {
     return
   }
 
-  console.log(
-    '[transcode] ready: init',
-    initSegment.length,
-    'bytes,',
-    segments.length,
-    'segments'
-  )
+  console.log('[transcode] ready: init', initSegment.length, 'bytes,', segments.length, 'segments')
   sendStatus('streaming')
   sendUrl('http://localhost:' + HTTP_PORT + '/stream.m3u8?t=' + Date.now())
 }

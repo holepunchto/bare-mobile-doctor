@@ -36,11 +36,7 @@ async function intensive(records) {
     id++
   }
 
-  let result = await local.find(
-    '@hyperdb-example/user',
-    { reverse: true },
-    { limit: 1 }
-  ) // list only one due to limit
+  let result = await local.find('@hyperdb-example/user', { reverse: true }, { limit: 1 }) // list only one due to limit
   result = await result.toArray()
 
   BareKit.IPC.write(JSON.stringify(result[0]))
@@ -53,10 +49,7 @@ async function bee(records) {
     '650ad31c618e7d18566477f417468931ad75d0a5cb90882244b6562f1c79cdb3',
     'hex'
   )
-  const topic = b4a.from(
-    'e4a4fa547d3f715b41eedbbc0bbae5cd3940a5f15a709e1e5c2d2af6ed106835',
-    'hex'
-  )
+  const topic = b4a.from('e4a4fa547d3f715b41eedbbc0bbae5cd3940a5f15a709e1e5c2d2af6ed106835', 'hex')
   let closed = false
 
   const remoteCorestore = new Corestore(path + `/${time()}/remote.db`)
@@ -113,11 +106,7 @@ async function localBee(records) {
     id++
   }
 
-  let result = await local.find(
-    '@hyperdb-example/user',
-    { reverse: true },
-    { limit: 1 }
-  )
+  let result = await local.find('@hyperdb-example/user', { reverse: true }, { limit: 1 })
   result = await result.toArray()
 
   if (result[0].id === records) {
@@ -140,11 +129,7 @@ async function basic(records) {
 
   await local.flush() // Flush only once after writing all the records
 
-  let result = await local.find(
-    '@hyperdb-example/user',
-    { reverse: true },
-    { limit: 1 }
-  )
+  let result = await local.find('@hyperdb-example/user', { reverse: true }, { limit: 1 })
   result = await result.toArray()
 
   BareKit.IPC.write(JSON.stringify(result[0]))

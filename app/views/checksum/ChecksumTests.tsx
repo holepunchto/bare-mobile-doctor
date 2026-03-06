@@ -1,10 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import {
-  TouchableOpacity,
-  StyleSheet,
-  View,
-  ActivityIndicator
-} from 'react-native'
+import { TouchableOpacity, StyleSheet, View, ActivityIndicator } from 'react-native'
 import FramedStream from 'framed-stream'
 import { Worklet } from 'react-native-bare-kit'
 
@@ -15,9 +10,7 @@ import usePerf from '../../hooks/usePerf'
 const source = require('./checksum.bundle')
 
 function isSuccessCode(data: Uint8Array) {
-  return (
-    data[0] === 100 && data[1] === 111 && data[2] === 110 && data[3] === 101
-  )
+  return data[0] === 100 && data[1] === 111 && data[2] === 110 && data[3] === 101
 }
 
 export default function ChecksumTests() {
@@ -59,20 +52,14 @@ export default function ChecksumTests() {
     <>
       <View style={styles.controls}>
         <TouchableOpacity
-          style={[
-            styles.optionButton,
-            type === 'basic' && styles.selectedOption
-          ]}
+          style={[styles.optionButton, type === 'basic' && styles.selectedOption]}
           onPress={() => setType('basic')}
           disabled={isRunning}
         >
           <ThemedText style={styles.optionText}>Basic</ThemedText>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[
-            styles.optionButton,
-            type === 'framed' && styles.selectedOption
-          ]}
+          style={[styles.optionButton, type === 'framed' && styles.selectedOption]}
           onPress={() => setType('framed')}
           disabled={isRunning}
         >
@@ -81,15 +68,11 @@ export default function ChecksumTests() {
       </View>
 
       <TouchableOpacity
-        style={
-          isRunning ? [styles.button, styles.buttonDisabled] : styles.button
-        }
+        style={isRunning ? [styles.button, styles.buttonDisabled] : styles.button}
         onPress={runTests}
         disabled={isRunning}
       >
-        <ThemedText
-          style={styles.buttonText}
-        >{`Run checksum tests (${type})`}</ThemedText>
+        <ThemedText style={styles.buttonText}>{`Run checksum tests (${type})`}</ThemedText>
       </TouchableOpacity>
 
       {isRunning && (
@@ -103,8 +86,7 @@ export default function ChecksumTests() {
 
       {duration && duration > 0 && !isRunning && (
         <ThemedText style={styles.stats}>
-          Time elapsed: {formatTime(duration)} | Succeeded:{' '}
-          {hasSucceeded ? '✅' : '❌'}
+          Time elapsed: {formatTime(duration)} | Succeeded: {hasSucceeded ? '✅' : '❌'}
         </ThemedText>
       )}
     </>

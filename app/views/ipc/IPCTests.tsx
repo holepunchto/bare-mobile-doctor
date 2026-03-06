@@ -94,9 +94,7 @@ export default function IPCTests() {
   }
 
   const toggleMode = (mode: string) => {
-    setModes((prev) =>
-      prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode]
-    )
+    setModes((prev) => (prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode]))
   }
 
   const runNextTest = () => {
@@ -105,8 +103,7 @@ export default function IPCTests() {
     console.log('running test', mode)
     startTimer()
     for (let i = 0; i < numCalls; i++) {
-      const message =
-        JSON.stringify({ msg: `Hello world ${i}`, workType: mode }) + '-'
+      const message = JSON.stringify({ msg: `Hello world ${i}`, workType: mode }) + '-'
       IPC.write(b4a.from(message))
       setMessagesSent((prev) => prev + 1)
     }
@@ -118,10 +115,7 @@ export default function IPCTests() {
         {[1, 10, 100, 1000, 10000].map((value) => (
           <TouchableOpacity
             key={value}
-            style={[
-              styles.optionButton,
-              numCalls === value && styles.selectedOption
-            ]}
+            style={[styles.optionButton, numCalls === value && styles.selectedOption]}
             onPress={() => setNumCalls(value)}
           >
             <Text style={styles.optionText}>{value}</Text>
@@ -133,10 +127,7 @@ export default function IPCTests() {
         {['basic', 'native', 'fastcall', 'crypto'].map((type) => (
           <TouchableOpacity
             key={type}
-            style={[
-              styles.optionButton,
-              modes.includes(type) && styles.selectedOption
-            ]}
+            style={[styles.optionButton, modes.includes(type) && styles.selectedOption]}
             onPress={() => toggleMode(type)}
           >
             <Text style={styles.optionText}>{type.toUpperCase()}</Text>
@@ -145,11 +136,7 @@ export default function IPCTests() {
       </View>
 
       <TouchableOpacity
-        style={
-          isButtonDisabled
-            ? [styles.button, styles.buttonDisabled]
-            : styles.button
-        }
+        style={isButtonDisabled ? [styles.button, styles.buttonDisabled] : styles.button}
         onPress={runTests}
         disabled={isButtonDisabled}
       >

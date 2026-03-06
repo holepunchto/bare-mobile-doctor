@@ -1,11 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import {
-  TouchableOpacity,
-  StyleSheet,
-  View,
-  ScrollView,
-  Platform
-} from 'react-native'
+import { TouchableOpacity, StyleSheet, View, ScrollView, Platform } from 'react-native'
 import { Audio, Video, ResizeMode } from 'expo-av'
 
 import { Worklet } from 'react-native-bare-kit'
@@ -134,27 +128,22 @@ export default function VideoConverterTest() {
         </ThemedText>
 
         <View style={styles.videoButtons}>
-          {['sample_30s.mkv', 'sample_30s.avi', 'sample_4min.mkv'].map(
-            (name) => (
-              <TouchableOpacity
-                key={name}
+          {['sample_30s.mkv', 'sample_30s.avi', 'sample_4min.mkv'].map((name) => (
+            <TouchableOpacity
+              key={name}
+              style={[styles.videoButton, selectedVideo === name && styles.videoButtonActive]}
+              onPress={() => setSelectedVideo(name)}
+            >
+              <ThemedText
                 style={[
-                  styles.videoButton,
-                  selectedVideo === name && styles.videoButtonActive
+                  styles.videoButtonText,
+                  selectedVideo === name && styles.videoButtonTextActive
                 ]}
-                onPress={() => setSelectedVideo(name)}
               >
-                <ThemedText
-                  style={[
-                    styles.videoButtonText,
-                    selectedVideo === name && styles.videoButtonTextActive
-                  ]}
-                >
-                  {name}
-                </ThemedText>
-              </TouchableOpacity>
-            )
-          )}
+                {name}
+              </ThemedText>
+            </TouchableOpacity>
+          ))}
         </View>
 
         <TouchableOpacity style={styles.streamButton} onPress={openVideo}>

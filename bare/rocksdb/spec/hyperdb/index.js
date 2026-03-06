@@ -5,10 +5,7 @@ const { IndexEncoder, c } = require('hyperdb/runtime')
 const { version, getEncoding, setVersion } = require('./messages.js')
 
 // '@x/a' collection key
-const collection0_key = new IndexEncoder(
-  [IndexEncoder.STRING, IndexEncoder.UINT],
-  { prefix: 0 }
-)
+const collection0_key = new IndexEncoder([IndexEncoder.STRING, IndexEncoder.UINT], { prefix: 0 })
 
 function collection0_indexify(record) {
   const arr = []
@@ -125,10 +122,9 @@ const collection1 = {
 }
 
 // '@x/c' collection key
-const index2_key = new IndexEncoder(
-  [IndexEncoder.UINT, IndexEncoder.STRING, IndexEncoder.UINT],
-  { prefix: 2 }
-)
+const index2_key = new IndexEncoder([IndexEncoder.UINT, IndexEncoder.STRING, IndexEncoder.UINT], {
+  prefix: 2
+})
 
 function index2_indexify(record) {
   const arr = []
@@ -174,10 +170,9 @@ const index2 = {
 collection0.indexes.push(index2)
 
 // '@x/d' collection key
-const index3_key = new IndexEncoder(
-  [IndexEncoder.STRING, IndexEncoder.STRING, IndexEncoder.UINT],
-  { prefix: 3 }
-)
+const index3_key = new IndexEncoder([IndexEncoder.STRING, IndexEncoder.STRING, IndexEncoder.UINT], {
+  prefix: 3
+})
 
 function index3_indexify(record) {
   const arr = []
@@ -223,10 +218,9 @@ const index3 = {
 collection0.indexes.push(index3)
 
 // '@x/e' collection key
-const index4_key = new IndexEncoder(
-  [IndexEncoder.UINT, IndexEncoder.STRING, IndexEncoder.UINT],
-  { prefix: 4 }
-)
+const index4_key = new IndexEncoder([IndexEncoder.UINT, IndexEncoder.STRING, IndexEncoder.UINT], {
+  prefix: 4
+})
 
 function index4_indexify(record) {
   const arr = []

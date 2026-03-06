@@ -1,11 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import {
-  TouchableOpacity,
-  StyleSheet,
-  View,
-  ActivityIndicator,
-  useColorScheme
-} from 'react-native'
+import { TouchableOpacity, StyleSheet, View, ActivityIndicator, useColorScheme } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
 import RPC from 'bare-rpc'
 import { RPC_CPU, RPC_WRITE, RPC_READ, RPC_INIT } from '../../utils/commands.js'
@@ -143,21 +137,14 @@ export default function HyperdbTests() {
   }
 
   const toggleMode = (mode: string) => {
-    setModes((prev) =>
-      prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode]
-    )
+    setModes((prev) => (prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode]))
   }
 
   const LoadingScreen = () => {
     const colorScheme = useColorScheme()
     const isDark = colorScheme === 'dark'
     return (
-      <View
-        style={[
-          styles.loadingContainer,
-          { backgroundColor: isDark ? '#000' : '#fff' }
-        ]}
-      >
+      <View style={[styles.loadingContainer, { backgroundColor: isDark ? '#000' : '#fff' }]}>
         <ActivityIndicator size='large' color={isDark ? '#fff' : '#007AFF'} />
         <ThemedText style={styles.loadingText}>
           Please wait while initializing the core...
@@ -176,10 +163,7 @@ export default function HyperdbTests() {
         {[1, 100, 1000, 10000, 100000, 1000000].map((value) => (
           <TouchableOpacity
             key={value}
-            style={[
-              styles.optionButton,
-              numCalls === value && styles.selectedOption
-            ]}
+            style={[styles.optionButton, numCalls === value && styles.selectedOption]}
             onPress={() => setNumCalls(value)}
           >
             <ThemedText style={styles.optionText}>{value}</ThemedText>
@@ -191,32 +175,21 @@ export default function HyperdbTests() {
         {['write', 'read'].map((type) => (
           <TouchableOpacity
             key={type}
-            style={[
-              styles.optionButton,
-              modes.includes(type) && styles.selectedOption
-            ]}
+            style={[styles.optionButton, modes.includes(type) && styles.selectedOption]}
             onPress={() => toggleMode(type)}
             disabled={!isInitialized}
           >
-            <ThemedText style={styles.optionText}>
-              {type.toUpperCase()}
-            </ThemedText>
+            <ThemedText style={styles.optionText}>{type.toUpperCase()}</ThemedText>
           </TouchableOpacity>
         ))}
       </View>
 
       <TouchableOpacity
-        style={
-          isButtonDisabled
-            ? [styles.button, styles.buttonDisabled]
-            : styles.button
-        }
+        style={isButtonDisabled ? [styles.button, styles.buttonDisabled] : styles.button}
         onPress={runTests}
         disabled={isButtonDisabled}
       >
-        <ThemedText
-          style={styles.buttonText}
-        >{`Run for ${numCalls} records`}</ThemedText>
+        <ThemedText style={styles.buttonText}>{`Run for ${numCalls} records`}</ThemedText>
       </TouchableOpacity>
 
       <ThemedText style={[styles.stats]}>

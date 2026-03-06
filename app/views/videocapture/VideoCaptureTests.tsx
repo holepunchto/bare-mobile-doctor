@@ -13,9 +13,7 @@ const source = require('./videocapture.bundle')
 
 function isCpuInfo(data: Uint8Array): boolean {
   return (
-    data[0] === 'c'.charCodeAt(0) &&
-    data[1] === 'p'.charCodeAt(0) &&
-    data[2] === 'u'.charCodeAt(0)
+    data[0] === 'c'.charCodeAt(0) && data[1] === 'p'.charCodeAt(0) && data[2] === 'u'.charCodeAt(0)
   )
 }
 
@@ -24,9 +22,7 @@ export default function VideoCaptureTest() {
   const [data, setData] = useState<Uint8Array | null>(null)
   const [cpuInfo, setCpuInfo] = useState<string>('')
   const [width, setWidth] = useState<number>(Platform.OS === 'ios' ? 352 : 640)
-  const [height, setHeight] = useState<number>(
-    Platform.OS === 'ios' ? 288 : 480
-  )
+  const [height, setHeight] = useState<number>(Platform.OS === 'ios' ? 288 : 480)
   const [isDownScaled, setDownScale] = useState<boolean>(false)
   const stream = useRef<any>(null)
 

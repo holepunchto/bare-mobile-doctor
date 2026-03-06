@@ -25,10 +25,7 @@ const ExecutionLog = ({ results, errors }: ExecutionLogProps) => {
 
   return (
     <View style={styles.logContainer}>
-      <TouchableOpacity
-        style={styles.logHeader}
-        onPress={() => setIsExpanded(!isExpanded)}
-      >
+      <TouchableOpacity style={styles.logHeader} onPress={() => setIsExpanded(!isExpanded)}>
         <View style={styles.logHeaderLeft}>
           <Text style={styles.logIcon}>📋</Text>
           <Text style={styles.logTitle}>Execution Log</Text>
@@ -41,9 +38,7 @@ const ExecutionLog = ({ results, errors }: ExecutionLogProps) => {
 
       {isExpanded && (
         <View style={styles.logContent}>
-          <Text style={styles.logTimestamp}>
-            // Started at {formatTimestamp()}
-          </Text>
+          <Text style={styles.logTimestamp}>// Started at {formatTimestamp()}</Text>
 
           {results.map((result, index) => (
             <View key={`result-${index}`} style={styles.logEntry}>
@@ -51,9 +46,7 @@ const ExecutionLog = ({ results, errors }: ExecutionLogProps) => {
                 <Text style={styles.logSuccess}>✓</Text>
                 <Text style={styles.logType}> {result.type}</Text>
                 <Text style={styles.logText}> database created with </Text>
-                <Text style={styles.logNumber}>
-                  {result.size.toLocaleString()}
-                </Text>
+                <Text style={styles.logNumber}>{result.size.toLocaleString()}</Text>
                 <Text style={styles.logText}> records</Text>
               </Text>
             </View>

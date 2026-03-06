@@ -6,11 +6,7 @@ interface ThemedTextProps extends TextProps {
   style?: any
 }
 
-const ThemedText: React.FC<ThemedTextProps> = ({
-  children,
-  style,
-  ...props
-}) => {
+const ThemedText: React.FC<ThemedTextProps> = ({ children, style, ...props }) => {
   const theme = useColorScheme()
   const themedStyle = [style, { color: theme === 'dark' ? 'white' : 'black' }]
 

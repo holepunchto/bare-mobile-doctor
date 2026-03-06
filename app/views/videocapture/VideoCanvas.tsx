@@ -1,13 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { View, Platform } from 'react-native'
-import {
-  Canvas,
-  Skia,
-  SkImage,
-  Image,
-  AlphaType,
-  ColorType
-} from '@shopify/react-native-skia'
+import { Canvas, Skia, SkImage, Image, AlphaType, ColorType } from '@shopify/react-native-skia'
 
 import ThemedText from '../../components/ThemedText'
 
@@ -76,23 +69,14 @@ const VideoCanvas = ({
           alignItems: 'center'
         }}
       >
-        <ThemedText style={{ color: 'white' }}>
-          Image creation failed
-        </ThemedText>
+        <ThemedText style={{ color: 'white' }}>Image creation failed</ThemedText>
       </View>
     )
   }
 
   return (
     <Canvas style={{ width, height, backgroundColor: 'red' }}>
-      <Image
-        image={skiaImage}
-        fit='cover'
-        x={0}
-        y={0}
-        width={width}
-        height={height}
-      />
+      <Image image={skiaImage} fit='cover' x={0} y={0} width={width} height={height} />
     </Canvas>
   )
 }

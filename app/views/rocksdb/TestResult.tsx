@@ -16,12 +16,7 @@ interface TestResultProps {
   result?: BenchmarkResult
 }
 
-function TestResult({
-  testName,
-  hasSucceeded,
-  isRunning,
-  result
-}: TestResultProps) {
+function TestResult({ testName, hasSucceeded, isRunning, result }: TestResultProps) {
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
   const formatNumber = (num: number) => {
@@ -47,37 +42,18 @@ function TestResult({
   }
 
   return (
-    <View
-      style={[
-        styles.resultCard,
-        { backgroundColor: isDark ? '#1a1a1a' : '#fff' }
-      ]}
-    >
+    <View style={[styles.resultCard, { backgroundColor: isDark ? '#1a1a1a' : '#fff' }]}>
       <View style={styles.cardHeader}>
         <View style={styles.databaseInfo}>
-          <ThemedText style={styles.databaseType}>
-            {getDatabaseType(testName)}
-          </ThemedText>
-          <ThemedText style={styles.databaseSize}>
-            {getDatabaseSize(testName)}
-          </ThemedText>
+          <ThemedText style={styles.databaseType}>{getDatabaseType(testName)}</ThemedText>
+          <ThemedText style={styles.databaseSize}>{getDatabaseSize(testName)}</ThemedText>
         </View>
         {isRunning ? (
-          <View
-            style={[
-              styles.statusBadge,
-              { backgroundColor: isDark ? '#333' : '#f8f9fa' }
-            ]}
-          >
+          <View style={[styles.statusBadge, { backgroundColor: isDark ? '#333' : '#f8f9fa' }]}>
             <ThemedText style={styles.statusText}>⏳ Running</ThemedText>
           </View>
         ) : hasSucceeded === null ? (
-          <View
-            style={[
-              styles.statusBadge,
-              { backgroundColor: isDark ? '#333' : '#f8f9fa' }
-            ]}
-          >
+          <View style={[styles.statusBadge, { backgroundColor: isDark ? '#333' : '#f8f9fa' }]}>
             <ThemedText style={styles.statusText}>-</ThemedText>
           </View>
         ) : hasSucceeded ? (
@@ -92,30 +68,19 @@ function TestResult({
       </View>
 
       {result && (
-        <View
-          style={[
-            styles.metricsContainer,
-            { backgroundColor: isDark ? '#333' : '#f8f9fa' }
-          ]}
-        >
+        <View style={[styles.metricsContainer, { backgroundColor: isDark ? '#333' : '#f8f9fa' }]}>
           <View style={styles.metricRow}>
             <View style={styles.metric}>
               <ThemedText style={styles.metricLabel}>Records Read</ThemedText>
-              <ThemedText style={styles.metricValue}>
-                {formatNumber(result.recordsRead)}
-              </ThemedText>
+              <ThemedText style={styles.metricValue}>{formatNumber(result.recordsRead)}</ThemedText>
             </View>
             <View style={styles.metric}>
               <ThemedText style={styles.metricLabel}>Duration</ThemedText>
-              <ThemedText style={styles.metricValue}>
-                {result.duration}s
-              </ThemedText>
+              <ThemedText style={styles.metricValue}>{result.duration}s</ThemedText>
             </View>
             <View style={styles.metric}>
               <ThemedText style={styles.metricLabel}>Rate</ThemedText>
-              <ThemedText style={styles.metricValue}>
-                {formatNumber(result.rate)}/s
-              </ThemedText>
+              <ThemedText style={styles.metricValue}>{formatNumber(result.rate)}/s</ThemedText>
             </View>
           </View>
         </View>

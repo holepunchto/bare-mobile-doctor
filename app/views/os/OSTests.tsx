@@ -46,10 +46,7 @@ export default function HypercoreTests() {
         {['cpu', 'memory'].map((value) => (
           <TouchableOpacity
             key={value}
-            style={[
-              styles.optionButton,
-              type === value && styles.selectedOption
-            ]}
+            style={[styles.optionButton, type === value && styles.selectedOption]}
             onPress={() => setType(value)}
           >
             <ThemedText style={styles.optionText}>{value}</ThemedText>
@@ -58,15 +55,11 @@ export default function HypercoreTests() {
       </View>
 
       <TouchableOpacity
-        style={
-          isRunning ? [styles.button, styles.buttonDisabled] : styles.button
-        }
+        style={isRunning ? [styles.button, styles.buttonDisabled] : styles.button}
         onPress={runTests}
         disabled={isRunning}
       >
-        <ThemedText style={styles.buttonText}>
-          Get {type.toUpperCase()} stats
-        </ThemedText>
+        <ThemedText style={styles.buttonText}>Get {type.toUpperCase()} stats</ThemedText>
       </TouchableOpacity>
 
       {stats && typeof stats === 'object' && (

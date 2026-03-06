@@ -50,17 +50,11 @@ let inputFormat = new ffmpeg.InputFormat()
 
 log('InputFormat set!')
 
-const inputFormatContext = new ffmpeg.InputFormatContext(
-  inputFormat,
-  options,
-  '0:'
-)
+const inputFormatContext = new ffmpeg.InputFormatContext(inputFormat, options, '0:')
 
 log('InputFormatContext set!')
 
-const bestStream = inputFormatContext.getBestStream(
-  ffmpeg.constants.mediaTypes.VIDEO
-)
+const bestStream = inputFormatContext.getBestStream(ffmpeg.constants.mediaTypes.VIDEO)
 
 if (!bestStream) {
   log('No video stream found!')
@@ -70,10 +64,7 @@ if (!bestStream) {
 log('Get best stream', bestStream)
 
 const decoder = bestStream.decoder()
-log(
-  'Get decoder for pixel format:',
-  ffmpeg.constants.getPixelFormatName(decoder.pixelFormat)
-)
+log('Get decoder for pixel format:', ffmpeg.constants.getPixelFormatName(decoder.pixelFormat))
 
 decoder.open()
 log('Setup decoder')
