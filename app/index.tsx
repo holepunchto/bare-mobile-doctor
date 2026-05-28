@@ -12,6 +12,7 @@ import ChecksumTests from './views/checksum/ChecksumTests'
 import VideoCaptureTests from './views/videocapture/VideoCaptureTests'
 import VideoConverterTests from './views/videoconverter/VideoConverterTests'
 import RocksDBTests from './views/rocksdb/RocksDBTests'
+import BluetoothTests from './views/bluetooth/BluetoothTests'
 
 export type TestModule =
   | 'IPC'
@@ -24,6 +25,7 @@ export type TestModule =
   | 'VideoCapture'
   | 'VideoConverter'
   | 'RocksDB'
+  | 'Bluetooth'
 
 export default function () {
   const [activeModule, setActiveModule] = useState<TestModule>('OS')
@@ -50,6 +52,8 @@ export default function () {
         return <VideoConverterTests />
       case 'RocksDB':
         return <RocksDBTests />
+      case 'Bluetooth':
+        return <BluetoothTests />
     }
   }
 
@@ -66,7 +70,8 @@ export default function () {
           'OS',
           'VideoCapture',
           'VideoConverter',
-          'RocksDB'
+          'RocksDB',
+          'Bluetooth'
         ]}
         activeModule={activeModule}
         onChangeModule={setActiveModule}
