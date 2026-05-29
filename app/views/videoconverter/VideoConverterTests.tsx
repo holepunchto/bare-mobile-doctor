@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { TouchableOpacity, StyleSheet, View, ScrollView, Platform } from 'react-native'
-import { Audio, Video, ResizeMode } from 'expo-av'
+import { useVideoPlayer, VideoView } from 'expo-video'
 
 import { Worklet } from 'react-native-bare-kit'
 import FramedStream from 'framed-stream'
@@ -49,12 +49,48 @@ export default function VideoConverterTest() {
   const [bareDir, setBareDir] = useState('')
 
   const stream = useRef<any>(null)
-  const videoRef = useRef<Video>(null)
+
+  const player = useVideoPlayer(
+    videoUrl ? { uri: videoUrl, contentType: 'hls' } : null,
+    (p) => {
+      p.audioMixingMode = 'doNotMix'
+      p.timeUpdateEventInterval = 1
+    }
+  )
+
+  useEffect(() => {
+    const timeUpdateSub = player.addListener('timeUpdate', ({ currentTime }) => {
+      if (stream.current) {
+        stream.current.write(b4a.from('pos:' + Math.floor(currentTime)))
+      }
+    })
+
+    const playingSub = player.addListener('playingChange', ({ isPlaying }) => {
+      if (stream.current) {
+        stream.current.write(b4a.from(isPlaying ? 'play' : 'pause'))
+      }
+    })
+
+    const statusSub = player.addListener('statusChange', ({ status: playerStatus, error: playerError }) => {
+      if (playerStatus === 'readyToPlay') {
+        player.play()
+        setStatus('playing')
+      } else if (playerStatus === 'error') {
+        console.log('Video error:', playerError)
+        setError(playerError?.message || 'Video playback error')
+        setStatus('error')
+      }
+    })
+
+    return () => {
+      timeUpdateSub.remove()
+      playingSub.remove()
+      statusSub.remove()
+    }
+  }, [player])
 
   useEffect(() => {
     const setup = async () => {
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true })
-
       const dir = await useBareDir()
       setBareDir(dir)
 
@@ -173,35 +209,11 @@ export default function VideoConverterTest() {
 
         {videoUrl ? (
           <View style={styles.videoContainer}>
-            <Video
-              ref={videoRef}
-              source={{ uri: videoUrl }}
+            <VideoView
+              player={player}
               style={styles.video}
-              useNativeControls
-              resizeMode={ResizeMode.CONTAIN}
-              shouldPlay
-              isLooping={false}
-              onError={(e) => {
-                console.log('Video error:', e)
-                setError('Video playback error')
-                setStatus('error')
-              }}
-              onReadyForDisplay={() => {
-                videoRef.current?.playAsync()
-                setStatus('playing')
-              }}
-              onPlaybackStatusUpdate={(s) => {
-                if (s.isLoaded && stream.current) {
-                  const posSec = Math.floor(s.positionMillis / 1000)
-                  stream.current.write(b4a.from('pos:' + posSec))
-                  if (s.isPlaying) {
-                    stream.current.write(b4a.from('play'))
-                  } else if (!s.isBuffering) {
-                    stream.current.write(b4a.from('pause'))
-                  }
-                }
-              }}
-              progressUpdateIntervalMillis={1000}
+              nativeControls
+              contentFit="contain"
             />
           </View>
         ) : (
