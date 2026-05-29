@@ -58,14 +58,17 @@ function handleBLEMessage (msg) {
 }
 
 function setupCentral () {
+  console.log('[BT] setupCentral')
   central = new Central()
 
   central.on('stateChange', (state) => {
+    console.log('[BT] central stateChange:', state)
     send({ type: 'bleState', state })
     if (state === 'poweredOn') checkReady()
   })
 
   central.on('discover', (peripheral) => {
+    console.log('[BT] discover:', peripheral.id, peripheral.name, peripheral.rssi)
     discoveredMap.set(peripheral.id, peripheral)
 
     let name = peripheral.name
@@ -137,14 +140,30 @@ function setupCentral () {
 }
 
 function setupManager () {
+  console.log('[BT] setupManager')
   manager = new PeripheralManager()
 
+  chatCharMutable = new Characteristic(CHAT_UUID, {
+    write: true,
+    notify: true
+  })
+
   manager.on('stateChange', (state) => {
-    if (state === 'poweredOn') checkReady()
+    console.log('[BT] manager stateChange:', state)
+    if (state === 'poweredOn') {
+      const service = new Service(SERVICE_UUID, [chatCharMutable])
+      manager.addService(service)
+    }
   })
 
   manager.on('serviceAdd', (uuid, error) => {
-    if (error) send({ type: 'error', message: 'Failed to add service: ' + error })
+    console.log('[BT] serviceAdd:', uuid, error || 'ok')
+    if (error) {
+      send({ type: 'error', message: 'Failed to add service: ' + error })
+    } else {
+      serviceAdded = true
+      checkReady()
+    }
   })
 
   manager.on('writeRequest', (requests) => {
@@ -172,31 +191,28 @@ function setupManager () {
       send({ type: 'disconnected' })
     }
   })
-
-  chatCharMutable = new Characteristic(CHAT_UUID, {
-    write: true,
-    notify: true
-  })
-  const service = new Service(SERVICE_UUID, [chatCharMutable])
-  manager.addService(service)
 }
 
 let ready = false
+let serviceAdded = false
 function checkReady () {
+  console.log('[BT] checkReady central:', central && central.state, 'manager:', manager && manager.state, 'service:', serviceAdded)
   if (ready) return
-  if (central && central.state === 'poweredOn' && manager && manager.state === 'poweredOn') {
+  if (central && central.state === 'poweredOn' && manager && manager.state === 'poweredOn' && serviceAdded) {
     ready = true
+    console.log('[BT] READY')
     send({ type: 'ready' })
   }
 }
 
 function setDiscoverable (enabled) {
+  console.log('[BT] setDiscoverable:', enabled)
   discoverable = enabled
   if (enabled) {
+    console.log('[BT] startAdvertising + startScan for', SERVICE_UUID)
     manager.startAdvertising({
       name: deviceName,
-      serviceUUIDs: [SERVICE_UUID],
-      serviceData: { [SERVICE_UUID]: Buffer.from(deviceName) }
+      serviceUUIDs: [SERVICE_UUID]
     })
     central.startScan([SERVICE_UUID])
     send({ type: 'scanStarted' })
