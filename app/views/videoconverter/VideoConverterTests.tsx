@@ -50,13 +50,10 @@ export default function VideoConverterTest() {
 
   const stream = useRef<any>(null)
 
-  const player = useVideoPlayer(
-    videoUrl ? { uri: videoUrl, contentType: 'hls' } : null,
-    (p) => {
-      p.audioMixingMode = 'doNotMix'
-      p.timeUpdateEventInterval = 1
-    }
-  )
+  const player = useVideoPlayer(videoUrl ? { uri: videoUrl, contentType: 'hls' } : null, (p) => {
+    p.audioMixingMode = 'doNotMix'
+    p.timeUpdateEventInterval = 1
+  })
 
   useEffect(() => {
     const timeUpdateSub = player.addListener('timeUpdate', ({ currentTime }) => {
@@ -71,16 +68,19 @@ export default function VideoConverterTest() {
       }
     })
 
-    const statusSub = player.addListener('statusChange', ({ status: playerStatus, error: playerError }) => {
-      if (playerStatus === 'readyToPlay') {
-        player.play()
-        setStatus('playing')
-      } else if (playerStatus === 'error') {
-        console.log('Video error:', playerError)
-        setError(playerError?.message || 'Video playback error')
-        setStatus('error')
+    const statusSub = player.addListener(
+      'statusChange',
+      ({ status: playerStatus, error: playerError }) => {
+        if (playerStatus === 'readyToPlay') {
+          player.play()
+          setStatus('playing')
+        } else if (playerStatus === 'error') {
+          console.log('Video error:', playerError)
+          setError(playerError?.message || 'Video playback error')
+          setStatus('error')
+        }
       }
-    })
+    )
 
     return () => {
       timeUpdateSub.remove()
@@ -209,12 +209,7 @@ export default function VideoConverterTest() {
 
         {videoUrl ? (
           <View style={styles.videoContainer}>
-            <VideoView
-              player={player}
-              style={styles.video}
-              nativeControls
-              contentFit="contain"
-            />
+            <VideoView player={player} style={styles.video} nativeControls contentFit='contain' />
           </View>
         ) : (
           <View style={styles.placeholderContainer}>
