@@ -14,7 +14,8 @@ const CHAT_UUID = 'B4A3C8A7-0001-1000-8000-00805F9B34FB'
 let deviceName = Bare.argv[0] || 'BareDevice'
 let central = null
 let manager = null
-let discoverable = false
+let advertising = false
+let scanning = false
 
 let role = 'idle'
 let connectedPeripheral = null
@@ -205,19 +206,28 @@ function checkReady () {
   }
 }
 
-function setDiscoverable (enabled) {
-  console.log('[BT] setDiscoverable:', enabled)
-  discoverable = enabled
+function setAdvertising (enabled) {
+  console.log('[BT] setAdvertising:', enabled)
+  advertising = enabled
   if (enabled) {
-    console.log('[BT] startAdvertising + startScan for', SERVICE_UUID)
     manager.startAdvertising({
       name: deviceName,
       serviceUUIDs: [SERVICE_UUID]
     })
+    send({ type: 'advertisingStarted' })
+  } else {
+    manager.stopAdvertising()
+    send({ type: 'advertisingStopped' })
+  }
+}
+
+function setScan (enabled) {
+  console.log('[BT] setScan:', enabled)
+  scanning = enabled
+  if (enabled) {
     central.startScan([SERVICE_UUID])
     send({ type: 'scanStarted' })
   } else {
-    manager.stopAdvertising()
     central.stopScan()
     discoveredMap.clear()
     send({ type: 'scanStopped' })
@@ -282,7 +292,7 @@ function disconnect () {
   chatCharacteristic = null
   subscribedCentralHandle = null
   role = 'idle'
-  send({ type: 'disconnected' })
+  send({ type: 'disconnected', scanning, advertising })
 }
 
 ipc.on('data', (data) => {
@@ -293,8 +303,11 @@ ipc.on('data', (data) => {
       case 'setName':
         deviceName = msg.name
         break
-      case 'setDiscoverable':
-        setDiscoverable(msg.enabled)
+      case 'setAdvertising':
+        setAdvertising(msg.enabled)
+        break
+      case 'setScan':
+        setScan(msg.enabled)
         break
       case 'invite':
         inviteDevice(msg.id)

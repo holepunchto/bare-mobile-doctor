@@ -17,7 +17,7 @@ import ThemedText from '../../components/ThemedText'
 
 const source = require('./bluetooth.bundle')
 
-type AppState = 'init' | 'ready' | 'scanning' | 'inviting' | 'invited' | 'chatting'
+type AppState = 'init' | 'ready' | 'inviting' | 'invited' | 'chatting'
 
 interface Device {
   id: string
@@ -40,7 +40,8 @@ export default function BluetoothTests() {
   const [state, setState] = useState<AppState>('init')
   const [bleState, setBleState] = useState('unknown')
   const [name, setName] = useState('Bare-' + Platform.OS)
-  const [discoverable, setDiscoverable] = useState(false)
+  const [advertising, setAdvertising] = useState(false)
+  const [scanning, setScanning] = useState(false)
   const [devices, setDevices] = useState<Map<string, Device>>(new Map())
   const [inviterName, setInviterName] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -80,13 +81,23 @@ export default function BluetoothTests() {
               return next
             })
             break
+          case 'advertisingStarted':
+            setAdvertising(true)
+            addLog('Advertising started')
+            break
+          case 'advertisingStopped':
+            setAdvertising(false)
+            addLog('Advertising stopped')
+            break
           case 'scanStarted':
-            setState('scanning')
+            setScanning(true)
             setDevices(new Map())
+            addLog('Scan started')
             break
           case 'scanStopped':
-            if (state === 'scanning') setState('ready')
+            setScanning(false)
             setDevices(new Map())
+            addLog('Scan stopped')
             break
           case 'inviteSent':
             setState('inviting')
@@ -103,14 +114,14 @@ export default function BluetoothTests() {
             addLog('Chat started!')
             break
           case 'inviteRejected':
-            setState(discoverable ? 'scanning' : 'ready')
+            setState('ready')
             addLog('Invite rejected')
             break
           case 'message':
             setMessages((prev) => [...prev, { id: ++msgId, text: msg.text, from: msg.from }])
             break
           case 'disconnected':
-            setState(discoverable ? 'scanning' : 'ready')
+            setState('ready')
             addLog('Disconnected')
             break
           case 'error':
@@ -134,9 +145,12 @@ export default function BluetoothTests() {
     streamRef.current.write(b4a.from(JSON.stringify(msg)))
   }
 
-  const toggleDiscoverable = (enabled: boolean) => {
-    setDiscoverable(enabled)
-    sendToWorklet({ type: 'setDiscoverable', enabled })
+  const toggleAdvertising = (enabled: boolean) => {
+    sendToWorklet({ type: 'setAdvertising', enabled })
+  }
+
+  const toggleScan = (enabled: boolean) => {
+    sendToWorklet({ type: 'setScan', enabled })
   }
 
   const inviteDevice = (id: string) => {
@@ -260,8 +274,16 @@ export default function BluetoothTests() {
         <View style={styles.toggleRow}>
           <ThemedText style={styles.label}>Discoverable</ThemedText>
           <Switch
-            value={discoverable}
-            onValueChange={toggleDiscoverable}
+            value={advertising}
+            onValueChange={toggleAdvertising}
+            disabled={state === 'init' || state === 'chatting' || state === 'inviting'}
+          />
+        </View>
+        <View style={styles.toggleRow}>
+          <ThemedText style={styles.label}>Scan</ThemedText>
+          <Switch
+            value={scanning}
+            onValueChange={toggleScan}
             disabled={state === 'init' || state === 'chatting' || state === 'inviting'}
           />
         </View>
@@ -280,11 +302,13 @@ export default function BluetoothTests() {
         <ThemedText style={styles.emptyText}>Initializing Bluetooth...</ThemedText>
       )}
 
-      {state === 'ready' && (
-        <ThemedText style={styles.emptyText}>Toggle discoverable to start scanning</ThemedText>
+      {state === 'ready' && !scanning && (
+        <ThemedText style={styles.emptyText}>
+          Toggle Discoverable to be visible, then Scan to find others
+        </ThemedText>
       )}
 
-      {state === 'scanning' && renderDeviceList()}
+      {state === 'ready' && scanning && renderDeviceList()}
 
       {state === 'inviting' && (
         <View style={styles.inviteContainer}>
