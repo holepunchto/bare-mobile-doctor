@@ -31,11 +31,20 @@ interface ChatMessage {
   from: 'local' | 'remote'
 }
 
-let msgId = 0
-
 export default function BluetoothTests() {
+  if (Platform.OS !== 'ios') {
+    return (
+      <View style={styles.container}>
+        <ThemedText style={styles.emptyText}>
+          iOS only — uses bare-bluetooth-apple (CoreBluetooth).
+        </ThemedText>
+      </View>
+    )
+  }
+
   const workletRef = useRef<Worklet | null>(null)
   const streamRef = useRef<any>(null)
+  const msgIdRef = useRef(0)
 
   const [state, setState] = useState<AppState>('init')
   const [bleState, setBleState] = useState('unknown')
@@ -118,7 +127,10 @@ export default function BluetoothTests() {
             addLog('Invite rejected')
             break
           case 'message':
-            setMessages((prev) => [...prev, { id: ++msgId, text: msg.text, from: msg.from }])
+            setMessages((prev) => [
+              ...prev,
+              { id: ++msgIdRef.current, text: msg.text, from: msg.from }
+            ])
             break
           case 'disconnected':
             setState('ready')
@@ -225,9 +237,7 @@ export default function BluetoothTests() {
               item.from === 'local' ? styles.localMessage : styles.remoteMessage
             ]}
           >
-            <ThemedText
-              style={[styles.messageText, item.from === 'local' && { color: '#fff' }]}
-            >
+            <ThemedText style={[styles.messageText, item.from === 'local' && { color: '#fff' }]}>
               {item.text}
             </ThemedText>
           </View>

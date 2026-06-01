@@ -1,10 +1,5 @@
 const FramedStream = require('framed-stream')
-const {
-  Central,
-  PeripheralManager,
-  Service,
-  Characteristic
-} = require('bare-bluetooth-apple')
+const { Central, PeripheralManager, Service, Characteristic } = require('bare-bluetooth-apple')
 
 const ipc = new FramedStream(BareKit.IPC)
 
@@ -17,6 +12,8 @@ let manager = null
 let advertising = false
 let scanning = false
 
+let ready = false
+let serviceAdded = false
 let role = 'idle'
 let connectedPeripheral = null
 let chatCharacteristic = null
@@ -24,11 +21,11 @@ let chatCharMutable = null
 let subscribedCentralHandle = null
 const discoveredMap = new Map()
 
-function send (msg) {
+function send(msg) {
   ipc.write(Buffer.from(JSON.stringify(msg)))
 }
 
-function handleBLEMessage (msg) {
+function handleBLEMessage(msg) {
   switch (msg.t) {
     case 'invite':
       if (role === 'idle') {
@@ -58,18 +55,15 @@ function handleBLEMessage (msg) {
   }
 }
 
-function setupCentral () {
-  console.log('[BT] setupCentral')
+function setupCentral() {
   central = new Central()
 
   central.on('stateChange', (state) => {
-    console.log('[BT] central stateChange:', state)
     send({ type: 'bleState', state })
     if (state === 'poweredOn') checkReady()
   })
 
   central.on('discover', (peripheral) => {
-    console.log('[BT] discover:', peripheral.id, peripheral.name, peripheral.rssi)
     discoveredMap.set(peripheral.id, peripheral)
 
     let name = peripheral.name
@@ -140,8 +134,7 @@ function setupCentral () {
   })
 }
 
-function setupManager () {
-  console.log('[BT] setupManager')
+function setupManager() {
   manager = new PeripheralManager()
 
   chatCharMutable = new Characteristic(CHAT_UUID, {
@@ -150,7 +143,6 @@ function setupManager () {
   })
 
   manager.on('stateChange', (state) => {
-    console.log('[BT] manager stateChange:', state)
     if (state === 'poweredOn') {
       const service = new Service(SERVICE_UUID, [chatCharMutable])
       manager.addService(service)
@@ -158,7 +150,6 @@ function setupManager () {
   })
 
   manager.on('serviceAdd', (uuid, error) => {
-    console.log('[BT] serviceAdd:', uuid, error || 'ok')
     if (error) {
       send({ type: 'error', message: 'Failed to add service: ' + error })
     } else {
@@ -194,20 +185,21 @@ function setupManager () {
   })
 }
 
-let ready = false
-let serviceAdded = false
-function checkReady () {
-  console.log('[BT] checkReady central:', central && central.state, 'manager:', manager && manager.state, 'service:', serviceAdded)
+function checkReady() {
   if (ready) return
-  if (central && central.state === 'poweredOn' && manager && manager.state === 'poweredOn' && serviceAdded) {
+  if (
+    central &&
+    central.state === 'poweredOn' &&
+    manager &&
+    manager.state === 'poweredOn' &&
+    serviceAdded
+  ) {
     ready = true
-    console.log('[BT] READY')
     send({ type: 'ready' })
   }
 }
 
-function setAdvertising (enabled) {
-  console.log('[BT] setAdvertising:', enabled)
+function setAdvertising(enabled) {
   advertising = enabled
   if (enabled) {
     manager.startAdvertising({
@@ -221,8 +213,7 @@ function setAdvertising (enabled) {
   }
 }
 
-function setScan (enabled) {
-  console.log('[BT] setScan:', enabled)
+function setScan(enabled) {
   scanning = enabled
   if (enabled) {
     central.startScan([SERVICE_UUID])
@@ -234,7 +225,7 @@ function setScan (enabled) {
   }
 }
 
-function inviteDevice (id) {
+function inviteDevice(id) {
   const discovered = discoveredMap.get(id)
   if (!discovered) {
     send({ type: 'error', message: 'Device not found: ' + id })
@@ -249,7 +240,7 @@ function inviteDevice (id) {
   central.connect(discovered)
 }
 
-function acceptInvite () {
+function acceptInvite() {
   if (role !== 'invitee' || !subscribedCentralHandle) {
     send({ type: 'error', message: 'No invite to accept' })
     return
@@ -259,7 +250,7 @@ function acceptInvite () {
   send({ type: 'chatStarted' })
 }
 
-function rejectInvite () {
+function rejectInvite() {
   if (role !== 'invitee') return
   const data = Buffer.from(JSON.stringify({ t: 'reject' }))
   if (subscribedCentralHandle) {
@@ -270,7 +261,7 @@ function rejectInvite () {
   send({ type: 'inviteRejected' })
 }
 
-function sendMessage (text) {
+function sendMessage(text) {
   const payload = Buffer.from(JSON.stringify({ t: 'msg', d: text }))
 
   if (role === 'inviter' && connectedPeripheral && chatCharacteristic) {
@@ -284,7 +275,7 @@ function sendMessage (text) {
   }
 }
 
-function disconnect () {
+function disconnect() {
   if (role === 'inviter' && connectedPeripheral) {
     central.disconnect(connectedPeripheral)
   }
@@ -292,7 +283,7 @@ function disconnect () {
   chatCharacteristic = null
   subscribedCentralHandle = null
   role = 'idle'
-  send({ type: 'disconnected', scanning, advertising })
+  send({ type: 'disconnected' })
 }
 
 ipc.on('data', (data) => {
