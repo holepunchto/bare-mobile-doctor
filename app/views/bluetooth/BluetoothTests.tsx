@@ -7,6 +7,7 @@ import {
   FlatList,
   Switch,
   Platform,
+  PermissionsAndroid,
   KeyboardAvoidingView
 } from 'react-native'
 
@@ -31,17 +32,21 @@ interface ChatMessage {
   from: 'local' | 'remote'
 }
 
-export default function BluetoothTests() {
-  if (Platform.OS !== 'ios') {
-    return (
-      <View style={styles.container}>
-        <ThemedText style={styles.emptyText}>
-          iOS only — uses bare-bluetooth-apple (CoreBluetooth).
-        </ThemedText>
-      </View>
-    )
-  }
+async function requestAndroidBluetoothPermissions() {
+  const permissions = [
+    PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+    PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+    PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADVERTISE,
+    PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+  ].filter(Boolean)
 
+  const results = await PermissionsAndroid.requestMultiple(permissions)
+  const granted = PermissionsAndroid.RESULTS.GRANTED
+
+  return permissions.every((permission) => results[permission] === granted)
+}
+
+export default function BluetoothTests() {
   const workletRef = useRef<Worklet | null>(null)
   const streamRef = useRef<any>(null)
   const msgIdRef = useRef(0)
@@ -63,92 +68,111 @@ export default function BluetoothTests() {
   }
 
   useEffect(() => {
-    const worklet = new Worklet()
-    workletRef.current = worklet
-    worklet.start('bluetooth.bundle', source, [name])
+    const start = async () => {
+      if (Platform.OS === 'android') {
+        const granted = await requestAndroidBluetoothPermissions()
 
-    const stream = new FramedStream(worklet.IPC)
-    streamRef.current = stream
-
-    stream.on('data', (data: Uint8Array) => {
-      try {
-        const msg = JSON.parse(b4a.toString(data))
-
-        switch (msg.type) {
-          case 'ready':
-            setState('ready')
-            addLog('BLE ready')
-            break
-          case 'bleState':
-            setBleState(msg.state)
-            addLog('BLE state: ' + msg.state)
-            break
-          case 'discovered':
-            setDevices((prev) => {
-              const next = new Map(prev)
-              next.set(msg.id, { id: msg.id, name: msg.name, rssi: msg.rssi })
-              return next
-            })
-            break
-          case 'advertisingStarted':
-            setAdvertising(true)
-            addLog('Advertising started')
-            break
-          case 'advertisingStopped':
-            setAdvertising(false)
-            addLog('Advertising stopped')
-            break
-          case 'scanStarted':
-            setScanning(true)
-            setDevices(new Map())
-            addLog('Scan started')
-            break
-          case 'scanStopped':
-            setScanning(false)
-            setDevices(new Map())
-            addLog('Scan stopped')
-            break
-          case 'inviteSent':
-            setState('inviting')
-            addLog('Invite sent, waiting...')
-            break
-          case 'inviteReceived':
-            setState('invited')
-            setInviterName(msg.name)
-            addLog('Invite from: ' + msg.name)
-            break
-          case 'chatStarted':
-            setState('chatting')
-            setMessages([])
-            addLog('Chat started!')
-            break
-          case 'inviteRejected':
-            setState('ready')
-            addLog('Invite rejected')
-            break
-          case 'message':
-            setMessages((prev) => [
-              ...prev,
-              { id: ++msgIdRef.current, text: msg.text, from: msg.from }
-            ])
-            break
-          case 'disconnected':
-            setState('ready')
-            addLog('Disconnected')
-            break
-          case 'error':
-            setError(msg.message)
-            addLog('Error: ' + msg.message)
-            setTimeout(() => setError(null), 3000)
-            break
+        if (!granted) {
+          const message = 'Android Bluetooth permissions were not granted'
+          setError(message)
+          addLog(message)
+          return
         }
-      } catch (err) {
-        addLog('Parse error')
       }
+
+      const worklet = new Worklet()
+      workletRef.current = worklet
+      worklet.start('bluetooth.bundle', source, [name])
+
+      const stream = new FramedStream(worklet.IPC)
+      streamRef.current = stream
+
+      stream.on('data', (data: Uint8Array) => {
+        try {
+          const msg = JSON.parse(b4a.toString(data))
+
+          switch (msg.type) {
+            case 'ready':
+              setState('ready')
+              addLog('BLE ready')
+              break
+            case 'bleState':
+              setBleState(msg.state)
+              addLog('BLE state: ' + msg.state)
+              break
+            case 'discovered':
+              setDevices((prev) => {
+                const next = new Map(prev)
+                next.set(msg.id, { id: msg.id, name: msg.name, rssi: msg.rssi })
+                return next
+              })
+              break
+            case 'advertisingStarted':
+              setAdvertising(true)
+              addLog('Advertising started')
+              break
+            case 'advertisingStopped':
+              setAdvertising(false)
+              addLog('Advertising stopped')
+              break
+            case 'scanStarted':
+              setScanning(true)
+              setDevices(new Map())
+              addLog('Scan started')
+              break
+            case 'scanStopped':
+              setScanning(false)
+              setDevices(new Map())
+              addLog('Scan stopped')
+              break
+            case 'inviteSent':
+              setState('inviting')
+              addLog('Invite sent, waiting...')
+              break
+            case 'inviteReceived':
+              setState('invited')
+              setInviterName(msg.name)
+              addLog('Invite from: ' + msg.name)
+              break
+            case 'chatStarted':
+              setState('chatting')
+              setMessages([])
+              addLog('Chat started!')
+              break
+            case 'inviteRejected':
+              setState('ready')
+              addLog('Invite rejected')
+              break
+            case 'message':
+              setMessages((prev) => [
+                ...prev,
+                { id: ++msgIdRef.current, text: msg.text, from: msg.from }
+              ])
+              break
+            case 'disconnected':
+              setState('ready')
+              addLog('Disconnected')
+              break
+            case 'error':
+              setError(msg.message)
+              addLog('Error: ' + msg.message)
+              setTimeout(() => setError(null), 3000)
+              break
+          }
+        } catch (err) {
+          addLog('Parse error')
+        }
+      })
+    }
+
+    start().catch((err) => {
+      const message = 'Bluetooth startup failed: ' + (err && err.message ? err.message : err)
+      setError(message)
+      addLog(message)
     })
 
     return () => {
-      if (worklet.terminate) worklet.terminate()
+      workletRef.current?.terminate()
     }
   }, [])
 

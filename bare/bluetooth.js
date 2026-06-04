@@ -1,5 +1,12 @@
 const FramedStream = require('framed-stream')
-const { Central, PeripheralManager, Service, Characteristic } = require('bare-bluetooth-apple')
+
+const isAndroid = Bare.platform === 'android'
+const bluetooth = isAndroid ? require('bare-bluetooth-android') : require('bare-bluetooth-apple')
+
+const Central = bluetooth.Central
+const Server = isAndroid ? bluetooth.Server : bluetooth.PeripheralManager
+const Service = bluetooth.Service
+const Characteristic = bluetooth.Characteristic
 
 const ipc = new FramedStream(BareKit.IPC)
 
@@ -25,6 +32,38 @@ function send(msg) {
   ipc.write(Buffer.from(JSON.stringify(msg)))
 }
 
+function isPoweredOn(state) {
+  return state === 'poweredOn' || state === 'on'
+}
+
+function normalizeUUID(uuid) {
+  return String(uuid || '')
+    .toLowerCase()
+    .replace(/-/g, '')
+}
+
+function findUUID(items, uuid) {
+  if (!items) return null
+
+  for (const item of items) {
+    if (normalizeUUID(a) === normalizeUUID(b)) {
+      return item
+    }
+  }
+
+  return null
+}
+
+function respondOK(request) {
+  manager.respondToRequest(request, Server.ATT_SUCCESS, null)
+}
+
+function resetConnection() {
+  connectedPeripheral = null
+  chatCharacteristic = null
+  subscribedCentralHandle = null
+}
+
 function handleBLEMessage(msg) {
   switch (msg.t) {
     case 'invite':
@@ -43,8 +82,7 @@ function handleBLEMessage(msg) {
         role = 'idle'
         if (connectedPeripheral) {
           central.disconnect(connectedPeripheral)
-          connectedPeripheral = null
-          chatCharacteristic = null
+          resetConnection()
         }
         send({ type: 'inviteRejected' })
       }
@@ -60,7 +98,7 @@ function setupCentral() {
 
   central.on('stateChange', (state) => {
     send({ type: 'bleState', state })
-    if (state === 'poweredOn') checkReady()
+    if (isPoweredOn(state)) checkReady()
   })
 
   central.on('discover', (peripheral) => {
@@ -76,6 +114,7 @@ function setupCentral() {
 
   central.on('connect', (peripheral) => {
     connectedPeripheral = peripheral
+    inviteWriteSent = false
 
     peripheral.discoverServices([SERVICE_UUID])
 
@@ -85,7 +124,16 @@ function setupCentral() {
         role = 'idle'
         return
       }
-      peripheral.discoverCharacteristics(services[0], [CHAT_UUID])
+
+      const service = findUUID(services, SERVICE_UUID)
+
+      if (!service) {
+        send({ type: 'error', message: 'Chat service not found' })
+        role = 'idle'
+        return
+      }
+
+      peripheral.discoverCharacteristics(service, [CHAT_UUID])
     })
 
     peripheral.on('characteristicsDiscover', (service, chars, error) => {
@@ -94,8 +142,26 @@ function setupCentral() {
         role = 'idle'
         return
       }
-      chatCharacteristic = chars[0]
+
+      chatCharacteristic = findUUID(chars, CHAT_UUID)
+
+      if (!chatCharacteristic) {
+        send({ type: 'error', message: 'Chat characteristic not found' })
+        role = 'idle'
+        return
+      }
+
       peripheral.subscribe(chatCharacteristic)
+    })
+
+    peripheral.on('notifyState', (char, isNotifying, error) => {
+      if (error) {
+        send({ type: 'error', message: 'Subscribe error: ' + error })
+        role = 'idle'
+        return
+      }
+
+      if (!isNotifying || !chatCharacteristic) return
 
       const inviteData = JSON.stringify({ t: 'invite', n: deviceName })
       peripheral.write(chatCharacteristic, Buffer.from(inviteData), true)
@@ -119,8 +185,7 @@ function setupCentral() {
 
   central.on('disconnect', () => {
     if (role === 'inviter' || role === 'idle') {
-      connectedPeripheral = null
-      chatCharacteristic = null
+      resetConnection()
       if (role !== 'idle') {
         role = 'idle'
         send({ type: 'disconnected' })
@@ -135,7 +200,7 @@ function setupCentral() {
 }
 
 function setupManager() {
-  manager = new PeripheralManager()
+  manager = new Server()
 
   chatCharMutable = new Characteristic(CHAT_UUID, {
     write: true,
@@ -143,7 +208,7 @@ function setupManager() {
   })
 
   manager.on('stateChange', (state) => {
-    if (state === 'poweredOn') {
+    if (isPoweredOn(state)) {
       const service = new Service(SERVICE_UUID, [chatCharMutable])
       manager.addService(service)
     }
@@ -160,7 +225,7 @@ function setupManager() {
 
   manager.on('writeRequest', (requests) => {
     for (const req of requests) {
-      manager.respondToRequest(req, PeripheralManager.ATT_SUCCESS)
+      respondOK(req)
       if (req.data) {
         try {
           const msg = JSON.parse(Buffer.from(req.data).toString())
@@ -189,9 +254,9 @@ function checkReady() {
   if (ready) return
   if (
     central &&
-    central.state === 'poweredOn' &&
+    isPoweredOn(central.state) &&
     manager &&
-    manager.state === 'poweredOn' &&
+    isPoweredOn(manager.state) &&
     serviceAdded
   ) {
     ready = true
@@ -216,7 +281,11 @@ function setAdvertising(enabled) {
 function setScan(enabled) {
   scanning = enabled
   if (enabled) {
-    central.startScan([SERVICE_UUID])
+    if (isAndroid) {
+      central.startScan([SERVICE_UUID], { scanMode: Central.SCAN_MODE_LOW_LATENCY })
+    } else {
+      central.startScan([SERVICE_UUID])
+    }
     send({ type: 'scanStarted' })
   } else {
     central.stopScan()
@@ -279,9 +348,7 @@ function disconnect() {
   if (role === 'inviter' && connectedPeripheral) {
     central.disconnect(connectedPeripheral)
   }
-  connectedPeripheral = null
-  chatCharacteristic = null
-  subscribedCentralHandle = null
+  resetConnection()
   role = 'idle'
   send({ type: 'disconnected' })
 }
