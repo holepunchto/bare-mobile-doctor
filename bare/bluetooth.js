@@ -1,12 +1,5 @@
 const FramedStream = require('framed-stream')
-
-const isAndroid = Bare.platform === 'android'
-const bluetooth = isAndroid ? require('bare-bluetooth-android') : require('bare-bluetooth-apple')
-
-const Central = bluetooth.Central
-const Server = isAndroid ? bluetooth.Server : bluetooth.PeripheralManager
-const Service = bluetooth.Service
-const Characteristic = bluetooth.Characteristic
+const { Central, Server, Service, Characteristic, scanOptions, isPoweredOn } = require('./ble')
 
 const ipc = new FramedStream(BareKit.IPC)
 
@@ -32,10 +25,6 @@ function send(msg) {
   ipc.write(Buffer.from(JSON.stringify(msg)))
 }
 
-function isPoweredOn(state) {
-  return state === 'poweredOn' || state === 'on'
-}
-
 function normalizeUUID(uuid) {
   return String(uuid || '')
     .toLowerCase()
@@ -46,7 +35,7 @@ function findUUID(items, uuid) {
   if (!items) return null
 
   for (const item of items) {
-    if (normalizeUUID(a) === normalizeUUID(b)) {
+    if (normalizeUUID(item.uuid) === normalizeUUID(uuid)) {
       return item
     }
   }
@@ -281,11 +270,7 @@ function setAdvertising(enabled) {
 function setScan(enabled) {
   scanning = enabled
   if (enabled) {
-    if (isAndroid) {
-      central.startScan([SERVICE_UUID], { scanMode: Central.SCAN_MODE_LOW_LATENCY })
-    } else {
-      central.startScan([SERVICE_UUID])
-    }
+    central.startScan([SERVICE_UUID], scanOptions)
     send({ type: 'scanStarted' })
   } else {
     central.stopScan()
