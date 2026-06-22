@@ -5,6 +5,7 @@ import {
   View,
   TextInput,
   FlatList,
+  ScrollView,
   Switch,
   Platform,
   PermissionsAndroid,
@@ -49,6 +50,7 @@ async function requestAndroidBluetoothPermissions() {
 export default function BluetoothTests() {
   const workletRef = useRef<Worklet | null>(null)
   const streamRef = useRef<any>(null)
+  const logScrollRef = useRef<ScrollView | null>(null)
   const msgIdRef = useRef(0)
 
   const [state, setState] = useState<AppState>('init')
@@ -64,7 +66,7 @@ export default function BluetoothTests() {
   const [log, setLog] = useState<string[]>([])
 
   const addLog = (msg: string) => {
-    setLog((prev) => [...prev.slice(-19), msg])
+    setLog((prev) => [...prev.slice(-79), msg])
   }
 
   useEffect(() => {
@@ -99,6 +101,9 @@ export default function BluetoothTests() {
             case 'bleState':
               setBleState(msg.state)
               addLog('BLE state: ' + msg.state)
+              break
+            case 'log':
+              addLog(msg.message)
               break
             case 'discovered':
               setDevices((prev) => {
@@ -172,6 +177,7 @@ export default function BluetoothTests() {
     })
 
     return () => {
+      streamRef.current = null
       workletRef.current?.terminate()
     }
   }, [])
@@ -190,6 +196,7 @@ export default function BluetoothTests() {
   }
 
   const inviteDevice = (id: string) => {
+    addLog('Invite tapped: ' + id.slice(0, 16))
     sendToWorklet({ type: 'invite', id })
   }
 
@@ -365,11 +372,17 @@ export default function BluetoothTests() {
 
       <View style={styles.logContainer}>
         <ThemedText style={styles.logTitle}>Log</ThemedText>
-        {log.map((entry, i) => (
-          <ThemedText key={i} style={styles.logEntry}>
-            {entry}
-          </ThemedText>
-        ))}
+        <ScrollView
+          ref={logScrollRef}
+          style={styles.logScroll}
+          onContentSizeChange={() => logScrollRef.current?.scrollToEnd({ animated: true })}
+        >
+          {log.map((entry, i) => (
+            <ThemedText key={i} style={styles.logEntry}>
+              {entry}
+            </ThemedText>
+          ))}
+        </ScrollView>
       </View>
     </View>
   )
@@ -567,11 +580,14 @@ const styles = StyleSheet.create({
     fontWeight: '600'
   },
   logContainer: {
-    maxHeight: 120,
+    height: 180,
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: '#eee'
+  },
+  logScroll: {
+    flex: 1
   },
   logTitle: {
     fontSize: 12,
