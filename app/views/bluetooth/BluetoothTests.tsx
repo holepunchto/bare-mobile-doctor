@@ -547,7 +547,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end'
   },
   remoteMessage: {
-    backgroundColor: '#E5E5EA',
+    backgroundColor: '#525252',
     alignSelf: 'flex-start'
   },
   messageText: {
