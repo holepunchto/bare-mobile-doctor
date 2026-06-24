@@ -58,7 +58,7 @@ function findUUID(items, uuid) {
   if (!items) return null
 
   for (const item of items) {
-    if (normalizeUUID(item.uuid) === normalizeUUID(uuid)) {
+    if (matchesUUID(item.uuid, uuid)) {
       return item
     }
   }
