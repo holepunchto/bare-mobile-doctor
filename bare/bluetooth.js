@@ -442,7 +442,7 @@ function checkReady() {
   }
 }
 
-function addService() {
+function addService(uuid = SERVICE_UUID, chars) {
   if (!manager || serviceAdded || !isPoweredOn(manager.state)) return
 
   const service = new Service(SERVICE_UUID, [notifyCharMutable, writeCharMutable])
