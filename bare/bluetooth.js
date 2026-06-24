@@ -483,7 +483,7 @@ function setAdvertising(enabled) {
   else stopAdvertising()
 }
 
-function startScan() {
+function startScan(uuids, opts) {
   if (scanning) return
 
   if (!central || !isPoweredOn(central.state)) {
