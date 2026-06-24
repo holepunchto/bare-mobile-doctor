@@ -14,7 +14,6 @@ function isPoweredOn(state) {
 }
 
 module.exports = {
-  isAndroid,
   Central,
   Server,
   Service,
