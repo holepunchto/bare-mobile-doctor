@@ -66,7 +66,7 @@ function findUUID(items, uuid) {
   return null
 }
 
-function matchesUUID(value, uuid) {
+function matchesUUID(uuid_b, uuid_a) {
   return normalizeUUID(value) === normalizeUUID(uuid)
 }
 
