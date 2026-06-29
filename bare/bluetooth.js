@@ -234,6 +234,10 @@ class BLECentral extends EventEmitter {
       this.emit('error', 'Connect failed: ' + error)
       this.emit('connectFailed')
     })
+
+    this._central.on('error', (err) => {
+      this.emit('error', err.message || String(err))
+    })
   }
 
   startScan(opts = scanOptions) {
@@ -347,10 +351,12 @@ class BLEServer extends EventEmitter {
       }
     })
 
-    this._server.on('advertiseError', (code, error) => {
-      this.advertising = 'requested'
-      this.emit('advertisingStopped')
-      this.emit('error', `Advertise error ${code}: ${error}`)
+    this._server.on('error', (err) => {
+      if (err.code === 'ADVERTISE_FAILED') {
+        this.advertising = 'requested'
+        this.emit('advertisingStopped')
+      }
+      this.emit('error', err.message || String(err))
     })
 
     this._server.on('readRequest', (req) => {
