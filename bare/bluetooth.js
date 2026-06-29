@@ -1,6 +1,15 @@
 const EventEmitter = require('events')
 const FramedStream = require('framed-stream')
-const { Central, Server, Service, Characteristic, scanOptions, isPoweredOn } = require('./ble')
+const {
+  Central,
+  Server,
+  Service,
+  Characteristic,
+  scanOptions,
+  isPoweredOn,
+  util
+} = require('./ble')
+const { matchesUUID, findUUID, characteristicMatches, propertiesHex } = util
 
 const SERVICE_UUID = 'B4A3C8A7-0000-1000-8000-00805F9B34FB'
 const CHAT_UUID = 'B4A3C8A7-0001-1000-8000-00805F9B34FB'
@@ -9,37 +18,6 @@ const PREFERRED_MTU = 512
 const INVITE_WRITE_WITH_RESPONSE = false
 
 const isAndroid = Bare.platform === 'android'
-
-function normalizeUUID(uuid) {
-  return String(uuid || '')
-    .toLowerCase()
-    .replace(/-/g, '')
-}
-
-function matchesUUID(uuid_b, uuid_a) {
-  return normalizeUUID(uuid_b) === normalizeUUID(uuid_a)
-}
-
-function characteristicMatches(char, uuid) {
-  return char && matchesUUID(char.uuid, uuid)
-}
-
-function findUUID(items, uuid) {
-  if (!items) return null
-
-  for (const item of items) {
-    if (matchesUUID(item.uuid, uuid)) {
-      return item
-    }
-  }
-
-  return null
-}
-
-function propertiesHex(char) {
-  if (!char || typeof char.properties !== 'number') return 'unknown'
-  return `0x${char.properties.toString(16)}`
-}
 
 function decodeBLEMessage(msg) {
   if (!Array.isArray(msg)) return msg
