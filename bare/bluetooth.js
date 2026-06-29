@@ -1,3 +1,4 @@
+const EventEmitter = require('events')
 const FramedStream = require('framed-stream')
 const { Central, Server, Service, Characteristic, scanOptions, isPoweredOn } = require('./ble')
 
@@ -72,27 +73,256 @@ function encodeBLEMessage(msg) {
   }
 }
 
+class BLECentral extends EventEmitter {
+  constructor(opts) {
+    super()
+    this.serviceUUID = opts.serviceUUID
+    this.chatUUID = opts.chatUUID
+    this.writeUUID = opts.writeUUID
+    this.preferredMTU = opts.preferredMTU
+
+    this.scanning = 'off'
+    this.connectedPeripheral = null
+    this.notifyChar = null
+    this.writeChar = null
+    this.discoveredPeripherals = new Map()
+
+    this._central = new Central()
+    this._setup()
+  }
+
+  get state() {
+    return this._central.state
+  }
+
+  _setup() {
+    this._central.on('stateChange', (bleState) => {
+      this.emit('stateChange', bleState)
+
+      if (isPoweredOn(bleState)) {
+        this.emit('ready')
+        if (this.scanning === 'requested') this.startScan()
+      }
+    })
+
+    this._central.on('discover', (peripheral) => {
+      this.discoveredPeripherals.set(peripheral.id, peripheral)
+
+      let name = peripheral.name || 'Unknown'
+      if (!name && peripheral.serviceData && peripheral.serviceData[this.serviceUUID]) {
+        name = Buffer.from(peripheral.serviceData[this.serviceUUID]).toString()
+      }
+
+      this.emit('discovered', { id: peripheral.id, name, rssi: peripheral.rssi })
+    })
+
+    this._central.on('connect', (peripheral) => {
+      this.connectedPeripheral = peripheral
+
+      this.emit('log', `Connected: ${peripheral.name || peripheral.id || 'unknown'}`)
+
+      peripheral.on('mtuChanged', (mtu, error) => {
+        this.emit('mtuChanged', { mtu, error })
+      })
+
+      peripheral.on('servicesDiscover', (services, error) => {
+        this.emit('log', `Services discovered: ${services ? services.length : 0}`)
+
+        if (error || !services || services.length === 0) {
+          this.emit('error', 'Service discovery failed: ' + (error || 'none found'))
+          this.emit('connectFailed')
+          return
+        }
+
+        const service = findUUID(services, this.serviceUUID)
+
+        if (!service) {
+          this.emit('error', 'Chat service not found')
+          this.emit('connectFailed')
+          return
+        }
+
+        this.emit('log', 'Discovering characteristics')
+        if (isAndroid) peripheral.discoverCharacteristics(service)
+        else peripheral.discoverCharacteristics(service, [this.chatUUID, this.writeUUID])
+      })
+
+      peripheral.on('characteristicsDiscover', (service, chars, error) => {
+        this.emit('log', `Characteristics discovered: ${chars ? chars.length : 0}`)
+
+        if (error || !chars || chars.length === 0) {
+          this.emit('error', 'Characteristic discovery failed')
+          this.emit('connectFailed')
+          return
+        }
+
+        const notifyChar = findUUID(chars, this.chatUUID)
+        if (!notifyChar) {
+          this.emit('error', 'Notify characteristic not found')
+          this.emit('connectFailed')
+          return
+        }
+
+        const writeChar = findUUID(chars, this.writeUUID)
+        if (!writeChar) {
+          this.emit('error', 'Write characteristic not found')
+          this.emit('connectFailed')
+          return
+        }
+
+        this.notifyChar = notifyChar
+        this.writeChar = writeChar
+
+        this.emit(
+          'log',
+          `Notify properties: ${propertiesHex(notifyChar)}, write properties: ${propertiesHex(writeChar)}`
+        )
+        this.emit('log', 'Subscribing to notify characteristic')
+        peripheral.subscribe(notifyChar)
+      })
+
+      peripheral.on('notifyState', (char, isNotifying, error) => {
+        this.emit('log', `Notify state: ${isNotifying}`)
+
+        if (error) {
+          this.emit('error', 'Subscribe error: ' + error)
+          this.emit('connectFailed')
+          return
+        }
+
+        const isChatNotify = !char || characteristicMatches(char, this.chatUUID)
+        if (!isNotifying || !this.writeChar || !isChatNotify) return
+
+        this.emit('connected')
+      })
+
+      peripheral.on('notify', (char, data, error) => {
+        if (error || !data) return
+
+        this.emit('log', `Notify received: ${data.byteLength} bytes`)
+        this.emit('message', data)
+      })
+
+      peripheral.on('write', (char, error) => {
+        if (error) {
+          this.emit('writeComplete', { error: 'Write error: ' + error })
+          return
+        }
+
+        this.emit('log', 'Write sent')
+        this.emit('writeComplete', { error: null })
+      })
+
+      if (typeof peripheral.requestMtu === 'function') {
+        this.emit('log', `Requesting MTU: ${this.preferredMTU}`)
+        peripheral.requestMtu(this.preferredMTU)
+      } else {
+        this.emit('log', 'Skipping MTU request')
+      }
+
+      this.emit('log', 'Discovering services')
+      if (isAndroid) peripheral.discoverServices()
+      else peripheral.discoverServices([this.serviceUUID])
+    })
+
+    this._central.on('disconnect', (peripheral, error) => {
+      this.emit('log', 'Central disconnected' + (error ? ': ' + error : ''))
+      this.emit('disconnected', { error })
+    })
+
+    this._central.on('connectFail', (id, error) => {
+      this.emit('error', 'Connect failed: ' + error)
+      this.emit('connectFailed')
+    })
+  }
+
+  startScan(opts = scanOptions) {
+    if (this.scanning === 'on') return
+
+    if (!isPoweredOn(this.state)) {
+      this.emit('log', 'Scan is waiting for Bluetooth power')
+      return
+    }
+
+    this._central.startScan([this.serviceUUID], opts)
+    this.scanning = 'on'
+    this.emit('scanStarted')
+  }
+
+  stopScan() {
+    this._central.stopScan()
+    this.scanning = 'off'
+    this.discoveredPeripherals.clear()
+    this.emit('scanStopped')
+  }
+
+  setScan(enabled) {
+    if (enabled) {
+      this.scanning = 'requested'
+      this.startScan()
+    } else {
+      this.stopScan()
+    }
+  }
+
+  connect(id) {
+    const peripheral = this.discoveredPeripherals.get(id)
+    if (!peripheral) {
+      this.emit('error', 'Device not found: ' + id)
+      return false
+    }
+
+    if (this.scanning !== 'off') this.stopScan()
+
+    this.emit('log', `Connecting to: ${peripheral.name || peripheral.id || 'unknown'}`)
+    this._central.connect(peripheral)
+    return true
+  }
+
+  disconnect() {
+    if (this.connectedPeripheral) {
+      this._central.disconnect(this.connectedPeripheral)
+    }
+    this.resetConnection()
+  }
+
+  write(data, withResponse) {
+    if (!this.connectedPeripheral || !this.writeChar) return false
+    this.connectedPeripheral.write(this.writeChar, data, withResponse)
+    return true
+  }
+
+  resetConnection() {
+    this.connectedPeripheral = null
+    this.notifyChar = null
+    this.writeChar = null
+  }
+
+  destroy() {
+    this._central.destroy()
+  }
+}
+
 class Session {
   constructor(opts) {
     const {
+      bleCentral,
       serviceUUID,
       chatUUID,
       writeUUID,
-      preferredMTU,
       inviteWriteWithResponse,
       deviceName,
       send
     } = opts
 
+    this.central = bleCentral
     this.serviceUUID = serviceUUID
     this.chatUUID = chatUUID
     this.writeUUID = writeUUID
-    this.preferredMTU = preferredMTU
     this.inviteWriteWithResponse = inviteWriteWithResponse
     this.deviceName = deviceName
     this.send = send
 
-    this.central = null
     this.manager = null
 
     this.state = {
@@ -102,13 +332,6 @@ class Session {
       inviteWriteSent: false,
       inviteWritePendingResponse: false,
 
-      central: {
-        scanning: 'off',
-        connectedPeripheral: null,
-        notifyChar: null,
-        writeChar: null,
-        discoveredPeripherals: new Map()
-      },
       manager: {
         advertising: 'off',
         serviceAdded: false,
@@ -124,7 +347,7 @@ class Session {
       }
     }
 
-    this.setupCentral()
+    this.setupCentralListeners()
     this.setupManager()
   }
 
@@ -132,153 +355,56 @@ class Session {
     this.send({ type: 'log', message })
   }
 
-  setupCentral() {
-    this.central = new Central()
-
+  setupCentralListeners() {
     this.central.on('stateChange', (bleState) => {
       this.send({ type: 'bleState', state: bleState })
-
-      if (isPoweredOn(bleState)) {
-        this.checkReady()
-        if (this.state.central.scanning === 'requested') {
-          this.startScan()
-        }
-      }
     })
 
-    this.central.on('discover', (peripheral) => {
-      this.state.central.discoveredPeripherals.set(peripheral.id, peripheral)
-
-      let name = peripheral.name || 'Unknown'
-      if (!name && peripheral.serviceData && peripheral.serviceData[this.serviceUUID]) {
-        name = Buffer.from(peripheral.serviceData[this.serviceUUID]).toString()
-      }
-
-      this.send({ type: 'discovered', id: peripheral.id, name, rssi: peripheral.rssi })
+    this.central.on('ready', () => {
+      this.checkReady()
     })
 
-    this.central.on('connect', (peripheral) => {
-      this.state.central.connectedPeripheral = peripheral
+    this.central.on('discovered', ({ id, name, rssi }) => {
+      this.send({ type: 'discovered', id, name, rssi })
+    })
+
+    this.central.on('connected', () => {
       this.state.inviteWriteSent = false
-
-      this.log(`Connected: ${peripheral.name || peripheral.id || 'unknown'}`)
-
-      peripheral.on('mtuChanged', (mtu, error) => {
-        if (error) {
-          this.send({ type: 'error', message: 'MTU request failed: ' + error })
-        } else {
-          this.send({ type: 'bleState', state: `on (mtu ${mtu})` })
-        }
-      })
-
-      peripheral.on('servicesDiscover', (services, error) => {
-        this.log(`Services discovered: ${services ? services.length : 0}`)
-
-        if (error || !services || services.length === 0) {
-          this.send({
-            type: 'error',
-            message: 'Service discovery failed: ' + (error || 'none found')
-          })
-          this.state.inviteRole = 'idle'
-          return
-        }
-
-        const service = findUUID(services, this.serviceUUID)
-
-        if (!service) {
-          this.send({ type: 'error', message: 'Chat service not found' })
-          this.state.inviteRole = 'idle'
-          return
-        }
-
-        this.log('Discovering characteristics')
-        if (isAndroid) peripheral.discoverCharacteristics(service)
-        else peripheral.discoverCharacteristics(service, [this.chatUUID, this.writeUUID])
-      })
-
-      peripheral.on('characteristicsDiscover', (service, chars, error) => {
-        this.log(`Characteristics discovered: ${chars ? chars.length : 0}`)
-
-        if (error || !chars || chars.length === 0) {
-          this.send({ type: 'error', message: 'Characteristic discovery failed' })
-          this.state.inviteRole = 'idle'
-          return
-        }
-
-        const notifyChar = findUUID(chars, this.chatUUID)
-        if (!notifyChar) {
-          this.send({ type: 'error', message: 'Notify characteristic not found' })
-          this.state.inviteRole = 'idle'
-          return
-        }
-
-        const writeChar = findUUID(chars, this.writeUUID)
-        if (!notifyChar) {
-          this.send({ type: 'error', message: 'Write characteristic not found' })
-          this.state.inviteRole = 'idle'
-          return
-        }
-
-        this.state.central.notifyChar = notifyChar
-        this.state.central.writeChar = writeChar
-
-        this.log(
-          `Notify properties: ${propertiesHex(notifyChar)}, write properties: ${propertiesHex(writeChar)}`
-        )
-        this.log('Subscribing to notify characteristic')
-        peripheral.subscribe(notifyChar)
-      })
-
-      peripheral.on('notifyState', (char, isNotifying, error) => {
-        this.log(`Notify state: ${isNotifying}`)
-
-        if (error) {
-          this.send({ type: 'error', message: 'Subscribe error: ' + error })
-          this.state.inviteRole = 'idle'
-          return
-        }
-
-        const isChatNotify = !char || characteristicMatches(char, this.chatUUID)
-        if (!isNotifying || !this.state.central.writeChar || !isChatNotify) return
-
-        if (this.state.inviteRole === 'inviter') setTimeout(() => this.writeInvite(peripheral), 100)
-      })
-
-      peripheral.on('notify', (char, data, error) => {
-        if (error || !data) return
-
-        this.log(`Notify received: ${data.byteLength} bytes`)
-        const msg = this.parseBLEMessage(data, 'notify')
-        if (msg) this.handleBLEMessage(msg)
-      })
-
-      peripheral.on('write', (char, error) => {
-        const wasInviteWrite = this.state.inviteWritePendingResponse
-        if (wasInviteWrite) this.state.inviteWritePendingResponse = false
-
-        if (error) {
-          this.send({ type: 'error', message: 'Write error: ' + error })
-          return
-        }
-
-        this.log('Write sent')
-        if (this.state.inviteRole === 'inviter' && wasInviteWrite) this.send({ type: 'inviteSent' })
-      })
-
-      if (typeof peripheral.requestMtu === 'function') {
-        this.log(`Requesting MTU: ${this.preferredMTU}`)
-        peripheral.requestMtu(this.preferredMTU)
-      } else {
-        this.log('Skipping MTU request')
+      if (this.state.inviteRole === 'inviter') {
+        setTimeout(() => this.writeInvite(), 100)
       }
-
-      this.log('Discovering services')
-      if (isAndroid) peripheral.discoverServices()
-      else peripheral.discoverServices([this.serviceUUID])
     })
 
-    this.central.on('disconnect', (peripheral, error) => {
-      this.log('Central disconnected' + (error ? ': ' + error : ''))
+    this.central.on('connectFailed', () => {
+      this.state.inviteRole = 'idle'
+    })
+
+    this.central.on('message', (data) => {
+      const msg = this.parseBLEMessage(data, 'notify')
+      if (msg) this.handleBLEMessage(msg)
+    })
+
+    this.central.on('writeComplete', ({ error }) => {
+      const wasInviteWrite = this.state.inviteWritePendingResponse
+      if (wasInviteWrite) this.state.inviteWritePendingResponse = false
+
+      if (error) {
+        this.send({ type: 'error', message: error })
+        return
+      }
+
+      if (this.state.inviteRole === 'inviter' && wasInviteWrite) this.send({ type: 'inviteSent' })
+    })
+
+    this.central.on('mtuChanged', ({ mtu, error }) => {
+      if (error) {
+        this.send({ type: 'error', message: 'MTU request failed: ' + error })
+      } else {
+        this.send({ type: 'bleState', state: `on (mtu ${mtu})` })
+      }
+    })
+
+    this.central.on('disconnected', ({ error }) => {
       if (this.state.inviteRole === 'inviter' || this.state.inviteRole === 'idle') {
         this.resetConnection()
         if (this.state.inviteRole !== 'idle') {
@@ -288,9 +414,20 @@ class Session {
       }
     })
 
-    this.central.on('connectFail', (id, error) => {
-      this.send({ type: 'error', message: 'Connect failed: ' + error })
-      this.state.inviteRole = 'idle'
+    this.central.on('error', (message) => {
+      this.send({ type: 'error', message })
+    })
+
+    this.central.on('log', (message) => {
+      this.log(message)
+    })
+
+    this.central.on('scanStarted', () => {
+      this.send({ type: 'scanStarted' })
+    })
+
+    this.central.on('scanStopped', () => {
+      this.send({ type: 'scanStopped' })
     })
   }
 
@@ -367,7 +504,6 @@ class Session {
     if (this.state.ready) return
 
     if (
-      this.central &&
       isPoweredOn(this.central.state) &&
       this.manager &&
       isPoweredOn(this.manager.state) &&
@@ -379,9 +515,7 @@ class Session {
   }
 
   resetConnection() {
-    this.state.central.connectedPeripheral = null
-    this.state.central.notifyChar = null
-    this.state.central.writeChar = null
+    this.central.resetConnection()
     this.state.manager.centralSubscribed = false
     this.state.inviteWritePendingResponse = false
   }
@@ -404,10 +538,8 @@ class Session {
       case 'reject':
         if (this.state.inviteRole === 'inviter') {
           this.state.inviteRole = 'idle'
-          if (this.state.central.connectedPeripheral) {
-            this.central.disconnect(this.state.central.connectedPeripheral)
-            this.resetConnection()
-          }
+          this.central.disconnect()
+          this.resetConnection()
           this.send({ type: 'inviteRejected' })
         }
         break
@@ -417,15 +549,15 @@ class Session {
     }
   }
 
-  writeInvite(peripheral) {
-    if (this.state.inviteWriteSent || !this.state.central.writeChar) return
+  writeInvite() {
+    if (this.state.inviteWriteSent || !this.central.writeChar) return
 
     this.state.inviteWriteSent = true
     this.state.inviteWritePendingResponse = this.inviteWriteWithResponse
 
     const inviteData = encodeBLEMessage({ t: 'invite', n: this.deviceName })
     this.log(`Writing invite: ${inviteData.byteLength} bytes`)
-    peripheral.write(this.state.central.writeChar, inviteData, this.inviteWriteWithResponse)
+    this.central.write(inviteData, this.inviteWriteWithResponse)
 
     if (!this.inviteWriteWithResponse) {
       this.send({ type: 'inviteSent' })
@@ -509,50 +641,23 @@ class Session {
     }
   }
 
-  startScan(opts = scanOptions) {
-    if (this.state.central.scanning === 'on') return
-
-    if (!this.central || !isPoweredOn(this.central.state)) {
-      this.log('Scan is waiting for Bluetooth power')
-      return
-    }
-
-    this.central.startScan([this.serviceUUID], opts)
-    this.state.central.scanning = 'on'
-    this.send({ type: 'scanStarted' })
-  }
-
-  stopScan() {
-    if (this.central) this.central.stopScan()
-    this.state.central.scanning = 'off'
-    this.state.central.discoveredPeripherals.clear()
-    this.send({ type: 'scanStopped' })
-  }
-
   setScan(enabled) {
-    if (enabled) {
-      this.state.central.scanning = 'requested'
-      this.startScan()
-    } else {
-      this.stopScan()
-    }
+    this.central.setScan(enabled)
   }
 
   inviteDevice(id) {
     this.log('Invite requested: ' + String(id).slice(0, 16))
-    const discovered = this.state.central.discoveredPeripherals.get(id)
-    if (!discovered) {
-      this.send({ type: 'error', message: 'Device not found: ' + id })
-      return
-    }
+
     if (this.state.inviteRole !== 'idle') {
       this.send({ type: 'error', message: 'Already in a session' })
       return
     }
+
     this.state.inviteRole = 'inviter'
-    this.log(`Connecting to: ${discovered.name || discovered.id || 'unknown'}`)
-    if (this.state.central.scanning !== 'off') this.stopScan()
-    this.central.connect(discovered)
+
+    if (!this.central.connect(id)) {
+      this.state.inviteRole = 'idle'
+    }
   }
 
   acceptInvite() {
@@ -583,11 +688,11 @@ class Session {
 
     if (
       this.state.inviteRole === 'inviter' &&
-      this.state.central.connectedPeripheral &&
-      this.state.central.writeChar
+      this.central.connectedPeripheral &&
+      this.central.writeChar
     ) {
       this.log(`Writing message: ${payload.byteLength} bytes`)
-      this.state.central.connectedPeripheral.write(this.state.central.writeChar, payload, true)
+      this.central.write(payload, true)
       this.send({ type: 'message', text, from: 'local' })
     } else if (this.state.inviteRole === 'invitee' && this.state.manager.centralSubscribed) {
       const ok = this.manager.updateValue(this.state.manager.notifyChar, payload)
@@ -599,8 +704,8 @@ class Session {
   }
 
   disconnect() {
-    if (this.state.inviteRole === 'inviter' && this.state.central.connectedPeripheral) {
-      this.central.disconnect(this.state.central.connectedPeripheral)
+    if (this.state.inviteRole === 'inviter' && this.central.connectedPeripheral) {
+      this.central.disconnect()
     }
     this.resetConnection()
     this.state.inviteRole = 'idle'
@@ -609,17 +714,24 @@ class Session {
 
   destroy() {
     if (this.manager) this.manager.destroy()
-    if (this.central) this.central.destroy()
+    this.central.destroy()
   }
 }
 
 const ipc = new FramedStream(BareKit.IPC)
 
-const session = new Session({
+const bleCentral = new BLECentral({
   serviceUUID: SERVICE_UUID,
   chatUUID: CHAT_UUID,
   writeUUID: WRITE_UUID,
-  preferredMTU: PREFERRED_MTU,
+  preferredMTU: PREFERRED_MTU
+})
+
+const session = new Session({
+  bleCentral,
+  serviceUUID: SERVICE_UUID,
+  chatUUID: CHAT_UUID,
+  writeUUID: WRITE_UUID,
   inviteWriteWithResponse: INVITE_WRITE_WITH_RESPONSE,
   deviceName: Bare.argv[0] || 'BareDevice',
   send: (msg) => ipc.write(Buffer.from(JSON.stringify(msg)))
