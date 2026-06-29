@@ -303,52 +303,195 @@ class BLECentral extends EventEmitter {
   }
 }
 
+class BLEServer extends EventEmitter {
+  constructor(opts) {
+    super()
+    this.serviceUUID = opts.serviceUUID
+    this.chatUUID = opts.chatUUID
+    this.writeUUID = opts.writeUUID
+
+    this.advertising = 'off'
+    this.serviceAdded = false
+    this.centralSubscribed = false
+    this._deviceName = null
+
+    this.notifyChar = new Characteristic(opts.chatUUID, {
+      read: true,
+      notify: true
+    })
+    this.writeChar = new Characteristic(opts.writeUUID, {
+      write: true,
+      writeWithoutResponse: true
+    })
+
+    this._server = new Server()
+    this._setup()
+  }
+
+  get state() {
+    return this._server.state
+  }
+
+  _setup() {
+    this._server.on('stateChange', (bleState) => {
+      if (isPoweredOn(bleState)) this._addService()
+    })
+
+    this._server.on('serviceAdd', (uuid, error) => {
+      if (error) {
+        this.emit('error', 'Failed to add service: ' + error)
+      } else {
+        this.serviceAdded = true
+        this.emit('ready')
+        if (this.advertising === 'requested') this.startAdvertising()
+      }
+    })
+
+    this._server.on('advertiseError', (code, error) => {
+      this.advertising = 'requested'
+      this.emit('advertisingStopped')
+      this.emit('error', `Advertise error ${code}: ${error}`)
+    })
+
+    this._server.on('readRequest', (req) => {
+      this.emit(
+        'log',
+        `Read request: ${req.characteristicUuid || 'unknown'}, offset=${req.offset || 0}`
+      )
+      this._server.respondToRequest(req, Server.ATT_SUCCESS, Buffer.alloc(0))
+    })
+
+    this._server.on('writeRequest', (requests) => {
+      for (const req of requests) {
+        if (req.characteristicUuid && !matchesUUID(req.characteristicUuid, this.writeUUID)) {
+          this.emit(
+            'log',
+            `Ignoring write for ${req.characteristicUuid}; expected ${this.writeUUID}`
+          )
+          continue
+        }
+
+        this.emit(
+          'log',
+          `Write request: ${req.data ? req.data.byteLength : 0} bytes, response=${req.responseNeeded}`
+        )
+        this._respondToWrite(req)
+
+        if (req.data) this.emit('message', req.data)
+      }
+    })
+
+    this._server.on('subscribe', (_centralHandle, characteristicUuid) => {
+      if (characteristicUuid && !matchesUUID(characteristicUuid, this.chatUUID)) {
+        this.emit('log', `Ignoring subscribe for ${characteristicUuid}; expected ${this.chatUUID}`)
+        return
+      }
+
+      this.centralSubscribed = true
+      this.emit('log', `Subscribed central: characteristic=${characteristicUuid || 'unknown'}`)
+      this.emit('subscribed')
+    })
+
+    this._server.on('unsubscribe', (_centralHandle, characteristicUuid) => {
+      if (characteristicUuid && !matchesUUID(characteristicUuid, this.chatUUID)) return
+      this.centralSubscribed = false
+      this.emit('unsubscribed')
+    })
+
+    this._addService()
+  }
+
+  _respondToWrite(request) {
+    const shouldRespond = request.responseNeeded !== false || !isAndroid
+    if (!shouldRespond) {
+      this.emit('log', `Skipping write response (responseNeeded=${request.responseNeeded})`)
+      return
+    }
+
+    this._server.respondToRequest(request, Server.ATT_SUCCESS, null)
+  }
+
+  _addService() {
+    if (this.serviceAdded || !isPoweredOn(this.state)) return
+
+    const service = new Service(this.serviceUUID, [this.notifyChar, this.writeChar])
+    this._server.addService(service)
+  }
+
+  startAdvertising(deviceName) {
+    if (deviceName !== undefined) this._deviceName = deviceName
+    if (this.advertising === 'on') return
+
+    if (!isPoweredOn(this.state)) {
+      this.emit('log', 'Advertising is waiting for Bluetooth power')
+      return
+    }
+
+    if (!this.serviceAdded) {
+      this._addService()
+      this.emit('log', 'Advertising is waiting for service add')
+      return
+    }
+
+    const opts = { serviceUUIDs: [this.serviceUUID] }
+    if (!isAndroid && this._deviceName) opts.name = this._deviceName
+
+    this.emit('log', `Starting advertising: ${this.serviceUUID}`)
+    this._server.startAdvertising(opts)
+    this.advertising = 'on'
+    this.emit('advertisingStarted')
+  }
+
+  stopAdvertising() {
+    this._server.stopAdvertising()
+    this.advertising = 'off'
+    this.emit('advertisingStopped')
+  }
+
+  setAdvertising(enabled, deviceName) {
+    if (enabled) {
+      this._deviceName = deviceName
+      this.advertising = 'requested'
+      this.startAdvertising()
+    } else {
+      this.stopAdvertising()
+    }
+  }
+
+  notify(data) {
+    if (!this.centralSubscribed) return false
+    return this._server.updateValue(this.notifyChar, data)
+  }
+
+  resetConnection() {
+    this.centralSubscribed = false
+  }
+
+  destroy() {
+    this._server.destroy()
+  }
+}
+
 class Session {
   constructor(opts) {
-    const {
-      bleCentral,
-      serviceUUID,
-      chatUUID,
-      writeUUID,
-      inviteWriteWithResponse,
-      deviceName,
-      send
-    } = opts
+    const { central, server, inviteWriteWithResponse, deviceName, send } = opts
 
-    this.central = bleCentral
-    this.serviceUUID = serviceUUID
-    this.chatUUID = chatUUID
-    this.writeUUID = writeUUID
+    this.central = central
+    this.server = server
     this.inviteWriteWithResponse = inviteWriteWithResponse
     this.deviceName = deviceName
     this.send = send
-
-    this.manager = null
 
     this.state = {
       ready: false,
 
       inviteRole: 'idle',
       inviteWriteSent: false,
-      inviteWritePendingResponse: false,
-
-      manager: {
-        advertising: 'off',
-        serviceAdded: false,
-        centralSubscribed: false,
-        notifyChar: new Characteristic(chatUUID, {
-          read: true,
-          notify: true
-        }),
-        writeChar: new Characteristic(writeUUID, {
-          write: true,
-          writeWithoutResponse: true
-        })
-      }
+      inviteWritePendingResponse: false
     }
 
     this.setupCentralListeners()
-    this.setupManager()
+    this.setupServerListeners()
   }
 
   log(message) {
@@ -431,73 +574,38 @@ class Session {
     })
   }
 
-  setupManager() {
-    this.manager = new Server()
-
-    this.manager.on('stateChange', (bleState) => {
-      if (isPoweredOn(bleState)) this.addService()
+  setupServerListeners() {
+    this.server.on('ready', () => {
+      this.checkReady()
     })
 
-    this.manager.on('serviceAdd', (uuid, error) => {
-      if (error) {
-        this.send({ type: 'error', message: 'Failed to add service: ' + error })
-      } else {
-        this.state.manager.serviceAdded = true
-        this.checkReady()
-        if (this.state.manager.advertising === 'requested') this.startAdvertising()
-      }
+    this.server.on('message', (data) => {
+      const msg = this.parseBLEMessage(data, 'write')
+      if (msg) this.handleBLEMessage(msg)
     })
 
-    this.manager.on('advertiseError', (code, error) => {
-      this.state.manager.advertising = 'requested'
-      this.send({ type: 'advertisingStopped' })
-      this.send({ type: 'error', message: `Advertise error ${code}: ${error}` })
-    })
-
-    this.manager.on('readRequest', (req) => {
-      this.log(`Read request: ${req.characteristicUuid || 'unknown'}, offset=${req.offset || 0}`)
-      this.respondToRead(req)
-    })
-
-    this.manager.on('writeRequest', (requests) => {
-      for (const req of requests) {
-        if (req.characteristicUuid && !matchesUUID(req.characteristicUuid, this.writeUUID)) {
-          this.log(`Ignoring write for ${req.characteristicUuid}; expected ${this.writeUUID}`)
-          continue
-        }
-
-        this.log(
-          `Write request: ${req.data ? req.data.byteLength : 0} bytes, response=${req.responseNeeded}`
-        )
-        this.respondToWrite(req)
-
-        if (req.data) {
-          const msg = this.parseBLEMessage(req.data, 'write')
-          if (msg) this.handleBLEMessage(msg)
-        }
-      }
-    })
-
-    this.manager.on('subscribe', (_centralHandle, characteristicUuid) => {
-      if (characteristicUuid && !matchesUUID(characteristicUuid, this.chatUUID)) {
-        this.log(`Ignoring subscribe for ${characteristicUuid}; expected ${this.chatUUID}`)
-        return
-      }
-
-      this.state.manager.centralSubscribed = true
-      this.log(`Subscribed central: characteristic=${characteristicUuid || 'unknown'}`)
-    })
-
-    this.manager.on('unsubscribe', (_centralHandle, characteristicUuid) => {
-      if (characteristicUuid && !matchesUUID(characteristicUuid, this.chatUUID)) return
+    this.server.on('unsubscribed', () => {
       if (this.state.inviteRole === 'invitee') {
         this.state.inviteRole = 'idle'
-        this.state.manager.centralSubscribed = false
         this.send({ type: 'disconnected' })
       }
     })
 
-    this.addService()
+    this.server.on('error', (message) => {
+      this.send({ type: 'error', message })
+    })
+
+    this.server.on('log', (message) => {
+      this.log(message)
+    })
+
+    this.server.on('advertisingStarted', () => {
+      this.send({ type: 'advertisingStarted' })
+    })
+
+    this.server.on('advertisingStopped', () => {
+      this.send({ type: 'advertisingStopped' })
+    })
   }
 
   checkReady() {
@@ -505,9 +613,8 @@ class Session {
 
     if (
       isPoweredOn(this.central.state) &&
-      this.manager &&
-      isPoweredOn(this.manager.state) &&
-      this.state.manager.serviceAdded
+      isPoweredOn(this.server.state) &&
+      this.server.serviceAdded
     ) {
       this.state.ready = true
       this.send({ type: 'ready' })
@@ -516,7 +623,7 @@ class Session {
 
   resetConnection() {
     this.central.resetConnection()
-    this.state.manager.centralSubscribed = false
+    this.server.resetConnection()
     this.state.inviteWritePendingResponse = false
   }
 
@@ -579,70 +686,12 @@ class Session {
     }
   }
 
-  respondToRead(request) {
-    this.manager.respondToRequest(request, Server.ATT_SUCCESS, Buffer.alloc(0))
-  }
-
-  respondToWrite(request) {
-    const shouldRespond = request.responseNeeded !== false || !isAndroid
-    if (!shouldRespond) {
-      this.log(`Skipping write response (responseNeeded=${request.responseNeeded})`)
-      return
-    }
-
-    this.manager.respondToRequest(request, Server.ATT_SUCCESS, null)
-  }
-
-  addService(
-    uuid = this.serviceUUID,
-    chars = [this.state.manager.notifyChar, this.state.manager.writeChar]
-  ) {
-    if (!this.manager || this.state.manager.serviceAdded || !isPoweredOn(this.manager.state)) return
-
-    const service = new Service(uuid, chars)
-    this.manager.addService(service)
-  }
-
-  startAdvertising(uuids = [this.serviceUUID]) {
-    if (this.state.manager.advertising === 'on') return
-
-    if (!this.manager || !isPoweredOn(this.manager.state)) {
-      this.log('Advertising is waiting for Bluetooth power')
-      return
-    }
-
-    if (!this.state.manager.serviceAdded) {
-      this.addService()
-      this.log('Advertising is waiting for service add')
-      return
-    }
-
-    const opts = { serviceUUIDs: uuids }
-    if (!isAndroid) opts.name = this.deviceName
-
-    this.log(`Starting advertising: ${uuids.join(', ')}`)
-    this.manager.startAdvertising(opts)
-    this.state.manager.advertising = 'on'
-    this.send({ type: 'advertisingStarted' })
-  }
-
-  stopAdvertising() {
-    if (this.manager) this.manager.stopAdvertising()
-    this.state.manager.advertising = 'off'
-    this.send({ type: 'advertisingStopped' })
+  setScan(enabled) {
+    this.central.setScan(enabled)
   }
 
   setAdvertising(enabled) {
-    if (enabled) {
-      this.state.manager.advertising = 'requested'
-      this.startAdvertising()
-    } else {
-      this.stopAdvertising()
-    }
-  }
-
-  setScan(enabled) {
-    this.central.setScan(enabled)
+    this.server.setAdvertising(enabled, this.deviceName)
   }
 
   inviteDevice(id) {
@@ -661,12 +710,12 @@ class Session {
   }
 
   acceptInvite() {
-    if (this.state.inviteRole !== 'invitee' || !this.state.manager.centralSubscribed) {
+    if (this.state.inviteRole !== 'invitee' || !this.server.centralSubscribed) {
       this.send({ type: 'error', message: 'No invite to accept' })
       return
     }
     const data = encodeBLEMessage({ t: 'accept' })
-    const ok = this.manager.updateValue(this.state.manager.notifyChar, data)
+    const ok = this.server.notify(data)
     this.log(`Accept notify queued: ${ok}`)
     this.send({ type: 'chatStarted' })
   }
@@ -674,12 +723,12 @@ class Session {
   rejectInvite() {
     if (this.state.inviteRole !== 'invitee') return
     const data = encodeBLEMessage({ t: 'reject' })
-    if (this.state.manager.centralSubscribed) {
-      const ok = this.manager.updateValue(this.state.manager.notifyChar, data)
+    if (this.server.centralSubscribed) {
+      const ok = this.server.notify(data)
       this.log(`Reject notify queued: ${ok}`)
     }
     this.state.inviteRole = 'idle'
-    this.state.manager.centralSubscribed = false
+    this.server.resetConnection()
     this.send({ type: 'inviteRejected' })
   }
 
@@ -694,8 +743,8 @@ class Session {
       this.log(`Writing message: ${payload.byteLength} bytes`)
       this.central.write(payload, true)
       this.send({ type: 'message', text, from: 'local' })
-    } else if (this.state.inviteRole === 'invitee' && this.state.manager.centralSubscribed) {
-      const ok = this.manager.updateValue(this.state.manager.notifyChar, payload)
+    } else if (this.state.inviteRole === 'invitee' && this.server.centralSubscribed) {
+      const ok = this.server.notify(payload)
       this.log(`Message notify queued: ${ok}`)
       this.send({ type: 'message', text, from: 'local' })
     } else {
@@ -713,25 +762,29 @@ class Session {
   }
 
   destroy() {
-    if (this.manager) this.manager.destroy()
+    this.server.destroy()
     this.central.destroy()
   }
 }
 
 const ipc = new FramedStream(BareKit.IPC)
 
-const bleCentral = new BLECentral({
+const central = new BLECentral({
   serviceUUID: SERVICE_UUID,
   chatUUID: CHAT_UUID,
   writeUUID: WRITE_UUID,
   preferredMTU: PREFERRED_MTU
 })
 
-const session = new Session({
-  bleCentral,
+const server = new BLEServer({
   serviceUUID: SERVICE_UUID,
   chatUUID: CHAT_UUID,
-  writeUUID: WRITE_UUID,
+  writeUUID: WRITE_UUID
+})
+
+const session = new Session({
+  central,
+  server,
   inviteWriteWithResponse: INVITE_WRITE_WITH_RESPONSE,
   deviceName: Bare.argv[0] || 'BareDevice',
   send: (msg) => ipc.write(Buffer.from(JSON.stringify(msg)))
