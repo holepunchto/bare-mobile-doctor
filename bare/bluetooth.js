@@ -41,6 +41,8 @@ function decodeBLEMessage(msg) {
       return { t: 'reject' }
     case 'm':
       return { t: 'msg', d: msg[1] }
+    case 'd':
+      return { t: 'disconnect' }
     default:
       return msg
   }
@@ -56,6 +58,8 @@ function encodeBLEMessage(msg) {
       return Buffer.from(JSON.stringify(['r']))
     case 'msg':
       return Buffer.from(JSON.stringify(['m', msg.d]))
+    case 'disconnect':
+      return Buffer.from(JSON.stringify(['d']))
     default:
       return Buffer.from(JSON.stringify(msg))
   }
@@ -627,6 +631,14 @@ class Session {
       case 'msg':
         this.send({ type: 'message', text: msg.d, from: 'remote' })
         break
+      case 'disconnect':
+        if (this.state.inviteRole !== 'idle') {
+          if (this.state.inviteRole === 'inviter') this.central.disconnect()
+          this.resetConnection()
+          this.state.inviteRole = 'idle'
+          this.send({ type: 'disconnected' })
+        }
+        break
     }
   }
 
@@ -727,9 +739,15 @@ class Session {
   }
 
   disconnect() {
+    const disconnectMsg = encodeBLEMessage({ t: 'disconnect' })
+
     if (this.state.inviteRole === 'inviter' && this.central.connectedPeripheral) {
+      this.central.write(disconnectMsg, false)
       this.central.disconnect()
+    } else if (this.state.inviteRole === 'invitee' && this.server.centralSubscribed) {
+      this.server.notify(disconnectMsg)
     }
+
     this.resetConnection()
     this.state.inviteRole = 'idle'
     this.send({ type: 'disconnected' })
