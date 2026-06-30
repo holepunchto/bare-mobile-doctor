@@ -1,15 +1,6 @@
 const EventEmitter = require('events')
 const FramedStream = require('framed-stream')
-const {
-  Central,
-  Server,
-  Service,
-  Characteristic,
-  scanOptions,
-  isPoweredOn,
-  util
-} = require('./ble')
-const { matchesUUID, findUUID, characteristicMatches, propertiesHex } = util
+const { Central, Server, Service, Characteristic } = require('bare-bluetooth')
 
 const SERVICE_UUID = 'B4A3C8A7-0000-1000-8000-00805F9B34FB'
 const CHAT_UUID = 'B4A3C8A7-0001-1000-8000-00805F9B34FB'
@@ -18,6 +9,25 @@ const PREFERRED_MTU = 512
 const INVITE_WRITE_WITH_RESPONSE = false
 
 const isAndroid = Bare.platform === 'android'
+const scanOptions = isAndroid ? { scanMode: Central.SCAN_MODE_LOW_LATENCY } : undefined
+
+function normalizeUUID(uuid) {
+  return String(uuid || '')
+    .toLowerCase()
+    .replace(/-/g, '')
+}
+
+function matchesUUID(a, b) {
+  return normalizeUUID(a) === normalizeUUID(b)
+}
+
+function findByUUID(items, uuid) {
+  if (!items) return null
+  for (const item of items) {
+    if (matchesUUID(item.uuid, uuid)) return item
+  }
+  return null
+}
 
 function decodeBLEMessage(msg) {
   if (!Array.isArray(msg)) return msg
@@ -77,21 +87,21 @@ class BLECentral extends EventEmitter {
     this._central.on('stateChange', (bleState) => {
       this.emit('stateChange', bleState)
 
-      if (isPoweredOn(bleState)) {
+      if (bleState === 'poweredOn') {
         this.emit('ready')
         if (this.scanning === 'requested') this.startScan()
       }
     })
 
-    this._central.on('discover', (peripheral) => {
-      this.discoveredPeripherals.set(peripheral.id, peripheral)
+    this._central.on('discover', (discovered) => {
+      this.discoveredPeripherals.set(discovered.id, discovered)
 
-      let name = peripheral.name || 'Unknown'
-      if (!name && peripheral.serviceData && peripheral.serviceData[this.serviceUUID]) {
-        name = Buffer.from(peripheral.serviceData[this.serviceUUID]).toString()
+      let name = discovered.name || 'Unknown'
+      if (!name && discovered.serviceData && discovered.serviceData[this.serviceUUID]) {
+        name = Buffer.from(discovered.serviceData[this.serviceUUID]).toString()
       }
 
-      this.emit('discovered', { id: peripheral.id, name, rssi: peripheral.rssi })
+      this.emit('discovered', { id: discovered.id, name, rssi: discovered.rssi })
     })
 
     this._central.on('connect', (peripheral) => {
@@ -112,7 +122,7 @@ class BLECentral extends EventEmitter {
           return
         }
 
-        const service = findUUID(services, this.serviceUUID)
+        const service = findByUUID(services, this.serviceUUID)
 
         if (!service) {
           this.emit('error', 'Chat service not found')
@@ -121,8 +131,7 @@ class BLECentral extends EventEmitter {
         }
 
         this.emit('log', 'Discovering characteristics')
-        if (isAndroid) peripheral.discoverCharacteristics(service)
-        else peripheral.discoverCharacteristics(service, [this.chatUUID, this.writeUUID])
+        peripheral.discoverCharacteristics(service, [this.chatUUID, this.writeUUID])
       })
 
       peripheral.on('characteristicsDiscover', (service, chars, error) => {
@@ -134,14 +143,14 @@ class BLECentral extends EventEmitter {
           return
         }
 
-        const notifyChar = findUUID(chars, this.chatUUID)
+        const notifyChar = findByUUID(chars, this.chatUUID)
         if (!notifyChar) {
           this.emit('error', 'Notify characteristic not found')
           this.emit('connectFailed')
           return
         }
 
-        const writeChar = findUUID(chars, this.writeUUID)
+        const writeChar = findByUUID(chars, this.writeUUID)
         if (!writeChar) {
           this.emit('error', 'Write characteristic not found')
           this.emit('connectFailed')
@@ -151,10 +160,6 @@ class BLECentral extends EventEmitter {
         this.notifyChar = notifyChar
         this.writeChar = writeChar
 
-        this.emit(
-          'log',
-          `Notify properties: ${propertiesHex(notifyChar)}, write properties: ${propertiesHex(writeChar)}`
-        )
         this.emit('log', 'Subscribing to notify characteristic')
         peripheral.subscribe(notifyChar)
       })
@@ -168,9 +173,7 @@ class BLECentral extends EventEmitter {
           return
         }
 
-        const isChatNotify = !char || characteristicMatches(char, this.chatUUID)
-        if (!isNotifying || !this.writeChar || !isChatNotify) return
-
+        if (!isNotifying || !this.writeChar) return
         this.emit('connected')
       })
 
@@ -191,16 +194,10 @@ class BLECentral extends EventEmitter {
         this.emit('writeComplete', { error: null })
       })
 
-      if (typeof peripheral.requestMtu === 'function') {
-        this.emit('log', `Requesting MTU: ${this.preferredMTU}`)
-        peripheral.requestMtu(this.preferredMTU)
-      } else {
-        this.emit('log', 'Skipping MTU request')
-      }
+      peripheral.requestMtu(this.preferredMTU)
 
       this.emit('log', 'Discovering services')
-      if (isAndroid) peripheral.discoverServices()
-      else peripheral.discoverServices([this.serviceUUID])
+      peripheral.discoverServices([this.serviceUUID])
     })
 
     this._central.on('disconnect', (peripheral, error) => {
@@ -218,15 +215,15 @@ class BLECentral extends EventEmitter {
     })
   }
 
-  startScan(opts = scanOptions) {
+  startScan() {
     if (this.scanning === 'on') return
 
-    if (!isPoweredOn(this.state)) {
+    if (this._central.state !== 'poweredOn') {
       this.emit('log', 'Scan is waiting for Bluetooth power')
       return
     }
 
-    this._central.startScan([this.serviceUUID], opts)
+    this._central.startScan([this.serviceUUID], scanOptions)
     this.scanning = 'on'
     this.emit('scanStarted')
   }
@@ -248,16 +245,16 @@ class BLECentral extends EventEmitter {
   }
 
   connect(id) {
-    const peripheral = this.discoveredPeripherals.get(id)
-    if (!peripheral) {
+    const discovered = this.discoveredPeripherals.get(id)
+    if (!discovered) {
       this.emit('error', 'Device not found: ' + id)
       return false
     }
 
     if (this.scanning !== 'off') this.stopScan()
 
-    this.emit('log', `Connecting to: ${peripheral.name || peripheral.id || 'unknown'}`)
-    this._central.connect(peripheral)
+    this.emit('log', `Connecting to: ${discovered.name || discovered.id || 'unknown'}`)
+    this._central.connect(discovered)
     return true
   }
 
@@ -316,7 +313,7 @@ class BLEServer extends EventEmitter {
 
   _setup() {
     this._server.on('stateChange', (bleState) => {
-      if (isPoweredOn(bleState)) this._addService()
+      if (bleState === 'poweredOn') this._addService()
     })
 
     this._server.on('serviceAdd', (uuid, error) => {
@@ -359,13 +356,16 @@ class BLEServer extends EventEmitter {
           'log',
           `Write request: ${req.data ? req.data.byteLength : 0} bytes, response=${req.responseNeeded}`
         )
-        this._respondToWrite(req)
+
+        if (req.responseNeeded) {
+          this._server.respondToRequest(req, Server.ATT_SUCCESS, null)
+        }
 
         if (req.data) this.emit('message', req.data)
       }
     })
 
-    this._server.on('subscribe', (_centralHandle, characteristicUuid) => {
+    this._server.on('subscribe', (_peer, characteristicUuid) => {
       if (characteristicUuid && !matchesUUID(characteristicUuid, this.chatUUID)) {
         this.emit('log', `Ignoring subscribe for ${characteristicUuid}; expected ${this.chatUUID}`)
         return
@@ -376,7 +376,7 @@ class BLEServer extends EventEmitter {
       this.emit('subscribed')
     })
 
-    this._server.on('unsubscribe', (_centralHandle, characteristicUuid) => {
+    this._server.on('unsubscribe', (_peer, characteristicUuid) => {
       if (characteristicUuid && !matchesUUID(characteristicUuid, this.chatUUID)) return
       this.centralSubscribed = false
       this.emit('unsubscribed')
@@ -385,18 +385,8 @@ class BLEServer extends EventEmitter {
     this._addService()
   }
 
-  _respondToWrite(request) {
-    const shouldRespond = request.responseNeeded !== false || !isAndroid
-    if (!shouldRespond) {
-      this.emit('log', `Skipping write response (responseNeeded=${request.responseNeeded})`)
-      return
-    }
-
-    this._server.respondToRequest(request, Server.ATT_SUCCESS, null)
-  }
-
   _addService() {
-    if (this.serviceAdded || !isPoweredOn(this.state)) return
+    if (this.serviceAdded || this._server.state !== 'poweredOn') return
 
     const service = new Service(this.serviceUUID, [this.notifyChar, this.writeChar])
     this._server.addService(service)
@@ -406,7 +396,7 @@ class BLEServer extends EventEmitter {
     if (deviceName !== undefined) this._deviceName = deviceName
     if (this.advertising === 'on') return
 
-    if (!isPoweredOn(this.state)) {
+    if (this._server.state !== 'poweredOn') {
       this.emit('log', 'Advertising is waiting for Bluetooth power')
       return
     }
@@ -418,7 +408,7 @@ class BLEServer extends EventEmitter {
     }
 
     const opts = { serviceUUIDs: [this.serviceUUID] }
-    if (!isAndroid && this._deviceName) opts.name = this._deviceName
+    if (this._deviceName) opts.name = this._deviceName
 
     this.emit('log', `Starting advertising: ${this.serviceUUID}`)
     this._server.startAdvertising(opts)
@@ -596,8 +586,8 @@ class Session {
     if (this.state.ready) return
 
     if (
-      isPoweredOn(this.central.state) &&
-      isPoweredOn(this.server.state) &&
+      this.central.state === 'poweredOn' &&
+      this.server.state === 'poweredOn' &&
       this.server.serviceAdded
     ) {
       this.state.ready = true
