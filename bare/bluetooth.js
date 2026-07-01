@@ -113,18 +113,12 @@ class BLECentral extends EventEmitter {
 
       this.emit('log', `Connected: ${peripheral.name || peripheral.id || 'unknown'}`)
 
-      peripheral.on('mtuChanged', (mtu, error) => {
-        this.emit('mtuChanged', { mtu, error })
+      peripheral.on('mtuChanged', (mtu) => {
+        this.emit('mtuChanged', { mtu })
       })
 
-      peripheral.on('servicesDiscover', (services, error) => {
-        this.emit('log', `Services discovered: ${services ? services.length : 0}`)
-
-        if (error || !services || services.length === 0) {
-          this.emit('error', 'Service discovery failed: ' + (error || 'none found'))
-          this.emit('connectFailed')
-          return
-        }
+      peripheral.on('servicesDiscover', (services) => {
+        this.emit('log', `Services discovered: ${services.length}`)
 
         const service = findByUUID(services, this.serviceUUID)
 
@@ -138,14 +132,8 @@ class BLECentral extends EventEmitter {
         peripheral.discoverCharacteristics(service, [this.chatUUID, this.writeUUID])
       })
 
-      peripheral.on('characteristicsDiscover', (service, chars, error) => {
-        this.emit('log', `Characteristics discovered: ${chars ? chars.length : 0}`)
-
-        if (error || !chars || chars.length === 0) {
-          this.emit('error', 'Characteristic discovery failed')
-          this.emit('connectFailed')
-          return
-        }
+      peripheral.on('characteristicsDiscover', (service, chars) => {
+        this.emit('log', `Characteristics discovered: ${chars.length}`)
 
         const notifyChar = findByUUID(chars, this.chatUUID)
         if (!notifyChar) {
@@ -168,34 +156,26 @@ class BLECentral extends EventEmitter {
         peripheral.subscribe(notifyChar)
       })
 
-      peripheral.on('notifyState', (char, isNotifying, error) => {
+      peripheral.on('notifyState', (char, isNotifying) => {
         this.emit('log', `Notify state: ${isNotifying}`)
-
-        if (error) {
-          this.emit('error', 'Subscribe error: ' + error)
-          this.emit('connectFailed')
-          return
-        }
 
         if (!isNotifying || !this.writeChar) return
         this.emit('connected')
       })
 
-      peripheral.on('notify', (char, data, error) => {
-        if (error || !data) return
-
+      peripheral.on('notify', (char, data) => {
         this.emit('log', `Notify received: ${data.byteLength} bytes`)
         this.emit('message', data)
       })
 
-      peripheral.on('write', (char, error) => {
-        if (error) {
-          this.emit('writeComplete', { error: 'Write error: ' + error })
-          return
-        }
-
+      peripheral.on('write', (char) => {
         this.emit('log', 'Write sent')
         this.emit('writeComplete', { error: null })
+      })
+
+      peripheral.on('error', (err) => {
+        this.emit('error', err.message || String(err))
+        if (!this.notifyChar) this.emit('connectFailed')
       })
 
       peripheral.requestMtu(this.preferredMTU)
@@ -204,14 +184,9 @@ class BLECentral extends EventEmitter {
       peripheral.discoverServices([this.serviceUUID])
     })
 
-    this._central.on('disconnect', (peripheral, error) => {
-      this.emit('log', 'Central disconnected' + (error ? ': ' + error : ''))
-      this.emit('disconnected', { error })
-    })
-
-    this._central.on('connectFail', (id, error) => {
-      this.emit('error', 'Connect failed: ' + error)
-      this.emit('connectFailed')
+    this._central.on('disconnect', (peripheral) => {
+      this.emit('log', 'Central disconnected')
+      this.emit('disconnected')
     })
 
     this._central.on('error', (err) => {
@@ -320,14 +295,10 @@ class BLEServer extends EventEmitter {
       if (bleState === 'poweredOn') this._addService()
     })
 
-    this._server.on('serviceAdd', (uuid, error) => {
-      if (error) {
-        this.emit('error', 'Failed to add service: ' + error)
-      } else {
-        this.serviceAdded = true
-        this.emit('ready')
-        if (this.advertising === 'requested') this.startAdvertising()
-      }
+    this._server.on('serviceAdd', (uuid) => {
+      this.serviceAdded = true
+      this.emit('ready')
+      if (this.advertising === 'requested') this.startAdvertising()
     })
 
     this._server.on('error', (err) => {
@@ -517,15 +488,11 @@ class Session {
       if (this.state.inviteRole === 'inviter' && wasInviteWrite) this.send({ type: 'inviteSent' })
     })
 
-    this.central.on('mtuChanged', ({ mtu, error }) => {
-      if (error) {
-        this.send({ type: 'error', message: 'MTU request failed: ' + error })
-      } else {
-        this.send({ type: 'bleState', state: `on (mtu ${mtu})` })
-      }
+    this.central.on('mtuChanged', ({ mtu }) => {
+      this.send({ type: 'bleState', state: `on (mtu ${mtu})` })
     })
 
-    this.central.on('disconnected', ({ error }) => {
+    this.central.on('disconnected', () => {
       if (this.state.inviteRole === 'inviter' || this.state.inviteRole === 'idle') {
         this.resetConnection()
         if (this.state.inviteRole !== 'idle') {
