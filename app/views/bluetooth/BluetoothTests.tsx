@@ -19,6 +19,9 @@ import ThemedText from '../../components/ThemedText'
 
 const source = require('./bluetooth.bundle')
 
+// Keeps the message input above the keyboard on iOS.
+const KEYBOARD_VERTICAL_OFFSET = 120
+
 type AppState = 'init' | 'ready' | 'inviting' | 'invited' | 'chatting'
 
 interface Device {
@@ -260,7 +263,7 @@ export default function BluetoothTests() {
     <KeyboardAvoidingView
       style={styles.chatContainer}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={120}
+      keyboardVerticalOffset={KEYBOARD_VERTICAL_OFFSET}
     >
       <View style={styles.chatHeader}>
         <ThemedText style={styles.chatTitle}>Chat</ThemedText>

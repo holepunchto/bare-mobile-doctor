@@ -8,6 +8,7 @@ const WRITE_UUID = 'B4A3C8A7-0002-1000-8000-00805F9B34FB'
 const PREFERRED_MTU = 512
 const INVITE_WRITE_WITH_RESPONSE = false
 const CONNECT_TIMEOUT_MS = 15000
+const INVITE_WRITE_DELAY_MS = 100 // let the subscription settle before writing the invite
 
 const isAndroid = Bare.platform === 'android'
 const scanOptions = isAndroid ? { scanMode: Central.SCAN_MODE_LOW_LATENCY } : undefined
@@ -528,7 +529,7 @@ class Session {
       this.clearConnectTimeout()
       this.state.inviteWriteSent = false
       if (this.state.inviteRole === 'inviter') {
-        setTimeout(() => this.writeInvite(), 100)
+        setTimeout(() => this.writeInvite(), INVITE_WRITE_DELAY_MS)
       }
     })
 
