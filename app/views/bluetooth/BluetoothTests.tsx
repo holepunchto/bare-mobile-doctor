@@ -51,6 +51,7 @@ export default function BluetoothTests() {
   const workletRef = useRef<Worklet | null>(null)
   const streamRef = useRef<any>(null)
   const logScrollRef = useRef<ScrollView | null>(null)
+  const msgListRef = useRef<FlatList<ChatMessage> | null>(null)
   const msgIdRef = useRef(0)
 
   const [state, setState] = useState<AppState>('init')
@@ -268,9 +269,11 @@ export default function BluetoothTests() {
         </TouchableOpacity>
       </View>
       <FlatList
+        ref={msgListRef}
         data={messages}
         keyExtractor={(item) => String(item.id)}
         style={styles.messageList}
+        onContentSizeChange={() => msgListRef.current?.scrollToEnd({ animated: true })}
         renderItem={({ item }) => (
           <View
             style={[
