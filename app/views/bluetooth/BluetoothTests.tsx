@@ -177,8 +177,18 @@ export default function BluetoothTests() {
     })
 
     return () => {
+      const stream = streamRef.current
+      const worklet = workletRef.current
       streamRef.current = null
-      workletRef.current?.terminate()
+
+      // Tell the peer we're leaving so it tears down cleanly instead of waiting
+      // for the BLE supervision timeout, then give the worklet a moment to write
+      // the disconnect over the air before terminating it.
+      try {
+        stream?.write(b4a.from(JSON.stringify({ type: 'disconnect' })))
+      } catch {}
+
+      setTimeout(() => worklet?.terminate(), 150)
     }
   }, [])
 
