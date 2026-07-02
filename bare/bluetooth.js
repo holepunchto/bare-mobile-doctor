@@ -193,6 +193,14 @@ class BLECentral extends EventEmitter {
 
     this._central.on('error', (err) => {
       this.emit('error', err.message || String(err))
+
+      // iOS & Android emit errored disconnects/failed connects as 'error' (not
+      // 'disconnect'), so route the codes or the session stays stuck connected.
+      if (err && err.code === 'CONNECTION_FAILED') {
+        this.emit('connectFailed')
+      } else if (err && err.code === 'DISCONNECT') {
+        this.emit('disconnected')
+      }
     })
   }
 
@@ -355,6 +363,14 @@ class BLEServer extends EventEmitter {
 
     this._server.on('unsubscribe', (_peer, characteristicUuid) => {
       if (characteristicUuid && !matchesUUID(characteristicUuid, this.chatUUID)) return
+      this.centralSubscribed = false
+      this.emit('unsubscribed')
+    })
+
+    // Android signals a central leaving via 'disconnected'; iOS only via
+    // 'unsubscribe'. Funnel both into the same teardown path.
+    this._server.on('disconnected', (deviceAddress) => {
+      this.emit('log', `Server disconnected: ${deviceAddress}`)
       this.centralSubscribed = false
       this.emit('unsubscribed')
     })
