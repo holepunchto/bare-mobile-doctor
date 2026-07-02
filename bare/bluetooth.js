@@ -1,330 +1,652 @@
+const EventEmitter = require('events')
 const FramedStream = require('framed-stream')
-const { Central, PeripheralManager, Service, Characteristic } = require('bare-bluetooth-apple')
+const { Central, Server, Service, Characteristic } = require('bare-bluetooth')
+
+const SERVICE_UUID = 'B4A3C8A7-0000-1000-8000-00805F9B34FB'
+// Readable characteristic that carries the L2CAP PSM the server published, so a
+// central can learn where to open the connection-oriented channel.
+const PSM_UUID = 'B4A3C8A7-0003-1000-8000-00805F9B34FB'
+const CONNECT_TIMEOUT_MS = 15000
+
+const isAndroid = Bare.platform === 'android'
+const scanOptions = isAndroid ? { scanMode: Central.SCAN_MODE_LOW_LATENCY } : undefined
+
+function serialize(msg) {
+  return Buffer.from(JSON.stringify(msg))
+}
+
+function normalizeUUID(uuid) {
+  return String(uuid || '')
+    .toLowerCase()
+    .replace(/-/g, '')
+}
+
+function matchesUUID(a, b) {
+  return normalizeUUID(a) === normalizeUUID(b)
+}
+
+function findByUUID(items, uuid) {
+  if (!items) return null
+  for (const item of items) {
+    if (matchesUUID(item.uuid, uuid)) return item
+  }
+  return null
+}
+
+// Register a batch of "just re-emit this over IPC" listeners. Each entry maps a
+// wrapper event to the IPC message it produces, keeping the noisy pass-through
+// forwards out of the handlers that carry real logic.
+function forward(emitter, send, map) {
+  for (const event of Object.keys(map)) {
+    const build = map[event]
+    emitter.on(event, (...args) => send(build(...args)))
+  }
+}
+
+// Shared lifecycle for scan/advertise toggles: OFF, ON, or REQUESTED (user
+// asked for it but BLE isn't ready yet, so it starts automatically later).
+class ToggleState {
+  static OFF = 'off'
+  static ON = 'on'
+  static REQUESTED = 'requested'
+}
+
+// A framed, bidirectional message channel over an L2CAP Duplex. Both peers use
+// the same object: once the channel is open there is no central/server
+// asymmetry, so the chat protocol runs identically on either side.
+class PeerLink extends EventEmitter {
+  constructor(channel) {
+    super()
+    this._stream = new FramedStream(channel)
+
+    this._stream.on('data', (data) => {
+      let msg
+      try {
+        msg = JSON.parse(Buffer.from(data).toString())
+      } catch (e) {
+        this.emit('error', `Bad BLE data (${data.byteLength} bytes)`)
+        return
+      }
+      this.emit('message', msg)
+    })
+
+    // L2CAP is reliable: a peer leaving surfaces as end/close/error on the
+    // stream, so we don't need platform-specific disconnect detection.
+    this._stream.on('close', () => this.emit('close'))
+    this._stream.on('error', () => this.emit('close'))
+  }
+
+  send(msg) {
+    this._stream.write(serialize(msg))
+  }
+
+  close() {
+    this._stream.destroy()
+  }
+}
+
+// Central role: scans, connects, reads the peer's PSM and opens the L2CAP
+// channel. Emits 'link' with a PeerLink once the channel is open.
+class BLECentral extends EventEmitter {
+  constructor(opts) {
+    super()
+    this.serviceUUID = opts.serviceUUID
+    this.psmUUID = opts.psmUUID
+
+    this.scanning = ToggleState.OFF
+    this.peripheral = null
+    this.discoveredPeripherals = new Map()
+
+    this._central = new Central()
+    this._setup()
+  }
+
+  get state() {
+    return this._central.state
+  }
+
+  _setup() {
+    this._central.on('stateChange', (bleState) => {
+      this.emit('stateChange', bleState)
+      if (bleState === 'poweredOn') {
+        this.emit('ready')
+        if (this.scanning === ToggleState.REQUESTED) this.startScan()
+      }
+    })
+
+    this._central.on('discover', (discovered) => {
+      this.discoveredPeripherals.set(discovered.id, discovered)
+
+      let name = discovered.name
+      if (!name && discovered.serviceData && discovered.serviceData[this.serviceUUID]) {
+        name = Buffer.from(discovered.serviceData[this.serviceUUID]).toString()
+      }
+
+      this.emit('discovered', { id: discovered.id, name: name || 'Unknown', rssi: discovered.rssi })
+    })
+
+    this._central.on('connect', (peripheral) => this._onConnect(peripheral))
+
+    this._central.on('disconnect', () => {
+      this.emit('log', 'Central disconnected')
+      this.emit('closed')
+    })
+
+    this._central.on('error', (err) => {
+      this.emit('error', err.message || String(err))
+
+      // iOS & Android report errored connects/disconnects as 'error' (not
+      // 'disconnect'), so route the codes or the session stays stuck connected.
+      if (err && err.code === 'CONNECTION_FAILED') {
+        this.emit('connectFailed')
+      } else if (err && err.code === 'DISCONNECT') {
+        this.emit('closed')
+      }
+    })
+  }
+
+  _onConnect(peripheral) {
+    this.peripheral = peripheral
+    this.emit('log', `Connected: ${peripheral.name || peripheral.id || 'unknown'}`)
+
+    peripheral.on('servicesDiscover', (services) => {
+      const service = findByUUID(services, this.serviceUUID)
+      if (!service) {
+        this.emit('error', 'Chat service not found')
+        this.emit('connectFailed')
+        return
+      }
+      peripheral.discoverCharacteristics(service, [this.psmUUID])
+    })
+
+    peripheral.on('characteristicsDiscover', (service, chars) => {
+      const psmChar = findByUUID(chars, this.psmUUID)
+      if (!psmChar) {
+        this.emit('error', 'PSM characteristic not found')
+        this.emit('connectFailed')
+        return
+      }
+      this.emit('log', 'Reading L2CAP PSM')
+      peripheral.read(psmChar)
+    })
+
+    peripheral.on('read', (char, data) => {
+      const text = Buffer.from(data).toString()
+      const psm = Number(text)
+      if (!psm) {
+        this.emit('error', `Invalid PSM: ${JSON.stringify(text)}`)
+        this.emit('connectFailed')
+        return
+      }
+      this.emit('log', `Opening L2CAP channel psm=${psm}`)
+      peripheral.openL2CAPChannel(psm)
+    })
+
+    peripheral.on('channelOpen', (channel) => {
+      this.emit('log', 'L2CAP channel open')
+      this.emit('link', new PeerLink(channel))
+    })
+
+    peripheral.on('error', (err) => {
+      this.emit('error', err.message || String(err))
+      this.emit('connectFailed')
+    })
+
+    this.emit('log', 'Discovering services')
+    peripheral.discoverServices([this.serviceUUID])
+  }
+
+  startScan() {
+    if (this.scanning === ToggleState.ON) return
+
+    if (this._central.state !== 'poweredOn') {
+      this.emit('log', 'Scan is waiting for Bluetooth power')
+      return
+    }
+
+    this._central.startScan([this.serviceUUID], scanOptions)
+    this.scanning = ToggleState.ON
+    this.emit('scanStarted')
+  }
+
+  stopScan() {
+    this._central.stopScan()
+    this.scanning = ToggleState.OFF
+    this.discoveredPeripherals.clear()
+    this.emit('scanStopped')
+  }
+
+  setScan(enabled) {
+    if (enabled) {
+      this.scanning = ToggleState.REQUESTED
+      this.startScan()
+    } else {
+      this.stopScan()
+    }
+  }
+
+  connect(id) {
+    const discovered = this.discoveredPeripherals.get(id)
+    if (!discovered) {
+      this.emit('error', 'Device not found: ' + id)
+      return false
+    }
+
+    if (this.scanning !== ToggleState.OFF) this.stopScan()
+
+    this.emit('log', `Connecting to: ${discovered.name || discovered.id || 'unknown'}`)
+    this._central.connect(discovered)
+    return true
+  }
+
+  disconnect() {
+    if (this.peripheral) this._central.disconnect(this.peripheral)
+    this.peripheral = null
+  }
+
+  destroy() {
+    this._central.destroy()
+  }
+}
+
+// Peripheral role: advertises the service, publishes an L2CAP channel and hands
+// out its PSM. Emits 'link' with a PeerLink once a central opens the channel.
+class BLEServer extends EventEmitter {
+  constructor(opts) {
+    super()
+    this.serviceUUID = opts.serviceUUID
+    this.psmUUID = opts.psmUUID
+
+    this.advertising = ToggleState.OFF
+    this.serviceAdded = false
+    this._deviceName = null
+    this._psm = null
+
+    this.psmChar = new Characteristic(opts.psmUUID, { read: true })
+
+    this._server = new Server()
+    this._setup()
+  }
+
+  get state() {
+    return this._server.state
+  }
+
+  _setup() {
+    this._server.on('stateChange', (bleState) => {
+      if (bleState === 'poweredOn') this._start()
+    })
+
+    this._server.on('serviceAdd', () => {
+      this.serviceAdded = true
+      this.emit('ready')
+      if (this.advertising === ToggleState.REQUESTED) this.startAdvertising()
+    })
+
+    this._server.on('channelPublish', (psm) => {
+      this._psm = psm
+      this.emit('log', `L2CAP channel published psm=${psm}`)
+      if (this.advertising === ToggleState.REQUESTED) this.startAdvertising()
+    })
+
+    this._server.on('channelOpen', (channel) => {
+      this.emit('log', 'L2CAP channel open')
+      this.emit('link', new PeerLink(channel))
+    })
+
+    // A central reads this to discover the PSM before opening the channel. The
+    // PSM is a plain number, so send it as raw text (not JSON) — the central
+    // parses it with Number().
+    this._server.on('readRequest', (req) => {
+      const value = this._psm != null ? Buffer.from(String(this._psm)) : Buffer.alloc(0)
+      this._server.respondToRequest(req, Server.ATT_SUCCESS, value)
+    })
+
+    this._server.on('error', (err) => {
+      if (err.code === 'ADVERTISE_FAILED') {
+        // Advertising never started: keep internal state in sync with the UI
+        // (which flips the switch off) instead of a phantom 'requested' state.
+        this.advertising = ToggleState.OFF
+        this.emit('advertisingStopped')
+      }
+      this.emit('error', err.message || String(err))
+    })
+
+    this._start()
+  }
+
+  _start() {
+    if (this._server.state !== 'poweredOn') return
+    if (!this.serviceAdded) {
+      this._server.addService(new Service(this.serviceUUID, [this.psmChar]))
+    }
+    if (this._psm == null) this._server.publishChannel()
+  }
+
+  startAdvertising(deviceName) {
+    if (deviceName !== undefined) this._deviceName = deviceName
+    if (this.advertising === ToggleState.ON) return
+
+    if (this._server.state !== 'poweredOn') {
+      this.emit('log', 'Advertising is waiting for Bluetooth power')
+      return
+    }
+
+    // Both the GATT service (for PSM discovery) and the published PSM must be
+    // ready before we invite centrals to connect.
+    if (!this.serviceAdded || this._psm == null) {
+      this._start()
+      this.advertising = ToggleState.REQUESTED
+      this.emit('log', 'Advertising is waiting for service and PSM')
+      return
+    }
+
+    const opts = { serviceUUIDs: [this.serviceUUID] }
+    if (this._deviceName) opts.name = this._deviceName
+
+    this.emit('log', `Starting advertising: ${this.serviceUUID}`)
+    this._server.startAdvertising(opts)
+    this.advertising = ToggleState.ON
+    this.emit('advertisingStarted')
+  }
+
+  stopAdvertising() {
+    this._server.stopAdvertising()
+    this.advertising = ToggleState.OFF
+    this.emit('advertisingStopped')
+  }
+
+  setAdvertising(enabled, deviceName) {
+    if (enabled) {
+      this._deviceName = deviceName
+      this.advertising = ToggleState.REQUESTED
+      this.startAdvertising()
+    } else {
+      this.stopAdvertising()
+    }
+  }
+
+  destroy() {
+    this._server.destroy()
+  }
+}
+
+// Orchestrates the invite/chat protocol over a single PeerLink. Whoever calls
+// inviteDevice() is the inviter (drives the central); the other side becomes the
+// invitee when it receives the invite. Data flows the same way for both.
+class Session {
+  constructor(opts) {
+    const { central, server, deviceName, send } = opts
+
+    this.central = central
+    this.server = server
+    this.deviceName = deviceName
+    this.send = send
+
+    this.state = {
+      ready: false,
+      inviteRole: 'idle',
+      link: null,
+      connectTimer: null
+    }
+
+    this.setupCentralListeners()
+    this.setupServerListeners()
+  }
+
+  log(message) {
+    this.send({ type: 'log', message })
+  }
+
+  setupCentralListeners() {
+    forward(this.central, this.send, {
+      stateChange: (state) => ({ type: 'bleState', state }),
+      discovered: ({ id, name, rssi }) => ({ type: 'discovered', id, name, rssi }),
+      scanStarted: () => ({ type: 'scanStarted' }),
+      scanStopped: () => ({ type: 'scanStopped' }),
+      log: (message) => ({ type: 'log', message }),
+      error: (message) => ({ type: 'error', message })
+    })
+
+    this.central.on('ready', () => this.checkReady())
+
+    // We opened the channel, so we are the inviter: send the invite right away.
+    this.central.on('link', (link) => {
+      this.clearConnectTimeout()
+      this.attachLink(link)
+      link.send({ t: 'invite', n: this.deviceName })
+      this.send({ type: 'inviteSent' })
+    })
+
+    this.central.on('connectFailed', () => {
+      this.clearConnectTimeout()
+      this.state.inviteRole = 'idle'
+      // The invite came from an active scan that connect() stopped; resume it so
+      // the user can pick another device instead of re-toggling Scan.
+      this.central.setScan(true)
+    })
+
+    this.central.on('closed', () => this.onLinkClosed())
+  }
+
+  setupServerListeners() {
+    forward(this.server, this.send, {
+      advertisingStarted: () => ({ type: 'advertisingStarted' }),
+      advertisingStopped: () => ({ type: 'advertisingStopped' }),
+      log: (message) => ({ type: 'log', message }),
+      error: (message) => ({ type: 'error', message })
+    })
+
+    this.server.on('ready', () => this.checkReady())
+
+    // A central connected to us: attach and wait for its invite message.
+    this.server.on('link', (link) => {
+      if (this.state.link) {
+        link.close()
+        return
+      }
+      this.attachLink(link)
+    })
+  }
+
+  attachLink(link) {
+    this.state.link = link
+    link.on('message', (msg) => this.handlePeerMessage(msg))
+    link.on('error', (message) => this.send({ type: 'error', message }))
+    link.on('close', () => this.onLinkClosed())
+  }
+
+  checkReady() {
+    if (this.state.ready) return
+
+    if (
+      this.central.state === 'poweredOn' &&
+      this.server.state === 'poweredOn' &&
+      this.server.serviceAdded
+    ) {
+      this.state.ready = true
+      this.send({ type: 'ready' })
+    }
+  }
+
+  handlePeerMessage(msg) {
+    switch (msg.t) {
+      case 'invite':
+        if (this.state.inviteRole === 'idle') {
+          this.state.inviteRole = 'invitee'
+          this.send({ type: 'inviteReceived', name: msg.n })
+        }
+        break
+      case 'accept':
+        if (this.state.inviteRole === 'inviter') this.send({ type: 'chatStarted' })
+        break
+      case 'reject':
+        if (this.state.inviteRole === 'inviter') {
+          this.teardown()
+          this.send({ type: 'inviteRejected' })
+        }
+        break
+      case 'msg':
+        this.send({ type: 'message', text: msg.d, from: 'remote' })
+        break
+      case 'disconnect':
+        if (this.state.inviteRole !== 'idle') {
+          this.teardown()
+          this.send({ type: 'disconnected' })
+        }
+        break
+    }
+  }
+
+  // Close the link and drop any BLE connection we opened. Safe to call from any
+  // role: central.disconnect() is a no-op when we never connected.
+  teardown() {
+    if (this.state.link) {
+      this.state.link.close()
+      this.state.link = null
+    }
+    this.central.disconnect()
+    this.state.inviteRole = 'idle'
+  }
+
+  onLinkClosed() {
+    this.clearConnectTimeout()
+    this.state.link = null
+    if (this.state.inviteRole !== 'idle') {
+      this.state.inviteRole = 'idle'
+      this.send({ type: 'disconnected' })
+    }
+  }
+
+  setScan(enabled) {
+    this.central.setScan(enabled)
+  }
+
+  setAdvertising(enabled) {
+    this.server.setAdvertising(enabled, this.deviceName)
+  }
+
+  inviteDevice(id) {
+    this.log('Invite requested: ' + String(id).slice(0, 16))
+
+    if (this.state.inviteRole !== 'idle') {
+      this.send({ type: 'error', message: 'Already in a session' })
+      return
+    }
+
+    this.state.inviteRole = 'inviter'
+
+    if (!this.central.connect(id)) {
+      this.state.inviteRole = 'idle'
+      return
+    }
+
+    this.startConnectTimeout()
+  }
+
+  startConnectTimeout() {
+    this.clearConnectTimeout()
+    this.state.connectTimer = setTimeout(() => {
+      this.state.connectTimer = null
+      if (this.state.inviteRole !== 'inviter' || this.state.link) return
+
+      this.teardown()
+      this.send({ type: 'error', message: 'Connection timed out' })
+      this.send({ type: 'disconnected' })
+      this.central.setScan(true)
+    }, CONNECT_TIMEOUT_MS)
+  }
+
+  clearConnectTimeout() {
+    if (this.state.connectTimer) {
+      clearTimeout(this.state.connectTimer)
+      this.state.connectTimer = null
+    }
+  }
+
+  acceptInvite() {
+    if (this.state.inviteRole !== 'invitee' || !this.state.link) {
+      this.send({ type: 'error', message: 'No invite to accept' })
+      return
+    }
+    this.state.link.send({ t: 'accept' })
+    this.send({ type: 'chatStarted' })
+  }
+
+  rejectInvite() {
+    if (this.state.inviteRole !== 'invitee') return
+    if (this.state.link) this.state.link.send({ t: 'reject' })
+    this.teardown()
+    this.send({ type: 'inviteRejected' })
+  }
+
+  sendMessage(text) {
+    if (this.state.inviteRole === 'idle' || !this.state.link) {
+      this.send({ type: 'error', message: 'Not connected' })
+      return
+    }
+    this.state.link.send({ t: 'msg', d: text })
+    this.send({ type: 'message', text, from: 'local' })
+  }
+
+  disconnect() {
+    this.clearConnectTimeout()
+    if (this.state.link) this.state.link.send({ t: 'disconnect' })
+    this.teardown()
+    this.send({ type: 'disconnected' })
+  }
+
+  destroy() {
+    this.teardown()
+    this.server.destroy()
+    this.central.destroy()
+  }
+}
 
 const ipc = new FramedStream(BareKit.IPC)
 
-const SERVICE_UUID = 'B4A3C8A7-0000-1000-8000-00805F9B34FB'
-const CHAT_UUID = 'B4A3C8A7-0001-1000-8000-00805F9B34FB'
+const central = new BLECentral({ serviceUUID: SERVICE_UUID, psmUUID: PSM_UUID })
+const server = new BLEServer({ serviceUUID: SERVICE_UUID, psmUUID: PSM_UUID })
 
-let deviceName = Bare.argv[0] || 'BareDevice'
-let central = null
-let manager = null
-let advertising = false
-let scanning = false
-
-let ready = false
-let serviceAdded = false
-let role = 'idle'
-let connectedPeripheral = null
-let chatCharacteristic = null
-let chatCharMutable = null
-let subscribedCentralHandle = null
-const discoveredMap = new Map()
-
-function send(msg) {
-  ipc.write(Buffer.from(JSON.stringify(msg)))
-}
-
-function handleBLEMessage(msg) {
-  switch (msg.t) {
-    case 'invite':
-      if (role === 'idle') {
-        role = 'invitee'
-        send({ type: 'inviteReceived', name: msg.n })
-      }
-      break
-    case 'accept':
-      if (role === 'inviter') {
-        send({ type: 'chatStarted' })
-      }
-      break
-    case 'reject':
-      if (role === 'inviter') {
-        role = 'idle'
-        if (connectedPeripheral) {
-          central.disconnect(connectedPeripheral)
-          connectedPeripheral = null
-          chatCharacteristic = null
-        }
-        send({ type: 'inviteRejected' })
-      }
-      break
-    case 'msg':
-      send({ type: 'message', text: msg.d, from: 'remote' })
-      break
-  }
-}
-
-function setupCentral() {
-  central = new Central()
-
-  central.on('stateChange', (state) => {
-    send({ type: 'bleState', state })
-    if (state === 'poweredOn') checkReady()
-  })
-
-  central.on('discover', (peripheral) => {
-    discoveredMap.set(peripheral.id, peripheral)
-
-    let name = peripheral.name
-    if (!name && peripheral.serviceData && peripheral.serviceData[SERVICE_UUID]) {
-      name = Buffer.from(peripheral.serviceData[SERVICE_UUID]).toString()
-    }
-
-    send({ type: 'discovered', id: peripheral.id, name: name || 'Unknown', rssi: peripheral.rssi })
-  })
-
-  central.on('connect', (peripheral) => {
-    connectedPeripheral = peripheral
-
-    peripheral.discoverServices([SERVICE_UUID])
-
-    peripheral.on('servicesDiscover', (services, error) => {
-      if (error || !services || services.length === 0) {
-        send({ type: 'error', message: 'Service discovery failed: ' + (error || 'none found') })
-        role = 'idle'
-        return
-      }
-      peripheral.discoverCharacteristics(services[0], [CHAT_UUID])
-    })
-
-    peripheral.on('characteristicsDiscover', (service, chars, error) => {
-      if (error || !chars || chars.length === 0) {
-        send({ type: 'error', message: 'Characteristic discovery failed' })
-        role = 'idle'
-        return
-      }
-      chatCharacteristic = chars[0]
-      peripheral.subscribe(chatCharacteristic)
-
-      const inviteData = JSON.stringify({ t: 'invite', n: deviceName })
-      peripheral.write(chatCharacteristic, Buffer.from(inviteData), true)
-      send({ type: 'inviteSent' })
-    })
-
-    peripheral.on('notify', (char, data, error) => {
-      if (error || !data) return
-      try {
-        const msg = JSON.parse(Buffer.from(data).toString())
-        handleBLEMessage(msg)
-      } catch (e) {
-        send({ type: 'error', message: 'Bad notify data' })
-      }
-    })
-
-    peripheral.on('write', (char, error) => {
-      if (error) send({ type: 'error', message: 'Write error: ' + error })
-    })
-  })
-
-  central.on('disconnect', () => {
-    if (role === 'inviter' || role === 'idle') {
-      connectedPeripheral = null
-      chatCharacteristic = null
-      if (role !== 'idle') {
-        role = 'idle'
-        send({ type: 'disconnected' })
-      }
-    }
-  })
-
-  central.on('connectFail', (id, error) => {
-    send({ type: 'error', message: 'Connect failed: ' + error })
-    role = 'idle'
-  })
-}
-
-function setupManager() {
-  manager = new PeripheralManager()
-
-  chatCharMutable = new Characteristic(CHAT_UUID, {
-    write: true,
-    notify: true
-  })
-
-  manager.on('stateChange', (state) => {
-    if (state === 'poweredOn') {
-      const service = new Service(SERVICE_UUID, [chatCharMutable])
-      manager.addService(service)
-    }
-  })
-
-  manager.on('serviceAdd', (uuid, error) => {
-    if (error) {
-      send({ type: 'error', message: 'Failed to add service: ' + error })
-    } else {
-      serviceAdded = true
-      checkReady()
-    }
-  })
-
-  manager.on('writeRequest', (requests) => {
-    for (const req of requests) {
-      manager.respondToRequest(req, PeripheralManager.ATT_SUCCESS)
-      if (req.data) {
-        try {
-          const msg = JSON.parse(Buffer.from(req.data).toString())
-          handleBLEMessage(msg)
-        } catch (e) {
-          send({ type: 'error', message: 'Bad write data' })
-        }
-      }
-    }
-  })
-
-  manager.on('subscribe', (centralHandle) => {
-    subscribedCentralHandle = centralHandle
-  })
-
-  manager.on('unsubscribe', () => {
-    if (role === 'invitee') {
-      role = 'idle'
-      subscribedCentralHandle = null
-      send({ type: 'disconnected' })
-    }
-  })
-}
-
-function checkReady() {
-  if (ready) return
-  if (
-    central &&
-    central.state === 'poweredOn' &&
-    manager &&
-    manager.state === 'poweredOn' &&
-    serviceAdded
-  ) {
-    ready = true
-    send({ type: 'ready' })
-  }
-}
-
-function setAdvertising(enabled) {
-  advertising = enabled
-  if (enabled) {
-    manager.startAdvertising({
-      name: deviceName,
-      serviceUUIDs: [SERVICE_UUID]
-    })
-    send({ type: 'advertisingStarted' })
-  } else {
-    manager.stopAdvertising()
-    send({ type: 'advertisingStopped' })
-  }
-}
-
-function setScan(enabled) {
-  scanning = enabled
-  if (enabled) {
-    central.startScan([SERVICE_UUID])
-    send({ type: 'scanStarted' })
-  } else {
-    central.stopScan()
-    discoveredMap.clear()
-    send({ type: 'scanStopped' })
-  }
-}
-
-function inviteDevice(id) {
-  const discovered = discoveredMap.get(id)
-  if (!discovered) {
-    send({ type: 'error', message: 'Device not found: ' + id })
-    return
-  }
-  if (role !== 'idle') {
-    send({ type: 'error', message: 'Already in a session' })
-    return
-  }
-  role = 'inviter'
-  central.stopScan()
-  central.connect(discovered)
-}
-
-function acceptInvite() {
-  if (role !== 'invitee' || !subscribedCentralHandle) {
-    send({ type: 'error', message: 'No invite to accept' })
-    return
-  }
-  const data = Buffer.from(JSON.stringify({ t: 'accept' }))
-  manager.updateValue(chatCharMutable, data)
-  send({ type: 'chatStarted' })
-}
-
-function rejectInvite() {
-  if (role !== 'invitee') return
-  const data = Buffer.from(JSON.stringify({ t: 'reject' }))
-  if (subscribedCentralHandle) {
-    manager.updateValue(chatCharMutable, data)
-  }
-  role = 'idle'
-  subscribedCentralHandle = null
-  send({ type: 'inviteRejected' })
-}
-
-function sendMessage(text) {
-  const payload = Buffer.from(JSON.stringify({ t: 'msg', d: text }))
-
-  if (role === 'inviter' && connectedPeripheral && chatCharacteristic) {
-    connectedPeripheral.write(chatCharacteristic, payload, true)
-    send({ type: 'message', text, from: 'local' })
-  } else if (role === 'invitee' && subscribedCentralHandle) {
-    manager.updateValue(chatCharMutable, payload)
-    send({ type: 'message', text, from: 'local' })
-  } else {
-    send({ type: 'error', message: 'Not connected' })
-  }
-}
-
-function disconnect() {
-  if (role === 'inviter' && connectedPeripheral) {
-    central.disconnect(connectedPeripheral)
-  }
-  connectedPeripheral = null
-  chatCharacteristic = null
-  subscribedCentralHandle = null
-  role = 'idle'
-  send({ type: 'disconnected' })
-}
+const session = new Session({
+  central,
+  server,
+  deviceName: Bare.argv[0] || 'BareDevice',
+  send: (msg) => ipc.write(Buffer.from(JSON.stringify(msg)))
+})
 
 ipc.on('data', (data) => {
   try {
     const msg = JSON.parse(data.toString())
 
     switch (msg.type) {
-      case 'setName':
-        deviceName = msg.name
-        break
       case 'setAdvertising':
-        setAdvertising(msg.enabled)
+        session.setAdvertising(msg.enabled)
         break
       case 'setScan':
-        setScan(msg.enabled)
+        session.setScan(msg.enabled)
         break
       case 'invite':
-        inviteDevice(msg.id)
+        session.inviteDevice(msg.id)
         break
       case 'accept':
-        acceptInvite()
+        session.acceptInvite()
         break
       case 'reject':
-        rejectInvite()
+        session.rejectInvite()
         break
       case 'send':
-        sendMessage(msg.text)
+        session.sendMessage(msg.text)
         break
       case 'disconnect':
-        disconnect()
+        session.disconnect()
         break
     }
   } catch (e) {
-    send({ type: 'error', message: 'IPC parse error: ' + e.message })
+    session.send({ type: 'error', message: 'IPC parse error: ' + e.message })
   }
 })
 
-setupCentral()
-setupManager()
-
 Bare.on('exit', () => {
-  if (manager) manager.destroy()
-  if (central) central.destroy()
+  session.destroy()
 })

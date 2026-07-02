@@ -35,8 +35,8 @@
     "b4a": "^1.6.7",
     "babel-preset-expo": "~55.0.8",
     "bare-assert": "^1.0.2",
+    "bare-bluetooth": "^0.2.0",
     "bare-buffer": "^3.1.2",
-    "bare-bluetooth-apple": "^0.2.1",
     "bare-ffmpeg": "^1.1.0",
     "bare-fs": "^4.4.9",
     "bare-http1": "^4.0.2",
@@ -64,7 +64,7 @@
     "react-dom": "19.2.0",
     "react-native": "0.83.6",
     "react-native-b4a": "^0.0.4",
-    "react-native-bare-kit": "^0.12.0",
+    "react-native-bare-kit": "^0.15.0",
     "react-native-reanimated": "4.2.1",
     "react-native-safe-area-context": "~5.6.2",
     "react-native-screens": "~4.23.0",
@@ -77,6 +77,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.10",
+    "bare-pack": "^1.5.1",
     "prettier": "^3.5.3",
     "prettier-config-holepunch": "^2.0.0",
     "typescript": "~5.9.2"

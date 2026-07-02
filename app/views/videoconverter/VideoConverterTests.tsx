@@ -44,7 +44,7 @@ export default function VideoConverterTest() {
   const [videoUrl, setVideoUrl] = useState('')
   const [status, setStatus] = useState<PlayerStatus>('idle')
   const [error, setError] = useState('')
-  const [selectedVideo, setSelectedVideo] = useState('sample_30s.mkv')
+  const [selectedVideo, setSelectedVideo] = useState('sample_30s-mkv.mkv')
   const [totalDuration, setTotalDuration] = useState(0)
   const [bareDir, setBareDir] = useState('')
 
@@ -96,12 +96,12 @@ export default function VideoConverterTest() {
 
       const videos = [
         {
-          name: 'sample_30s.mkv',
-          asset: require('../../../assets/videos/sample_30s.mkv')
+          name: 'sample_30s-mkv.mkv',
+          asset: require('../../../assets/videos/sample_30s-mkv.mkv')
         },
         {
-          name: 'sample_30s.avi',
-          asset: require('../../../assets/videos/sample_30s.avi')
+          name: 'sample_30s-avi.avi',
+          asset: require('../../../assets/videos/sample_30s-avi.avi')
         },
         {
           name: 'sample_4min.mkv',
@@ -164,7 +164,7 @@ export default function VideoConverterTest() {
         </ThemedText>
 
         <View style={styles.videoButtons}>
-          {['sample_30s.mkv', 'sample_30s.avi', 'sample_4min.mkv'].map((name) => (
+          {['sample_30s-mkv.mkv', 'sample_30s-avi.avi', 'sample_4min.mkv'].map((name) => (
             <TouchableOpacity
               key={name}
               style={[styles.videoButton, selectedVideo === name && styles.videoButtonActive]}

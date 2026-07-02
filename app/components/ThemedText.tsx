@@ -8,7 +8,9 @@ interface ThemedTextProps extends TextProps {
 
 const ThemedText: React.FC<ThemedTextProps> = ({ children, style, ...props }) => {
   const theme = useColorScheme()
-  const themedStyle = [style, { color: theme === 'dark' ? 'white' : 'black' }]
+  // Theme color is the default; an explicit `color` in `style` overrides it
+  // (otherwise white/black would clobber intentional colors like error text).
+  const themedStyle = [{ color: theme === 'dark' ? 'white' : 'black' }, style]
 
   return (
     <Text style={themedStyle} {...props}>
