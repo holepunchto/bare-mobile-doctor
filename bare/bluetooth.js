@@ -30,6 +30,8 @@ function findByUUID(items, uuid) {
   return null
 }
 
+// Wire format: messages travel as short JSON arrays ([tag, ...args]) to save
+// bytes over BLE, then decode/encode maps them to/from readable {t, ...} objects.
 function decodeBLEMessage(msg) {
   if (!Array.isArray(msg)) return msg
 
