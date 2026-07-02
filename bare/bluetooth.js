@@ -844,9 +844,6 @@ ipc.on('data', (data) => {
     const msg = JSON.parse(data.toString())
 
     switch (msg.type) {
-      case 'setName':
-        session.deviceName = msg.name
-        break
       case 'setAdvertising':
         session.setAdvertising(msg.enabled)
         break
