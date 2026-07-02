@@ -3,15 +3,17 @@ const FramedStream = require('framed-stream')
 const { Central, Server, Service, Characteristic } = require('bare-bluetooth')
 
 const SERVICE_UUID = 'B4A3C8A7-0000-1000-8000-00805F9B34FB'
-const CHAT_UUID = 'B4A3C8A7-0001-1000-8000-00805F9B34FB'
-const WRITE_UUID = 'B4A3C8A7-0002-1000-8000-00805F9B34FB'
-const PREFERRED_MTU = 512
-const INVITE_WRITE_WITH_RESPONSE = false
+// Readable characteristic that carries the L2CAP PSM the server published, so a
+// central can learn where to open the connection-oriented channel.
+const PSM_UUID = 'B4A3C8A7-0003-1000-8000-00805F9B34FB'
 const CONNECT_TIMEOUT_MS = 15000
-const INVITE_WRITE_DELAY_MS = 100 // let the subscription settle before writing the invite
 
 const isAndroid = Bare.platform === 'android'
 const scanOptions = isAndroid ? { scanMode: Central.SCAN_MODE_LOW_LATENCY } : undefined
+
+function serialize(msg) {
+  return Buffer.from(JSON.stringify(msg))
+}
 
 function normalizeUUID(uuid) {
   return String(uuid || '')
@@ -29,12 +31,6 @@ function findByUUID(items, uuid) {
     if (matchesUUID(item.uuid, uuid)) return item
   }
   return null
-}
-
-// Wire messages between the two devices are small JSON objects: { t: <tag>, ... }.
-// Both peers run this same worklet, so this shape is the whole protocol.
-function serialize(msg) {
-  return Buffer.from(JSON.stringify(msg))
 }
 
 // Register a batch of "just re-emit this over IPC" listeners. Each entry maps a
@@ -55,18 +51,50 @@ class ToggleState {
   static REQUESTED = 'requested'
 }
 
+// A framed, bidirectional message channel over an L2CAP Duplex. Both peers use
+// the same object: once the channel is open there is no central/server
+// asymmetry, so the chat protocol runs identically on either side.
+class PeerLink extends EventEmitter {
+  constructor(channel) {
+    super()
+    this._stream = new FramedStream(channel)
+
+    this._stream.on('data', (data) => {
+      let msg
+      try {
+        msg = JSON.parse(Buffer.from(data).toString())
+      } catch (e) {
+        this.emit('error', `Bad BLE data (${data.byteLength} bytes)`)
+        return
+      }
+      this.emit('message', msg)
+    })
+
+    // L2CAP is reliable: a peer leaving surfaces as end/close/error on the
+    // stream, so we don't need platform-specific disconnect detection.
+    this._stream.on('close', () => this.emit('close'))
+    this._stream.on('error', () => this.emit('close'))
+  }
+
+  send(msg) {
+    this._stream.write(serialize(msg))
+  }
+
+  close() {
+    this._stream.destroy()
+  }
+}
+
+// Central role: scans, connects, reads the peer's PSM and opens the L2CAP
+// channel. Emits 'link' with a PeerLink once the channel is open.
 class BLECentral extends EventEmitter {
   constructor(opts) {
     super()
     this.serviceUUID = opts.serviceUUID
-    this.chatUUID = opts.chatUUID
-    this.writeUUID = opts.writeUUID
-    this.preferredMTU = opts.preferredMTU
+    this.psmUUID = opts.psmUUID
 
     this.scanning = ToggleState.OFF
-    this.connectedPeripheral = null
-    this.notifyChar = null
-    this.writeChar = null
+    this.peripheral = null
     this.discoveredPeripherals = new Map()
 
     this._central = new Central()
@@ -80,7 +108,6 @@ class BLECentral extends EventEmitter {
   _setup() {
     this._central.on('stateChange', (bleState) => {
       this.emit('stateChange', bleState)
-
       if (bleState === 'poweredOn') {
         this.emit('ready')
         if (this.scanning === ToggleState.REQUESTED) this.startScan()
@@ -94,103 +121,79 @@ class BLECentral extends EventEmitter {
       if (!name && discovered.serviceData && discovered.serviceData[this.serviceUUID]) {
         name = Buffer.from(discovered.serviceData[this.serviceUUID]).toString()
       }
-      name = name || 'Unknown'
 
-      this.emit('discovered', { id: discovered.id, name, rssi: discovered.rssi })
+      this.emit('discovered', { id: discovered.id, name: name || 'Unknown', rssi: discovered.rssi })
     })
 
-    this._central.on('connect', (peripheral) => {
-      this.connectedPeripheral = peripheral
+    this._central.on('connect', (peripheral) => this._onConnect(peripheral))
 
-      this.emit('log', `Connected: ${peripheral.name || peripheral.id || 'unknown'}`)
-
-      peripheral.on('mtuChanged', (mtu) => {
-        this.emit('mtuChanged', { mtu })
-      })
-
-      peripheral.on('servicesDiscover', (services) => {
-        this.emit('log', `Services discovered: ${services.length}`)
-
-        const service = findByUUID(services, this.serviceUUID)
-
-        if (!service) {
-          this.emit('error', 'Chat service not found')
-          this.emit('connectFailed')
-          return
-        }
-
-        this.emit('log', 'Discovering characteristics')
-        peripheral.discoverCharacteristics(service, [this.chatUUID, this.writeUUID])
-      })
-
-      peripheral.on('characteristicsDiscover', (service, chars) => {
-        this.emit('log', `Characteristics discovered: ${chars.length}`)
-
-        const notifyChar = findByUUID(chars, this.chatUUID)
-        if (!notifyChar) {
-          this.emit('error', 'Notify characteristic not found')
-          this.emit('connectFailed')
-          return
-        }
-
-        const writeChar = findByUUID(chars, this.writeUUID)
-        if (!writeChar) {
-          this.emit('error', 'Write characteristic not found')
-          this.emit('connectFailed')
-          return
-        }
-
-        this.notifyChar = notifyChar
-        this.writeChar = writeChar
-
-        this.emit('log', 'Subscribing to notify characteristic')
-        peripheral.subscribe(notifyChar)
-      })
-
-      peripheral.on('notifyState', (char, isNotifying) => {
-        this.emit('log', `Notify state: ${isNotifying}`)
-
-        if (!isNotifying || !this.writeChar) return
-        this.emit('connected')
-      })
-
-      peripheral.on('notify', (char, data) => {
-        this.emit('log', `Notify received: ${data.byteLength} bytes`)
-        this.emit('message', data)
-      })
-
-      peripheral.on('write', (char) => {
-        this.emit('log', 'Write sent')
-        this.emit('writeComplete', { error: null })
-      })
-
-      peripheral.on('error', (err) => {
-        this.emit('error', err.message || String(err))
-        if (!this.notifyChar) this.emit('connectFailed')
-      })
-
-      peripheral.requestMtu(this.preferredMTU)
-
-      this.emit('log', 'Discovering services')
-      peripheral.discoverServices([this.serviceUUID])
-    })
-
-    this._central.on('disconnect', (peripheral) => {
+    this._central.on('disconnect', () => {
       this.emit('log', 'Central disconnected')
-      this.emit('disconnected')
+      this.emit('closed')
     })
 
     this._central.on('error', (err) => {
       this.emit('error', err.message || String(err))
 
-      // iOS & Android emit errored disconnects/failed connects as 'error' (not
+      // iOS & Android report errored connects/disconnects as 'error' (not
       // 'disconnect'), so route the codes or the session stays stuck connected.
       if (err && err.code === 'CONNECTION_FAILED') {
         this.emit('connectFailed')
       } else if (err && err.code === 'DISCONNECT') {
-        this.emit('disconnected')
+        this.emit('closed')
       }
     })
+  }
+
+  _onConnect(peripheral) {
+    this.peripheral = peripheral
+    this.emit('log', `Connected: ${peripheral.name || peripheral.id || 'unknown'}`)
+
+    peripheral.on('servicesDiscover', (services) => {
+      const service = findByUUID(services, this.serviceUUID)
+      if (!service) {
+        this.emit('error', 'Chat service not found')
+        this.emit('connectFailed')
+        return
+      }
+      peripheral.discoverCharacteristics(service, [this.psmUUID])
+    })
+
+    peripheral.on('characteristicsDiscover', (service, chars) => {
+      const psmChar = findByUUID(chars, this.psmUUID)
+      if (!psmChar) {
+        this.emit('error', 'PSM characteristic not found')
+        this.emit('connectFailed')
+        return
+      }
+      this.emit('log', 'Reading L2CAP PSM')
+      peripheral.read(psmChar)
+    })
+
+    peripheral.on('read', (char, data) => {
+      const text = Buffer.from(data).toString()
+      const psm = Number(text)
+      if (!psm) {
+        this.emit('error', `Invalid PSM: ${JSON.stringify(text)}`)
+        this.emit('connectFailed')
+        return
+      }
+      this.emit('log', `Opening L2CAP channel psm=${psm}`)
+      peripheral.openL2CAPChannel(psm)
+    })
+
+    peripheral.on('channelOpen', (channel) => {
+      this.emit('log', 'L2CAP channel open')
+      this.emit('link', new PeerLink(channel))
+    })
+
+    peripheral.on('error', (err) => {
+      this.emit('error', err.message || String(err))
+      this.emit('connectFailed')
+    })
+
+    this.emit('log', 'Discovering services')
+    peripheral.discoverServices([this.serviceUUID])
   }
 
   startScan() {
@@ -237,26 +240,8 @@ class BLECentral extends EventEmitter {
   }
 
   disconnect() {
-    if (this.connectedPeripheral) {
-      this._central.disconnect(this.connectedPeripheral)
-    }
-    this.resetConnection()
-  }
-
-  write(data, withResponse) {
-    if (!this.connectedPeripheral || !this.writeChar) return false
-    this.connectedPeripheral.write(this.writeChar, data, withResponse)
-    return true
-  }
-
-  send(msg, withResponse) {
-    return this.write(serialize(msg), withResponse)
-  }
-
-  resetConnection() {
-    this.connectedPeripheral = null
-    this.notifyChar = null
-    this.writeChar = null
+    if (this.peripheral) this._central.disconnect(this.peripheral)
+    this.peripheral = null
   }
 
   destroy() {
@@ -264,32 +249,20 @@ class BLECentral extends EventEmitter {
   }
 }
 
+// Peripheral role: advertises the service, publishes an L2CAP channel and hands
+// out its PSM. Emits 'link' with a PeerLink once a central opens the channel.
 class BLEServer extends EventEmitter {
   constructor(opts) {
     super()
     this.serviceUUID = opts.serviceUUID
-    this.chatUUID = opts.chatUUID
-    this.writeUUID = opts.writeUUID
+    this.psmUUID = opts.psmUUID
 
     this.advertising = ToggleState.OFF
     this.serviceAdded = false
-    this.centralSubscribed = false
     this._deviceName = null
+    this._psm = null
 
-    // Outbound notification queue with BLE flow control: iOS retries on
-    // 'readyToUpdate' when the transmit queue is full, Android sends one at a
-    // time and signals completion via 'notifySent'.
-    this._notifyQueue = []
-    this._notifyInFlight = false
-
-    this.notifyChar = new Characteristic(opts.chatUUID, {
-      read: true,
-      notify: true
-    })
-    this.writeChar = new Characteristic(opts.writeUUID, {
-      write: true,
-      writeWithoutResponse: true
-    })
+    this.psmChar = new Characteristic(opts.psmUUID, { read: true })
 
     this._server = new Server()
     this._setup()
@@ -301,13 +274,32 @@ class BLEServer extends EventEmitter {
 
   _setup() {
     this._server.on('stateChange', (bleState) => {
-      if (bleState === 'poweredOn') this._addService()
+      if (bleState === 'poweredOn') this._start()
     })
 
-    this._server.on('serviceAdd', (uuid) => {
+    this._server.on('serviceAdd', () => {
       this.serviceAdded = true
       this.emit('ready')
       if (this.advertising === ToggleState.REQUESTED) this.startAdvertising()
+    })
+
+    this._server.on('channelPublish', (psm) => {
+      this._psm = psm
+      this.emit('log', `L2CAP channel published psm=${psm}`)
+      if (this.advertising === ToggleState.REQUESTED) this.startAdvertising()
+    })
+
+    this._server.on('channelOpen', (channel) => {
+      this.emit('log', 'L2CAP channel open')
+      this.emit('link', new PeerLink(channel))
+    })
+
+    // A central reads this to discover the PSM before opening the channel. The
+    // PSM is a plain number, so send it as raw text (not JSON) — the central
+    // parses it with Number().
+    this._server.on('readRequest', (req) => {
+      const value = this._psm != null ? Buffer.from(String(this._psm)) : Buffer.alloc(0)
+      this._server.respondToRequest(req, Server.ATT_SUCCESS, value)
     })
 
     this._server.on('error', (err) => {
@@ -320,79 +312,15 @@ class BLEServer extends EventEmitter {
       this.emit('error', err.message || String(err))
     })
 
-    this._server.on('readRequest', (req) => {
-      this.emit(
-        'log',
-        `Read request: ${req.characteristicUuid || 'unknown'}, offset=${req.offset || 0}`
-      )
-      this._server.respondToRequest(req, Server.ATT_SUCCESS, Buffer.alloc(0))
-    })
-
-    this._server.on('writeRequest', (requests) => {
-      for (const req of requests) {
-        if (req.characteristicUuid && !matchesUUID(req.characteristicUuid, this.writeUUID)) {
-          this.emit(
-            'log',
-            `Ignoring write for ${req.characteristicUuid}; expected ${this.writeUUID}`
-          )
-          continue
-        }
-
-        this.emit(
-          'log',
-          `Write request: ${req.data ? req.data.byteLength : 0} bytes, response=${req.responseNeeded}`
-        )
-
-        if (req.responseNeeded) {
-          this._server.respondToRequest(req, Server.ATT_SUCCESS, null)
-        }
-
-        if (req.data) this.emit('message', req.data)
-      }
-    })
-
-    this._server.on('subscribe', (_peer, characteristicUuid) => {
-      if (characteristicUuid && !matchesUUID(characteristicUuid, this.chatUUID)) {
-        this.emit('log', `Ignoring subscribe for ${characteristicUuid}; expected ${this.chatUUID}`)
-        return
-      }
-
-      this.centralSubscribed = true
-      this.emit('log', `Subscribed central: characteristic=${characteristicUuid || 'unknown'}`)
-      this.emit('subscribed')
-    })
-
-    this._server.on('unsubscribe', (_peer, characteristicUuid) => {
-      if (characteristicUuid && !matchesUUID(characteristicUuid, this.chatUUID)) return
-      this.centralSubscribed = false
-      this.emit('unsubscribed')
-    })
-
-    // Android signals a central leaving via 'disconnected'; iOS only via
-    // 'unsubscribe'. Funnel both into the same teardown path.
-    this._server.on('disconnected', (deviceAddress) => {
-      this.emit('log', `Server disconnected: ${deviceAddress}`)
-      this.centralSubscribed = false
-      this.emit('unsubscribed')
-    })
-
-    // iOS: transmit queue drained, safe to resend.
-    this._server.on('readyToUpdate', () => this._drainNotifyQueue())
-
-    // Android: previous notification delivered, send the next one.
-    this._server.on('notifySent', () => {
-      this._notifyInFlight = false
-      this._drainNotifyQueue()
-    })
-
-    this._addService()
+    this._start()
   }
 
-  _addService() {
-    if (this.serviceAdded || this._server.state !== 'poweredOn') return
-
-    const service = new Service(this.serviceUUID, [this.notifyChar, this.writeChar])
-    this._server.addService(service)
+  _start() {
+    if (this._server.state !== 'poweredOn') return
+    if (!this.serviceAdded) {
+      this._server.addService(new Service(this.serviceUUID, [this.psmChar]))
+    }
+    if (this._psm == null) this._server.publishChannel()
   }
 
   startAdvertising(deviceName) {
@@ -404,9 +332,12 @@ class BLEServer extends EventEmitter {
       return
     }
 
-    if (!this.serviceAdded) {
-      this._addService()
-      this.emit('log', 'Advertising is waiting for service add')
+    // Both the GATT service (for PSM discovery) and the published PSM must be
+    // ready before we invite centrals to connect.
+    if (!this.serviceAdded || this._psm == null) {
+      this._start()
+      this.advertising = ToggleState.REQUESTED
+      this.emit('log', 'Advertising is waiting for service and PSM')
       return
     }
 
@@ -435,58 +366,27 @@ class BLEServer extends EventEmitter {
     }
   }
 
-  notify(data) {
-    if (!this.centralSubscribed) return false
-    this._notifyQueue.push(data)
-    this._drainNotifyQueue()
-    return true
-  }
-
-  send(msg) {
-    return this.notify(serialize(msg))
-  }
-
-  _drainNotifyQueue() {
-    while (this._notifyQueue.length > 0) {
-      // Android sends one notification at a time; wait for 'notifySent'.
-      if (isAndroid && this._notifyInFlight) return
-
-      const ok = this._server.updateValue(this.notifyChar, this._notifyQueue[0])
-      // iOS: transmit queue full, wait for 'readyToUpdate' and keep the item.
-      if (!ok) return
-
-      this._notifyQueue.shift()
-      if (isAndroid) this._notifyInFlight = true
-    }
-  }
-
-  resetConnection() {
-    this.centralSubscribed = false
-    this._notifyQueue = []
-    this._notifyInFlight = false
-  }
-
   destroy() {
     this._server.destroy()
   }
 }
 
+// Orchestrates the invite/chat protocol over a single PeerLink. Whoever calls
+// inviteDevice() is the inviter (drives the central); the other side becomes the
+// invitee when it receives the invite. Data flows the same way for both.
 class Session {
   constructor(opts) {
-    const { central, server, inviteWriteWithResponse, deviceName, send } = opts
+    const { central, server, deviceName, send } = opts
 
     this.central = central
     this.server = server
-    this.inviteWriteWithResponse = inviteWriteWithResponse
     this.deviceName = deviceName
     this.send = send
 
     this.state = {
       ready: false,
-
       inviteRole: 'idle',
-      inviteWriteSent: false,
-      inviteWritePendingResponse: false,
+      link: null,
       connectTimer: null
     }
 
@@ -502,7 +402,6 @@ class Session {
     forward(this.central, this.send, {
       stateChange: (state) => ({ type: 'bleState', state }),
       discovered: ({ id, name, rssi }) => ({ type: 'discovered', id, name, rssi }),
-      mtuChanged: ({ mtu }) => ({ type: 'bleState', state: `on (mtu ${mtu})` }),
       scanStarted: () => ({ type: 'scanStarted' }),
       scanStopped: () => ({ type: 'scanStopped' }),
       log: (message) => ({ type: 'log', message }),
@@ -511,14 +410,12 @@ class Session {
 
     this.central.on('ready', () => this.checkReady())
 
-    this.central.on('message', (data) => this.onPeerData(data))
-
-    this.central.on('connected', () => {
+    // We opened the channel, so we are the inviter: send the invite right away.
+    this.central.on('link', (link) => {
       this.clearConnectTimeout()
-      this.state.inviteWriteSent = false
-      if (this.state.inviteRole === 'inviter') {
-        setTimeout(() => this.writeInvite(), INVITE_WRITE_DELAY_MS)
-      }
+      this.attachLink(link)
+      link.send({ t: 'invite', n: this.deviceName })
+      this.send({ type: 'inviteSent' })
     })
 
     this.central.on('connectFailed', () => {
@@ -529,28 +426,7 @@ class Session {
       this.central.setScan(true)
     })
 
-    this.central.on('writeComplete', ({ error }) => {
-      const wasInviteWrite = this.state.inviteWritePendingResponse
-      if (wasInviteWrite) this.state.inviteWritePendingResponse = false
-
-      if (error) {
-        this.send({ type: 'error', message: error })
-        return
-      }
-
-      if (this.state.inviteRole === 'inviter' && wasInviteWrite) this.send({ type: 'inviteSent' })
-    })
-
-    this.central.on('disconnected', () => {
-      this.clearConnectTimeout()
-      if (this.state.inviteRole === 'inviter' || this.state.inviteRole === 'idle') {
-        this.resetConnection()
-        if (this.state.inviteRole !== 'idle') {
-          this.state.inviteRole = 'idle'
-          this.send({ type: 'disconnected' })
-        }
-      }
-    })
+    this.central.on('closed', () => this.onLinkClosed())
   }
 
   setupServerListeners() {
@@ -563,14 +439,21 @@ class Session {
 
     this.server.on('ready', () => this.checkReady())
 
-    this.server.on('message', (data) => this.onPeerData(data))
-
-    this.server.on('unsubscribed', () => {
-      if (this.state.inviteRole === 'invitee') {
-        this.state.inviteRole = 'idle'
-        this.send({ type: 'disconnected' })
+    // A central connected to us: attach and wait for its invite message.
+    this.server.on('link', (link) => {
+      if (this.state.link) {
+        link.close()
+        return
       }
+      this.attachLink(link)
     })
+  }
+
+  attachLink(link) {
+    this.state.link = link
+    link.on('message', (msg) => this.handlePeerMessage(msg))
+    link.on('error', (message) => this.send({ type: 'error', message }))
+    link.on('close', () => this.onLinkClosed())
   }
 
   checkReady() {
@@ -586,24 +469,6 @@ class Session {
     }
   }
 
-  resetConnection() {
-    this.central.resetConnection()
-    this.server.resetConnection()
-    this.state.inviteWritePendingResponse = false
-  }
-
-  onPeerData(data) {
-    const buffer = Buffer.from(data)
-    let msg
-    try {
-      msg = JSON.parse(buffer.toString())
-    } catch (e) {
-      this.send({ type: 'error', message: `Bad BLE data (${buffer.length} bytes)` })
-      return
-    }
-    this.handlePeerMessage(msg)
-  }
-
   handlePeerMessage(msg) {
     switch (msg.t) {
       case 'invite':
@@ -617,9 +482,7 @@ class Session {
         break
       case 'reject':
         if (this.state.inviteRole === 'inviter') {
-          this.state.inviteRole = 'idle'
-          this.central.disconnect()
-          this.resetConnection()
+          this.teardown()
           this.send({ type: 'inviteRejected' })
         }
         break
@@ -628,33 +491,31 @@ class Session {
         break
       case 'disconnect':
         if (this.state.inviteRole !== 'idle') {
-          if (this.state.inviteRole === 'inviter') this.central.disconnect()
-          this.resetConnection()
-          this.state.inviteRole = 'idle'
+          this.teardown()
           this.send({ type: 'disconnected' })
         }
         break
     }
   }
 
-  // The peer we exchange data with depends on our role: an inviter drives the
-  // remote peripheral through the central; an invitee notifies its subscribed
-  // central through the server.
-  sendToPeer(msg, withResponse = true) {
-    if (this.state.inviteRole === 'inviter') return this.central.send(msg, withResponse)
-    if (this.state.inviteRole === 'invitee') return this.server.send(msg)
-    return false
+  // Close the link and drop any BLE connection we opened. Safe to call from any
+  // role: central.disconnect() is a no-op when we never connected.
+  teardown() {
+    if (this.state.link) {
+      this.state.link.close()
+      this.state.link = null
+    }
+    this.central.disconnect()
+    this.state.inviteRole = 'idle'
   }
 
-  writeInvite() {
-    if (this.state.inviteWriteSent || !this.central.writeChar) return
-
-    this.state.inviteWriteSent = true
-    this.state.inviteWritePendingResponse = this.inviteWriteWithResponse
-
-    this.central.send({ t: 'invite', n: this.deviceName }, this.inviteWriteWithResponse)
-
-    if (!this.inviteWriteWithResponse) this.send({ type: 'inviteSent' })
+  onLinkClosed() {
+    this.clearConnectTimeout()
+    this.state.link = null
+    if (this.state.inviteRole !== 'idle') {
+      this.state.inviteRole = 'idle'
+      this.send({ type: 'disconnected' })
+    }
   }
 
   setScan(enabled) {
@@ -687,11 +548,9 @@ class Session {
     this.clearConnectTimeout()
     this.state.connectTimer = setTimeout(() => {
       this.state.connectTimer = null
-      if (this.state.inviteRole !== 'inviter') return
+      if (this.state.inviteRole !== 'inviter' || this.state.link) return
 
-      this.central.disconnect()
-      this.resetConnection()
-      this.state.inviteRole = 'idle'
+      this.teardown()
       this.send({ type: 'error', message: 'Connection timed out' })
       this.send({ type: 'disconnected' })
       this.central.setScan(true)
@@ -706,40 +565,39 @@ class Session {
   }
 
   acceptInvite() {
-    if (this.state.inviteRole !== 'invitee' || !this.server.centralSubscribed) {
+    if (this.state.inviteRole !== 'invitee' || !this.state.link) {
       this.send({ type: 'error', message: 'No invite to accept' })
       return
     }
-    this.server.send({ t: 'accept' })
+    this.state.link.send({ t: 'accept' })
     this.send({ type: 'chatStarted' })
   }
 
   rejectInvite() {
     if (this.state.inviteRole !== 'invitee') return
-    if (this.server.centralSubscribed) this.server.send({ t: 'reject' })
-    this.state.inviteRole = 'idle'
-    this.server.resetConnection()
+    if (this.state.link) this.state.link.send({ t: 'reject' })
+    this.teardown()
     this.send({ type: 'inviteRejected' })
   }
 
   sendMessage(text) {
-    if (!this.sendToPeer({ t: 'msg', d: text })) {
+    if (this.state.inviteRole === 'idle' || !this.state.link) {
       this.send({ type: 'error', message: 'Not connected' })
       return
     }
+    this.state.link.send({ t: 'msg', d: text })
     this.send({ type: 'message', text, from: 'local' })
   }
 
   disconnect() {
     this.clearConnectTimeout()
-    this.sendToPeer({ t: 'disconnect' }, false)
-    if (this.state.inviteRole === 'inviter') this.central.disconnect()
-    this.resetConnection()
-    this.state.inviteRole = 'idle'
+    if (this.state.link) this.state.link.send({ t: 'disconnect' })
+    this.teardown()
     this.send({ type: 'disconnected' })
   }
 
   destroy() {
+    this.teardown()
     this.server.destroy()
     this.central.destroy()
   }
@@ -747,23 +605,12 @@ class Session {
 
 const ipc = new FramedStream(BareKit.IPC)
 
-const central = new BLECentral({
-  serviceUUID: SERVICE_UUID,
-  chatUUID: CHAT_UUID,
-  writeUUID: WRITE_UUID,
-  preferredMTU: PREFERRED_MTU
-})
-
-const server = new BLEServer({
-  serviceUUID: SERVICE_UUID,
-  chatUUID: CHAT_UUID,
-  writeUUID: WRITE_UUID
-})
+const central = new BLECentral({ serviceUUID: SERVICE_UUID, psmUUID: PSM_UUID })
+const server = new BLEServer({ serviceUUID: SERVICE_UUID, psmUUID: PSM_UUID })
 
 const session = new Session({
   central,
   server,
-  inviteWriteWithResponse: INVITE_WRITE_WITH_RESPONSE,
   deviceName: Bare.argv[0] || 'BareDevice',
   send: (msg) => ipc.write(Buffer.from(JSON.stringify(msg)))
 })
