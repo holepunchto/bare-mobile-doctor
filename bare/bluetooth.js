@@ -100,10 +100,11 @@ class BLECentral extends EventEmitter {
     this._central.on('discover', (discovered) => {
       this.discoveredPeripherals.set(discovered.id, discovered)
 
-      let name = discovered.name || 'Unknown'
+      let name = discovered.name
       if (!name && discovered.serviceData && discovered.serviceData[this.serviceUUID]) {
         name = Buffer.from(discovered.serviceData[this.serviceUUID]).toString()
       }
+      name = name || 'Unknown'
 
       this.emit('discovered', { id: discovered.id, name, rssi: discovered.rssi })
     })
