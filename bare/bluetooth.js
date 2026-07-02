@@ -31,41 +31,19 @@ function findByUUID(items, uuid) {
   return null
 }
 
-// Wire format: messages travel as short JSON arrays ([tag, ...args]) to save
-// bytes over BLE, then decode/encode maps them to/from readable {t, ...} objects.
-function decodeBLEMessage(msg) {
-  if (!Array.isArray(msg)) return msg
-
-  switch (msg[0]) {
-    case 'i':
-      return { t: 'invite', n: msg[1] }
-    case 'a':
-      return { t: 'accept' }
-    case 'r':
-      return { t: 'reject' }
-    case 'm':
-      return { t: 'msg', d: msg[1] }
-    case 'd':
-      return { t: 'disconnect' }
-    default:
-      return msg
-  }
+// Wire messages between the two devices are small JSON objects: { t: <tag>, ... }.
+// Both peers run this same worklet, so this shape is the whole protocol.
+function serialize(msg) {
+  return Buffer.from(JSON.stringify(msg))
 }
 
-function encodeBLEMessage(msg) {
-  switch (msg.t) {
-    case 'invite':
-      return Buffer.from(JSON.stringify(['i', msg.n]))
-    case 'accept':
-      return Buffer.from(JSON.stringify(['a']))
-    case 'reject':
-      return Buffer.from(JSON.stringify(['r']))
-    case 'msg':
-      return Buffer.from(JSON.stringify(['m', msg.d]))
-    case 'disconnect':
-      return Buffer.from(JSON.stringify(['d']))
-    default:
-      return Buffer.from(JSON.stringify(msg))
+// Register a batch of "just re-emit this over IPC" listeners. Each entry maps a
+// wrapper event to the IPC message it produces, keeping the noisy pass-through
+// forwards out of the handlers that carry real logic.
+function forward(emitter, send, map) {
+  for (const event of Object.keys(map)) {
+    const build = map[event]
+    emitter.on(event, (...args) => send(build(...args)))
   }
 }
 
@@ -271,6 +249,10 @@ class BLECentral extends EventEmitter {
     return true
   }
 
+  send(msg, withResponse) {
+    return this.write(serialize(msg), withResponse)
+  }
+
   resetConnection() {
     this.connectedPeripheral = null
     this.notifyChar = null
@@ -460,6 +442,10 @@ class BLEServer extends EventEmitter {
     return true
   }
 
+  send(msg) {
+    return this.notify(serialize(msg))
+  }
+
   _drainNotifyQueue() {
     while (this._notifyQueue.length > 0) {
       // Android sends one notification at a time; wait for 'notifySent'.
@@ -513,17 +499,19 @@ class Session {
   }
 
   setupCentralListeners() {
-    this.central.on('stateChange', (bleState) => {
-      this.send({ type: 'bleState', state: bleState })
+    forward(this.central, this.send, {
+      stateChange: (state) => ({ type: 'bleState', state }),
+      discovered: ({ id, name, rssi }) => ({ type: 'discovered', id, name, rssi }),
+      mtuChanged: ({ mtu }) => ({ type: 'bleState', state: `on (mtu ${mtu})` }),
+      scanStarted: () => ({ type: 'scanStarted' }),
+      scanStopped: () => ({ type: 'scanStopped' }),
+      log: (message) => ({ type: 'log', message }),
+      error: (message) => ({ type: 'error', message })
     })
 
-    this.central.on('ready', () => {
-      this.checkReady()
-    })
+    this.central.on('ready', () => this.checkReady())
 
-    this.central.on('discovered', ({ id, name, rssi }) => {
-      this.send({ type: 'discovered', id, name, rssi })
-    })
+    this.central.on('message', (data) => this.onPeerData(data))
 
     this.central.on('connected', () => {
       this.clearConnectTimeout()
@@ -541,11 +529,6 @@ class Session {
       this.central.setScan(true)
     })
 
-    this.central.on('message', (data) => {
-      const msg = this.parseBLEMessage(data, 'notify')
-      if (msg) this.handleBLEMessage(msg)
-    })
-
     this.central.on('writeComplete', ({ error }) => {
       const wasInviteWrite = this.state.inviteWritePendingResponse
       if (wasInviteWrite) this.state.inviteWritePendingResponse = false
@@ -558,10 +541,6 @@ class Session {
       if (this.state.inviteRole === 'inviter' && wasInviteWrite) this.send({ type: 'inviteSent' })
     })
 
-    this.central.on('mtuChanged', ({ mtu }) => {
-      this.send({ type: 'bleState', state: `on (mtu ${mtu})` })
-    })
-
     this.central.on('disconnected', () => {
       this.clearConnectTimeout()
       if (this.state.inviteRole === 'inviter' || this.state.inviteRole === 'idle') {
@@ -572,55 +551,25 @@ class Session {
         }
       }
     })
-
-    this.central.on('error', (message) => {
-      this.send({ type: 'error', message })
-    })
-
-    this.central.on('log', (message) => {
-      this.log(message)
-    })
-
-    this.central.on('scanStarted', () => {
-      this.send({ type: 'scanStarted' })
-    })
-
-    this.central.on('scanStopped', () => {
-      this.send({ type: 'scanStopped' })
-    })
   }
 
   setupServerListeners() {
-    this.server.on('ready', () => {
-      this.checkReady()
+    forward(this.server, this.send, {
+      advertisingStarted: () => ({ type: 'advertisingStarted' }),
+      advertisingStopped: () => ({ type: 'advertisingStopped' }),
+      log: (message) => ({ type: 'log', message }),
+      error: (message) => ({ type: 'error', message })
     })
 
-    this.server.on('message', (data) => {
-      const msg = this.parseBLEMessage(data, 'write')
-      if (msg) this.handleBLEMessage(msg)
-    })
+    this.server.on('ready', () => this.checkReady())
+
+    this.server.on('message', (data) => this.onPeerData(data))
 
     this.server.on('unsubscribed', () => {
       if (this.state.inviteRole === 'invitee') {
         this.state.inviteRole = 'idle'
         this.send({ type: 'disconnected' })
       }
-    })
-
-    this.server.on('error', (message) => {
-      this.send({ type: 'error', message })
-    })
-
-    this.server.on('log', (message) => {
-      this.log(message)
-    })
-
-    this.server.on('advertisingStarted', () => {
-      this.send({ type: 'advertisingStarted' })
-    })
-
-    this.server.on('advertisingStopped', () => {
-      this.send({ type: 'advertisingStopped' })
     })
   }
 
@@ -643,9 +592,19 @@ class Session {
     this.state.inviteWritePendingResponse = false
   }
 
-  handleBLEMessage(msg) {
-    msg = decodeBLEMessage(msg)
+  onPeerData(data) {
+    const buffer = Buffer.from(data)
+    let msg
+    try {
+      msg = JSON.parse(buffer.toString())
+    } catch (e) {
+      this.send({ type: 'error', message: `Bad BLE data (${buffer.length} bytes)` })
+      return
+    }
+    this.handlePeerMessage(msg)
+  }
 
+  handlePeerMessage(msg) {
     switch (msg.t) {
       case 'invite':
         if (this.state.inviteRole === 'idle') {
@@ -654,9 +613,7 @@ class Session {
         }
         break
       case 'accept':
-        if (this.state.inviteRole === 'inviter') {
-          this.send({ type: 'chatStarted' })
-        }
+        if (this.state.inviteRole === 'inviter') this.send({ type: 'chatStarted' })
         break
       case 'reject':
         if (this.state.inviteRole === 'inviter') {
@@ -680,34 +637,24 @@ class Session {
     }
   }
 
+  // The peer we exchange data with depends on our role: an inviter drives the
+  // remote peripheral through the central; an invitee notifies its subscribed
+  // central through the server.
+  sendToPeer(msg, withResponse = true) {
+    if (this.state.inviteRole === 'inviter') return this.central.send(msg, withResponse)
+    if (this.state.inviteRole === 'invitee') return this.server.send(msg)
+    return false
+  }
+
   writeInvite() {
     if (this.state.inviteWriteSent || !this.central.writeChar) return
 
     this.state.inviteWriteSent = true
     this.state.inviteWritePendingResponse = this.inviteWriteWithResponse
 
-    const inviteData = encodeBLEMessage({ t: 'invite', n: this.deviceName })
-    this.log(`Writing invite: ${inviteData.byteLength} bytes`)
-    this.central.write(inviteData, this.inviteWriteWithResponse)
+    this.central.send({ t: 'invite', n: this.deviceName }, this.inviteWriteWithResponse)
 
-    if (!this.inviteWriteWithResponse) {
-      this.send({ type: 'inviteSent' })
-    }
-  }
-
-  parseBLEMessage(data, type) {
-    const buffer = Buffer.from(data)
-    const text = buffer.toString()
-
-    try {
-      return JSON.parse(text)
-    } catch (e) {
-      this.send({
-        type: 'error',
-        message: `Bad ${type} data (${buffer.length} bytes): ${JSON.stringify(text)}`
-      })
-      return null
-    }
+    if (!this.inviteWriteWithResponse) this.send({ type: 'inviteSent' })
   }
 
   setScan(enabled) {
@@ -763,55 +710,30 @@ class Session {
       this.send({ type: 'error', message: 'No invite to accept' })
       return
     }
-    const data = encodeBLEMessage({ t: 'accept' })
-    const ok = this.server.notify(data)
-    this.log(`Accept notify queued: ${ok}`)
+    this.server.send({ t: 'accept' })
     this.send({ type: 'chatStarted' })
   }
 
   rejectInvite() {
     if (this.state.inviteRole !== 'invitee') return
-    const data = encodeBLEMessage({ t: 'reject' })
-    if (this.server.centralSubscribed) {
-      const ok = this.server.notify(data)
-      this.log(`Reject notify queued: ${ok}`)
-    }
+    if (this.server.centralSubscribed) this.server.send({ t: 'reject' })
     this.state.inviteRole = 'idle'
     this.server.resetConnection()
     this.send({ type: 'inviteRejected' })
   }
 
   sendMessage(text) {
-    const payload = encodeBLEMessage({ t: 'msg', d: text })
-
-    if (
-      this.state.inviteRole === 'inviter' &&
-      this.central.connectedPeripheral &&
-      this.central.writeChar
-    ) {
-      this.log(`Writing message: ${payload.byteLength} bytes`)
-      this.central.write(payload, true)
-      this.send({ type: 'message', text, from: 'local' })
-    } else if (this.state.inviteRole === 'invitee' && this.server.centralSubscribed) {
-      const ok = this.server.notify(payload)
-      this.log(`Message notify queued: ${ok}`)
-      this.send({ type: 'message', text, from: 'local' })
-    } else {
+    if (!this.sendToPeer({ t: 'msg', d: text })) {
       this.send({ type: 'error', message: 'Not connected' })
+      return
     }
+    this.send({ type: 'message', text, from: 'local' })
   }
 
   disconnect() {
     this.clearConnectTimeout()
-    const disconnectMsg = encodeBLEMessage({ t: 'disconnect' })
-
-    if (this.state.inviteRole === 'inviter' && this.central.connectedPeripheral) {
-      this.central.write(disconnectMsg, false)
-      this.central.disconnect()
-    } else if (this.state.inviteRole === 'invitee' && this.server.centralSubscribed) {
-      this.server.notify(disconnectMsg)
-    }
-
+    this.sendToPeer({ t: 'disconnect' }, false)
+    if (this.state.inviteRole === 'inviter') this.central.disconnect()
     this.resetConnection()
     this.state.inviteRole = 'idle'
     this.send({ type: 'disconnected' })
