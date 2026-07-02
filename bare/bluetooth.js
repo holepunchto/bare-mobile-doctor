@@ -66,6 +66,14 @@ function encodeBLEMessage(msg) {
   }
 }
 
+// Shared lifecycle for scan/advertise toggles: OFF, ON, or REQUESTED (user
+// asked for it but BLE isn't ready yet, so it starts automatically later).
+class ToggleState {
+  static OFF = 'off'
+  static ON = 'on'
+  static REQUESTED = 'requested'
+}
+
 class BLECentral extends EventEmitter {
   constructor(opts) {
     super()
@@ -74,7 +82,7 @@ class BLECentral extends EventEmitter {
     this.writeUUID = opts.writeUUID
     this.preferredMTU = opts.preferredMTU
 
-    this.scanning = 'off'
+    this.scanning = ToggleState.OFF
     this.connectedPeripheral = null
     this.notifyChar = null
     this.writeChar = null
@@ -94,7 +102,7 @@ class BLECentral extends EventEmitter {
 
       if (bleState === 'poweredOn') {
         this.emit('ready')
-        if (this.scanning === 'requested') this.startScan()
+        if (this.scanning === ToggleState.REQUESTED) this.startScan()
       }
     })
 
@@ -205,7 +213,7 @@ class BLECentral extends EventEmitter {
   }
 
   startScan() {
-    if (this.scanning === 'on') return
+    if (this.scanning === ToggleState.ON) return
 
     if (this._central.state !== 'poweredOn') {
       this.emit('log', 'Scan is waiting for Bluetooth power')
@@ -213,20 +221,20 @@ class BLECentral extends EventEmitter {
     }
 
     this._central.startScan([this.serviceUUID], scanOptions)
-    this.scanning = 'on'
+    this.scanning = ToggleState.ON
     this.emit('scanStarted')
   }
 
   stopScan() {
     this._central.stopScan()
-    this.scanning = 'off'
+    this.scanning = ToggleState.OFF
     this.discoveredPeripherals.clear()
     this.emit('scanStopped')
   }
 
   setScan(enabled) {
     if (enabled) {
-      this.scanning = 'requested'
+      this.scanning = ToggleState.REQUESTED
       this.startScan()
     } else {
       this.stopScan()
@@ -240,7 +248,7 @@ class BLECentral extends EventEmitter {
       return false
     }
 
-    if (this.scanning !== 'off') this.stopScan()
+    if (this.scanning !== ToggleState.OFF) this.stopScan()
 
     this.emit('log', `Connecting to: ${discovered.name || discovered.id || 'unknown'}`)
     this._central.connect(discovered)
@@ -278,7 +286,7 @@ class BLEServer extends EventEmitter {
     this.chatUUID = opts.chatUUID
     this.writeUUID = opts.writeUUID
 
-    this.advertising = 'off'
+    this.advertising = ToggleState.OFF
     this.serviceAdded = false
     this.centralSubscribed = false
     this._deviceName = null
@@ -308,12 +316,14 @@ class BLEServer extends EventEmitter {
     this._server.on('serviceAdd', (uuid) => {
       this.serviceAdded = true
       this.emit('ready')
-      if (this.advertising === 'requested') this.startAdvertising()
+      if (this.advertising === ToggleState.REQUESTED) this.startAdvertising()
     })
 
     this._server.on('error', (err) => {
       if (err.code === 'ADVERTISE_FAILED') {
-        this.advertising = 'requested'
+        // Advertising never started: keep internal state in sync with the UI
+        // (which flips the switch off) instead of a phantom 'requested' state.
+        this.advertising = ToggleState.OFF
         this.emit('advertisingStopped')
       }
       this.emit('error', err.message || String(err))
@@ -387,7 +397,7 @@ class BLEServer extends EventEmitter {
 
   startAdvertising(deviceName) {
     if (deviceName !== undefined) this._deviceName = deviceName
-    if (this.advertising === 'on') return
+    if (this.advertising === ToggleState.ON) return
 
     if (this._server.state !== 'poweredOn') {
       this.emit('log', 'Advertising is waiting for Bluetooth power')
@@ -405,20 +415,20 @@ class BLEServer extends EventEmitter {
 
     this.emit('log', `Starting advertising: ${this.serviceUUID}`)
     this._server.startAdvertising(opts)
-    this.advertising = 'on'
+    this.advertising = ToggleState.ON
     this.emit('advertisingStarted')
   }
 
   stopAdvertising() {
     this._server.stopAdvertising()
-    this.advertising = 'off'
+    this.advertising = ToggleState.OFF
     this.emit('advertisingStopped')
   }
 
   setAdvertising(enabled, deviceName) {
     if (enabled) {
       this._deviceName = deviceName
-      this.advertising = 'requested'
+      this.advertising = ToggleState.REQUESTED
       this.startAdvertising()
     } else {
       this.stopAdvertising()
