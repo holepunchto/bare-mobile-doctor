@@ -7,6 +7,7 @@ const CHAT_UUID = 'B4A3C8A7-0001-1000-8000-00805F9B34FB'
 const WRITE_UUID = 'B4A3C8A7-0002-1000-8000-00805F9B34FB'
 const PREFERRED_MTU = 512
 const INVITE_WRITE_WITH_RESPONSE = false
+const CONNECT_TIMEOUT_MS = 15000
 
 const isAndroid = Bare.platform === 'android'
 const scanOptions = isAndroid ? { scanMode: Central.SCAN_MODE_LOW_LATENCY } : undefined
@@ -437,7 +438,8 @@ class Session {
 
       inviteRole: 'idle',
       inviteWriteSent: false,
-      inviteWritePendingResponse: false
+      inviteWritePendingResponse: false,
+      connectTimer: null
     }
 
     this.setupCentralListeners()
@@ -462,6 +464,7 @@ class Session {
     })
 
     this.central.on('connected', () => {
+      this.clearConnectTimeout()
       this.state.inviteWriteSent = false
       if (this.state.inviteRole === 'inviter') {
         setTimeout(() => this.writeInvite(), 100)
@@ -469,6 +472,7 @@ class Session {
     })
 
     this.central.on('connectFailed', () => {
+      this.clearConnectTimeout()
       this.state.inviteRole = 'idle'
     })
 
@@ -494,6 +498,7 @@ class Session {
     })
 
     this.central.on('disconnected', () => {
+      this.clearConnectTimeout()
       if (this.state.inviteRole === 'inviter' || this.state.inviteRole === 'idle') {
         this.resetConnection()
         if (this.state.inviteRole !== 'idle') {
@@ -660,6 +665,30 @@ class Session {
 
     if (!this.central.connect(id)) {
       this.state.inviteRole = 'idle'
+      return
+    }
+
+    this.startConnectTimeout()
+  }
+
+  startConnectTimeout() {
+    this.clearConnectTimeout()
+    this.state.connectTimer = setTimeout(() => {
+      this.state.connectTimer = null
+      if (this.state.inviteRole !== 'inviter') return
+
+      this.central.disconnect()
+      this.resetConnection()
+      this.state.inviteRole = 'idle'
+      this.send({ type: 'error', message: 'Connection timed out' })
+      this.send({ type: 'disconnected' })
+    }, CONNECT_TIMEOUT_MS)
+  }
+
+  clearConnectTimeout() {
+    if (this.state.connectTimer) {
+      clearTimeout(this.state.connectTimer)
+      this.state.connectTimer = null
     }
   }
 
@@ -707,6 +736,7 @@ class Session {
   }
 
   disconnect() {
+    this.clearConnectTimeout()
     const disconnectMsg = encodeBLEMessage({ t: 'disconnect' })
 
     if (this.state.inviteRole === 'inviter' && this.central.connectedPeripheral) {
