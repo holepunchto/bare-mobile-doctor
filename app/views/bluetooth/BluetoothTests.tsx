@@ -317,7 +317,12 @@ export default function BluetoothTests() {
           <Switch
             value={advertising}
             onValueChange={toggleAdvertising}
-            disabled={state === 'init' || state === 'chatting' || state === 'inviting'}
+            disabled={
+              state === 'init' ||
+              state === 'chatting' ||
+              state === 'inviting' ||
+              state === 'invited'
+            }
           />
         </View>
         <View style={styles.toggleRow}>
@@ -325,7 +330,12 @@ export default function BluetoothTests() {
           <Switch
             value={scanning}
             onValueChange={toggleScan}
-            disabled={state === 'init' || state === 'chatting' || state === 'inviting'}
+            disabled={
+              state === 'init' ||
+              state === 'chatting' ||
+              state === 'inviting' ||
+              state === 'invited'
+            }
           />
         </View>
         <ThemedText style={styles.stateText}>
