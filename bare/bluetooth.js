@@ -291,6 +291,12 @@ class BLEServer extends EventEmitter {
     this.centralSubscribed = false
     this._deviceName = null
 
+    // Outbound notification queue with BLE flow control: iOS retries on
+    // 'readyToUpdate' when the transmit queue is full, Android sends one at a
+    // time and signals completion via 'notifySent'.
+    this._notifyQueue = []
+    this._notifyInFlight = false
+
     this.notifyChar = new Characteristic(opts.chatUUID, {
       read: true,
       notify: true
@@ -385,6 +391,15 @@ class BLEServer extends EventEmitter {
       this.emit('unsubscribed')
     })
 
+    // iOS: transmit queue drained, safe to resend.
+    this._server.on('readyToUpdate', () => this._drainNotifyQueue())
+
+    // Android: previous notification delivered, send the next one.
+    this._server.on('notifySent', () => {
+      this._notifyInFlight = false
+      this._drainNotifyQueue()
+    })
+
     this._addService()
   }
 
@@ -437,11 +452,29 @@ class BLEServer extends EventEmitter {
 
   notify(data) {
     if (!this.centralSubscribed) return false
-    return this._server.updateValue(this.notifyChar, data)
+    this._notifyQueue.push(data)
+    this._drainNotifyQueue()
+    return true
+  }
+
+  _drainNotifyQueue() {
+    while (this._notifyQueue.length > 0) {
+      // Android sends one notification at a time; wait for 'notifySent'.
+      if (isAndroid && this._notifyInFlight) return
+
+      const ok = this._server.updateValue(this.notifyChar, this._notifyQueue[0])
+      // iOS: transmit queue full, wait for 'readyToUpdate' and keep the item.
+      if (!ok) return
+
+      this._notifyQueue.shift()
+      if (isAndroid) this._notifyInFlight = true
+    }
   }
 
   resetConnection() {
     this.centralSubscribed = false
+    this._notifyQueue = []
+    this._notifyInFlight = false
   }
 
   destroy() {
