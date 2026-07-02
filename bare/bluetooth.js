@@ -533,6 +533,9 @@ class Session {
     this.central.on('connectFailed', () => {
       this.clearConnectTimeout()
       this.state.inviteRole = 'idle'
+      // The invite came from an active scan that connect() stopped; resume it so
+      // the user can pick another device instead of re-toggling Scan.
+      this.central.setScan(true)
     })
 
     this.central.on('message', (data) => {
@@ -741,6 +744,7 @@ class Session {
       this.state.inviteRole = 'idle'
       this.send({ type: 'error', message: 'Connection timed out' })
       this.send({ type: 'disconnected' })
+      this.central.setScan(true)
     }, CONNECT_TIMEOUT_MS)
   }
 
