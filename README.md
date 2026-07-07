@@ -33,6 +33,28 @@ When finished, you can run the app on either iOS or Android.
 npm run ios
 ```
 
+#### Release builds
+
+First, generate the native iOS project:
+
+```sh
+npx expo prebuild --platform ios
+```
+
+Then open the Xcode workspace:
+
+```sh
+open ios/BareMobileDoctor.xcworkspace
+```
+
+In Xcode:
+
+1. Select the `BareMobileDoctor` scheme in the toolbar
+2. Set the build configuration to **Release** (Edit Scheme → Run → Info → Build Configuration)
+3. Under Signing & Capabilities, select your development team and provisioning profile
+4. Select your physical device as the run destination
+5. Build and run (⌘R)
+
 ### Android
 
 > [!IMPORTANT]
@@ -64,7 +86,7 @@ export PATH="$ANDROID_HOME/platform-tools:$JAVA_HOME/bin:$PATH"
 npm run android
 ```
 
-#### Release builds (e.g. for multi-device Bluetooth testing)
+#### Release builds
 
 Debug builds work fine for local development, but if you want to test features like Bluetooth across two physical devices, a release build avoids needing a Metro dev server connection per device:
 
