@@ -5,7 +5,13 @@ import db from './spec/db/index.js'
 import b4a from 'b4a'
 import top from 'process-top'
 
-console.log('Hyperdb Worklet started')
+let logsEnabled = Bare.argv[1] === 'true'
+
+function log(...args) {
+  if (logsEnabled) console.log(...args)
+}
+
+log('Hyperdb Worklet started')
 
 function time() {
   return Math.floor(Date.now() / 1000)
@@ -140,6 +146,11 @@ async function basic(records) {
 BareKit.IPC.on('data', async (data) => {
   const message = data.toString()
   const payload = JSON.parse(message)
+
+  if (payload.type === 'setLogsEnabled') {
+    logsEnabled = payload.enabled
+    return
+  }
 
   if (payload.workType === 'intensive') {
     await intensive(payload.recordsAmount)

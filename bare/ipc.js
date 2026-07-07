@@ -3,7 +3,13 @@ const { set } = require('quickbit-native')
 const Buffer = require('bare-buffer')
 const top = require('process-top')
 
-console.log('Worklet started')
+let logsEnabled = Bare.argv[0] === 'true'
+
+function log(...args) {
+  if (logsEnabled) console.log(...args)
+}
+
+log('Worklet started')
 const processTop = new top()
 
 function basicWork() {
@@ -47,6 +53,10 @@ BareKit.IPC.on('data', (data) => {
   const messages = data.toString().split('-').filter(Boolean)
   messages.forEach((message) => {
     const payload = JSON.parse(message)
+    if (payload.type === 'setLogsEnabled') {
+      logsEnabled = payload.enabled
+      return
+    }
     if (payload.workType === 'crypto') {
       doCryptoWork(100_000)
     } else if (payload.workType === 'native') {
@@ -65,4 +75,4 @@ setInterval(() => {
   cpu()
 }, 1000)
 
-console.log('Worklet setup complete')
+log('Worklet setup complete')

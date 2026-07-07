@@ -8,6 +8,7 @@ import b4a from 'b4a'
 
 import VideoCanvas from './VideoCanvas'
 import ThemedText from '../../components/ThemedText'
+import useLog from '../../hooks/useLog'
 
 const source = require('./videocapture.bundle')
 
@@ -17,7 +18,8 @@ function isCpuInfo(data: Uint8Array): boolean {
   )
 }
 
-export default function VideoCaptureTest() {
+export default function VideoCaptureTest({ logsEnabled }: { logsEnabled: boolean }) {
+  const log = useLog(logsEnabled)
   const [permission, requestPermission] = useCameraPermissions()
   const [data, setData] = useState<Uint8Array | null>(null)
   const [cpuInfo, setCpuInfo] = useState<string>('')
@@ -34,9 +36,9 @@ export default function VideoCaptureTest() {
       const enableDebug = 'false'
       // - choose camera
       const camera = 'front'
-      worklet.start('videocapture.bundle', source, [enableDebug, camera])
+      worklet.start('videocapture.bundle', source, [enableDebug, camera, String(logsEnabled)])
 
-      console.log('worklet started')
+      log('worklet started')
 
       stream.current = new FramedStream(worklet.IPC)
       stream.current.on('data', (data: any) => {
@@ -52,6 +54,11 @@ export default function VideoCaptureTest() {
       }
     }
   }, [permission?.granted])
+
+  useEffect(() => {
+    if (!stream.current) return
+    stream.current.write(b4a.from(JSON.stringify({ type: 'setLogsEnabled', enabled: logsEnabled })))
+  }, [logsEnabled])
 
   const updateScale = () => {
     const buf = new Uint8Array(2)

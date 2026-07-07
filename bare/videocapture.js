@@ -3,7 +3,7 @@ const b4a = require('b4a')
 const FramedStream = require('framed-stream')
 const top = require('process-top')
 
-let debug = Bare.argv[0] === 'true'
+let debug = Bare.argv[0] === 'true' || Bare.argv[2] === 'true'
 let deviceIndex = Bare.argv[1] === 'front' ? '1' : '0'
 let isDownScaled = false
 const processTop = new top()
@@ -109,6 +109,15 @@ Bare.on('exit', () => {
 })
 
 ipc.on('data', (data) => {
+  if (data.length > 2 && data[0] === '{'.charCodeAt(0)) {
+    try {
+      const msg = JSON.parse(data.toString())
+      if (msg.type === 'setLogsEnabled') {
+        debug = msg.enabled
+        return
+      }
+    } catch {}
+  }
   isDownScaled = isDownScale(data) ? true : false
 
   scaler = isDownScaled ? toDowngradedRGBA : toRGBA

@@ -1,10 +1,26 @@
-console.log('Worklet started')
 const UDX = require('udx-native')
 const b4a = require('b4a')
 const assert = require('bare-assert')
 
+let logsEnabled = Bare.argv[0] === 'true'
+
+function log(...args) {
+  if (logsEnabled) console.log(...args)
+}
+
+log('Worklet started')
+
 BareKit.IPC.on('data', function (data) {
   const message = data.toString()
+  if (message.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(message.trim())
+      if (parsed.type === 'setLogsEnabled') {
+        logsEnabled = parsed.enabled
+        return
+      }
+    } catch {}
+  }
   if (message.includes('socket')) {
     socketTest()
       .then(() => BareKit.IPC.write(result('socket', true)))
@@ -74,4 +90,4 @@ function result(type, hasSucceeded, message = null) {
   return Buffer.from(JSON.stringify({ type, hasSucceeded, message }) + '\n')
 }
 
-console.log('Worklet setup complete')
+log('Worklet setup complete')

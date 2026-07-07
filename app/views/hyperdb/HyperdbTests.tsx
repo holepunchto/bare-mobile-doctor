@@ -6,12 +6,14 @@ import b4a from 'b4a'
 
 import useBareDir from '../../hooks/useBareDir'
 import usePerf from '../../hooks/usePerf'
+import useLog from '../../hooks/useLog'
 import ThemedText from '../../components/ThemedText'
 import { formatTime } from '../../utils/date'
 
 const source = require('./hyperdb.bundle')
 
-export default function HyperdbTests() {
+export default function HyperdbTests({ logsEnabled }: { logsEnabled: boolean }) {
+  const log = useLog(logsEnabled)
   const worklet = React.useRef(new Worklet()).current
   const [isRunning, setIsRunning] = useState(false)
   const [recordsSent, setRecordsSent] = useState(0)
@@ -26,7 +28,7 @@ export default function HyperdbTests() {
   useEffect(() => {
     const setup = async () => {
       const bareDir = await useBareDir()
-      worklet.start('hyperdb.bundle', source, [bareDir])
+      worklet.start('hyperdb.bundle', source, [bareDir, String(logsEnabled)])
 
       const { IPC } = worklet
 
@@ -34,9 +36,9 @@ export default function HyperdbTests() {
         try {
           data = JSON.parse(b4a.toString(data))
           if (data.id) {
-            console.log(data)
+            log(data)
             let records = data.id
-            console.log('Records created', records)
+            log('Records created', records)
             setRecordsReceived((prev) => prev + records)
           } else {
             setCpuData(data || '')
@@ -73,10 +75,10 @@ export default function HyperdbTests() {
     if (isRunning) {
       resetMessages()
       if (modes.length > 0) {
-        console.log('running next test')
+        log('running next test')
         runNextTest()
       } else {
-        console.log('all tests finished')
+        log('all tests finished')
         setIsRunning(false)
       }
     }
@@ -99,12 +101,17 @@ export default function HyperdbTests() {
   const runNextTest = () => {
     const { IPC } = worklet
     const mode = modes[0]
-    console.log('running test', mode)
+    log('running test', mode)
     startTimer()
     const message = JSON.stringify({ recordsAmount: numCalls, workType: mode })
     IPC.write(b4a.from(message))
     setRecordsSent(numCalls)
   }
+
+  useEffect(() => {
+    const msg = JSON.stringify({ type: 'setLogsEnabled', enabled: logsEnabled })
+    worklet.IPC.write(b4a.from(msg))
+  }, [logsEnabled])
 
   useEffect(() => {
     const { IPC } = worklet

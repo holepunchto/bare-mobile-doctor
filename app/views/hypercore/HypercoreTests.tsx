@@ -2,17 +2,19 @@ import React, { useState, useEffect } from 'react'
 import { TouchableOpacity, StyleSheet, View, ActivityIndicator, useColorScheme } from 'react-native'
 import { Worklet } from 'react-native-bare-kit'
 import RPC from 'bare-rpc'
-import { RPC_CPU, RPC_WRITE, RPC_READ, RPC_INIT } from '../../utils/commands.js'
+import { RPC_CPU, RPC_WRITE, RPC_READ, RPC_INIT, RPC_SET_LOGS } from '../../utils/commands.js'
 
 import useBareDir from '../../hooks/useBareDir'
 import usePerf from '../../hooks/usePerf'
+import useLog from '../../hooks/useLog'
 import ThemedText from '../../components/ThemedText'
 import { formatTime } from '../../utils/date'
 import b4a from 'b4a'
 
 const source = require('./hypercore.bundle')
 
-export default function HyperdbTests() {
+export default function HyperdbTests({ logsEnabled }: { logsEnabled: boolean }) {
+  const log = useLog(logsEnabled)
   // Refs
   const worklet = React.useRef(new Worklet()).current
   const { IPC } = worklet
@@ -33,7 +35,7 @@ export default function HyperdbTests() {
   useEffect(() => {
     const setup = async () => {
       const bareDir = await useBareDir()
-      worklet.start('./hypercore.bundle', source, [bareDir])
+      worklet.start('./hypercore.bundle', source, [bareDir, String(logsEnabled)])
       rpcRef.current = new RPC(IPC, (req) => {})
     }
     setup()
@@ -42,6 +44,11 @@ export default function HyperdbTests() {
       if (worklet.terminate) worklet.terminate()
     }
   }, [])
+
+  useEffect(() => {
+    if (!rpcRef.current) return
+    rpcRef.current.request(RPC_SET_LOGS).send(String(logsEnabled))
+  }, [logsEnabled])
 
   useEffect(() => {
     if (recordsReceived >= numCalls) {
@@ -62,10 +69,10 @@ export default function HyperdbTests() {
     if (isRunning) {
       resetMessages()
       if (modes.length > 0) {
-        console.log('running next test')
+        log('running next test')
         runNextTest()
       } else {
-        console.log('all tests finished')
+        log('all tests finished')
         setIsRunning(false)
       }
     }
@@ -122,7 +129,7 @@ export default function HyperdbTests() {
   const runNextTest = async () => {
     const rpc = rpcRef.current
     if (!rpc) {
-      console.log('RPC not initialized')
+      log('RPC not initialized')
       return
     }
     const mode = modes[0]
