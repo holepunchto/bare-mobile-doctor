@@ -15,6 +15,16 @@ function serialize(msg) {
   return Buffer.from(JSON.stringify(msg))
 }
 
+// Debug tracing. Flip DEBUG to true to trace the BLE flow in the native logs
+// (Xcode / adb logcat, filter on "[bt]"). Note: the extra I/O shifts timing and
+// can hide the native teardown race (a threadsafe-function use-after-free), so
+// keep it off for normal runs. See memory: bluetooth-native-teardown-crashes.
+const DEBUG = false
+
+function dbg(...args) {
+  if (DEBUG) console.log('[bt]', ...args)
+}
+
 function normalizeUUID(uuid) {
   return String(uuid || '')
     .toLowerCase()
@@ -57,9 +67,11 @@ class ToggleState {
 class PeerLink extends EventEmitter {
   constructor(channel) {
     super()
+    dbg('PeerLink: new (wrapping L2CAP channel in FramedStream)')
     this._stream = new FramedStream(channel)
 
     this._stream.on('data', (data) => {
+      dbg('PeerLink: data', data.byteLength, 'bytes')
       let msg
       try {
         msg = JSON.parse(Buffer.from(data).toString())
@@ -72,15 +84,23 @@ class PeerLink extends EventEmitter {
 
     // L2CAP is reliable: a peer leaving surfaces as end/close/error on the
     // stream, so we don't need platform-specific disconnect detection.
-    this._stream.on('close', () => this.emit('close'))
-    this._stream.on('error', () => this.emit('close'))
+    this._stream.on('close', () => {
+      dbg('PeerLink: stream close')
+      this.emit('close')
+    })
+    this._stream.on('error', (err) => {
+      dbg('PeerLink: stream error', err && err.message)
+      this.emit('close')
+    })
   }
 
   send(msg) {
+    dbg('PeerLink: send', msg.t)
     this._stream.write(serialize(msg))
   }
 
   close() {
+    dbg('PeerLink: close()')
     this._stream.destroy()
   }
 }
@@ -107,6 +127,7 @@ class BLECentral extends EventEmitter {
 
   _setup() {
     this._central.on('stateChange', (bleState) => {
+      dbg('Central: stateChange', bleState)
       this.emit('stateChange', bleState)
       if (bleState === 'poweredOn') {
         this.emit('ready')
@@ -125,14 +146,19 @@ class BLECentral extends EventEmitter {
       this.emit('discovered', { id: discovered.id, name: name || 'Unknown', rssi: discovered.rssi })
     })
 
-    this._central.on('connect', (peripheral) => this._onConnect(peripheral))
+    this._central.on('connect', (peripheral) => {
+      dbg('Central: connect')
+      this._onConnect(peripheral)
+    })
 
     this._central.on('disconnect', () => {
+      dbg('Central: disconnect')
       this.emit('log', 'Central disconnected')
       this.emit('closed')
     })
 
     this._central.on('error', (err) => {
+      dbg('Central: error', err && err.code, err && err.message)
       this.emit('error', err.message || String(err))
 
       // iOS & Android report errored connects/disconnects as 'error' (not
@@ -150,6 +176,7 @@ class BLECentral extends EventEmitter {
     this.emit('log', `Connected: ${peripheral.name || peripheral.id || 'unknown'}`)
 
     peripheral.on('servicesDiscover', (services) => {
+      dbg('Central: servicesDiscover', services && services.length)
       const service = findByUUID(services, this.serviceUUID)
       if (!service) {
         this.emit('error', 'Chat service not found')
@@ -160,6 +187,7 @@ class BLECentral extends EventEmitter {
     })
 
     peripheral.on('characteristicsDiscover', (service, chars) => {
+      dbg('Central: characteristicsDiscover', chars && chars.length)
       const psmChar = findByUUID(chars, this.psmUUID)
       if (!psmChar) {
         this.emit('error', 'PSM characteristic not found')
@@ -172,6 +200,7 @@ class BLECentral extends EventEmitter {
 
     peripheral.on('read', (char, data) => {
       const text = Buffer.from(data).toString()
+      dbg('Central: read PSM char ->', JSON.stringify(text))
       const psm = Number(text)
       if (!psm) {
         this.emit('error', `Invalid PSM: ${JSON.stringify(text)}`)
@@ -183,11 +212,13 @@ class BLECentral extends EventEmitter {
     })
 
     peripheral.on('channelOpen', (channel) => {
+      dbg('Central: channelOpen (inviter side)')
       this.emit('log', 'L2CAP channel open')
       this.emit('link', new PeerLink(channel))
     })
 
     peripheral.on('error', (err) => {
+      dbg('Central: peripheral error', err && err.message)
       this.emit('error', err.message || String(err))
       this.emit('connectFailed')
     })
@@ -274,22 +305,26 @@ class BLEServer extends EventEmitter {
 
   _setup() {
     this._server.on('stateChange', (bleState) => {
+      dbg('Server: stateChange', bleState)
       if (bleState === 'poweredOn') this._start()
     })
 
     this._server.on('serviceAdd', () => {
+      dbg('Server: serviceAdd')
       this.serviceAdded = true
       this.emit('ready')
       if (this.advertising === ToggleState.REQUESTED) this.startAdvertising()
     })
 
     this._server.on('channelPublish', (psm) => {
+      dbg('Server: channelPublish psm=', psm)
       this._psm = psm
       this.emit('log', `L2CAP channel published psm=${psm}`)
       if (this.advertising === ToggleState.REQUESTED) this.startAdvertising()
     })
 
     this._server.on('channelOpen', (channel) => {
+      dbg('Server: channelOpen (invitee side)')
       this.emit('log', 'L2CAP channel open')
       this.emit('link', new PeerLink(channel))
     })
@@ -298,11 +333,13 @@ class BLEServer extends EventEmitter {
     // PSM is a plain number, so send it as raw text (not JSON) — the central
     // parses it with Number().
     this._server.on('readRequest', (req) => {
+      dbg('Server: readRequest (PSM) psm=', this._psm)
       const value = this._psm != null ? Buffer.from(String(this._psm)) : Buffer.alloc(0)
       this._server.respondToRequest(req, Server.ATT_SUCCESS, value)
     })
 
     this._server.on('error', (err) => {
+      dbg('Server: error', err && err.code, err && err.message)
       if (err.code === 'ADVERTISE_FAILED') {
         // Advertising never started: keep internal state in sync with the UI
         // (which flips the switch off) instead of a phantom 'requested' state.
@@ -450,6 +487,7 @@ class Session {
   }
 
   attachLink(link) {
+    dbg('Session: attachLink (role=' + this.state.inviteRole + ')')
     this.state.link = link
     link.on('message', (msg) => this.handlePeerMessage(msg))
     link.on('error', (message) => this.send({ type: 'error', message }))
@@ -470,6 +508,7 @@ class Session {
   }
 
   handlePeerMessage(msg) {
+    dbg('Session: handlePeerMessage t=' + msg.t + ' role=' + this.state.inviteRole)
     switch (msg.t) {
       case 'invite':
         if (this.state.inviteRole === 'idle') {
@@ -501,6 +540,7 @@ class Session {
   // Close the link and drop any BLE connection we opened. Safe to call from any
   // role: central.disconnect() is a no-op when we never connected.
   teardown() {
+    dbg('Session: teardown (role=' + this.state.inviteRole + ')')
     if (this.state.link) {
       this.state.link.close()
       this.state.link = null
@@ -510,6 +550,7 @@ class Session {
   }
 
   onLinkClosed() {
+    dbg('Session: onLinkClosed (role=' + this.state.inviteRole + ')')
     this.clearConnectTimeout()
     this.state.link = null
     if (this.state.inviteRole !== 'idle') {
@@ -596,12 +637,31 @@ class Session {
     this.send({ type: 'disconnected' })
   }
 
+  // We only release our own state here (connect timer + L2CAP link). We should
+  // also call server.destroy()/central.destroy() to own their teardown, but the
+  // native module's on_cleanup double-frees the same V8 handle at runtime
+  // teardown and crashes (EXC_BAD_ACCESS in central__on_cleanup).
+  // TODO: restore server.destroy()/central.destroy() once bare-bluetooth-apple
+  // makes on_cleanup idempotent w.r.t. an explicit destroy().
   destroy() {
-    this.teardown()
-    this.server.destroy()
-    this.central.destroy()
+    dbg('Session: destroy')
+    this.clearConnectTimeout()
+    if (this.state.link) {
+      this.state.link.close()
+      this.state.link = null
+    }
   }
 }
+
+dbg('worklet: starting, platform=' + Bare.platform + ' name=' + (Bare.argv[0] || 'BareDevice'))
+
+// Surface any uncaught error: an unhandled throw here tears the runtime down
+// (bare_runtime_teardown), which is exactly when in-flight BLE threadsafe
+// callbacks crash. Always on (not DEBUG-gated): it fires only on error, so it
+// can't hide the teardown race the way the hot-path traces do.
+Bare.on('uncaughtException', (err) => {
+  console.log('[bt] !!! uncaughtException:', (err && err.stack) || err)
+})
 
 const ipc = new FramedStream(BareKit.IPC)
 
@@ -618,6 +678,7 @@ const session = new Session({
 ipc.on('data', (data) => {
   try {
     const msg = JSON.parse(data.toString())
+    dbg('IPC <-', msg.type, msg.type === 'invite' ? String(msg.id).slice(0, 12) : '')
 
     switch (msg.type) {
       case 'setAdvertising':
@@ -648,5 +709,9 @@ ipc.on('data', (data) => {
 })
 
 Bare.on('exit', () => {
+  // Always on (not DEBUG-gated): a single marker at teardown start tells us
+  // whether the worklet got a clean Bare exit at all — without the hot-path
+  // traces that hide the native teardown race.
+  console.log('[bt] === Bare exit: runtime teardown starting ===')
   session.destroy()
 })
