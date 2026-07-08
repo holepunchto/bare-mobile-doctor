@@ -7,10 +7,12 @@ import b4a from 'b4a'
 import ThemedText from '../../components/ThemedText'
 import { formatTime } from '../../utils/date'
 import usePerf from '../../hooks/usePerf'
+import useLog from '../../hooks/useLog'
 
 const source = require('./ipc.bundle')
 
-export default function IPCTests() {
+export default function IPCTests({ logsEnabled }: { logsEnabled: boolean }) {
+  const log = useLog(logsEnabled)
   const worklet = React.useRef(new Worklet()).current
   const [isRunning, setIsRunning] = useState(false)
   const { start: startTimer, stop: stopTimer } = usePerf()
@@ -23,7 +25,7 @@ export default function IPCTests() {
   const [cpuData, setCpuData] = useState('')
 
   useEffect(() => {
-    worklet.start('ipc.bundle', source)
+    worklet.start('ipc.bundle', source, [String(logsEnabled)])
 
     const { IPC } = worklet
 
@@ -50,6 +52,11 @@ export default function IPCTests() {
   }, [])
 
   useEffect(() => {
+    const msg = JSON.stringify({ type: 'setLogsEnabled', enabled: logsEnabled }) + '-'
+    worklet.IPC.write(b4a.from(msg))
+  }, [logsEnabled])
+
+  useEffect(() => {
     if (messagesReceived >= numCalls) {
       const mode = modes.at(0)
       if (mode) {
@@ -70,10 +77,10 @@ export default function IPCTests() {
     if (isRunning) {
       resetMessages()
       if (modes.length > 0) {
-        console.log('running next test')
+        log('running next test')
         runNextTest()
       } else {
-        console.log('all tests finished')
+        log('all tests finished')
         setIsRunning(false)
       }
     }
@@ -100,7 +107,7 @@ export default function IPCTests() {
   const runNextTest = () => {
     const { IPC } = worklet
     const mode = modes[0]
-    console.log('running test', mode)
+    log('running test', mode)
     startTimer()
     for (let i = 0; i < numCalls; i++) {
       const message = JSON.stringify({ msg: `Hello world ${i}`, workType: mode }) + '-'

@@ -15,11 +15,7 @@ function serialize(msg) {
   return Buffer.from(JSON.stringify(msg))
 }
 
-// Debug tracing. Flip DEBUG to true to trace the BLE flow in the native logs
-// (Xcode / adb logcat, filter on "[bt]"). Note: the extra I/O shifts timing and
-// can hide the native teardown race (a threadsafe-function use-after-free), so
-// keep it off for normal runs. See memory: bluetooth-native-teardown-crashes.
-const DEBUG = false
+let DEBUG = Bare.argv[1] === 'true'
 
 function dbg(...args) {
   if (DEBUG) console.log('[bt]', ...args)
@@ -701,6 +697,9 @@ ipc.on('data', (data) => {
         break
       case 'disconnect':
         session.disconnect()
+        break
+      case 'setLogsEnabled':
+        DEBUG = msg.enabled
         break
     }
   } catch (e) {

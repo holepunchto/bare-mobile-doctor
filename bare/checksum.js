@@ -1,9 +1,14 @@
 const sodium = require('sodium-native')
 const FramedStream = require('framed-stream')
 
-console.log('Worklet started')
-
 let isFramed = Bare.argv[0] === 'framed'
+let logsEnabled = Bare.argv[1] === 'true'
+
+function log(...args) {
+  if (logsEnabled) console.log(...args)
+}
+
+log('Worklet started')
 let receivedSize = 0
 const sentChunks = []
 const recvChunks = []
@@ -38,11 +43,11 @@ function computeHash(chunks) {
 }
 
 function startTest() {
-  console.log('[Worklet] Start test')
+  log('[Worklet] Start test')
 
   while (remainingSize > 0) {
     const chunkSize = getRandomChunkSize()
-    console.log('[Worklet] Sending chunk of size', chunkSize)
+    log('[Worklet] Sending chunk of size', chunkSize)
     const chunk = Buffer.alloc(chunkSize)
     sodium.randombytes_buf(chunk)
     ipc.write(chunk)
@@ -50,19 +55,19 @@ function startTest() {
     remainingSize -= chunkSize
   }
 
-  console.log('[Worklet] All chunks sent')
+  log('[Worklet] All chunks sent')
 }
 
 function endTest() {
-  console.log('[Worklet] All chunks received')
+  log('[Worklet] All chunks received')
 
   const sentHash = computeHash(sentChunks)
   const recvHash = computeHash(recvChunks)
   const success = sentHash === recvHash
 
-  console.log('[Worklet] Sent hash:', sentHash)
-  console.log('[Worklet] Recv hash:', recvHash)
-  console.log('[Worklet] Checksums match:', success)
+  log('[Worklet] Sent hash:', sentHash)
+  log('[Worklet] Recv hash:', recvHash)
+  log('[Worklet] Checksums match:', success)
 
   ipc.write(Buffer.from(success ? 'done' : 'fail'))
 }
@@ -74,6 +79,6 @@ ipc.on('data', (data) => {
   if (receivedSize === totalSize) endTest()
 })
 
-console.log('Worklet setup complete')
+log('Worklet setup complete')
 
 startTest()

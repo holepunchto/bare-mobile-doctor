@@ -43,7 +43,7 @@ const ErrorList = ({ errors }: { errors: string[] }) => {
   )
 }
 
-export default function UDXTests() {
+export default function UDXTests({ logsEnabled }: { logsEnabled: boolean }) {
   const [isRunning, setIsRunning] = React.useState(false)
   const [socketTestsHasSucceeded, setSocketTestsHasSucceeded] = React.useState(null)
   const [streamTestsHasSucceeded, setStreamTestsHasSucceeded] = React.useState(null)
@@ -51,7 +51,7 @@ export default function UDXTests() {
   const [errors, setErrors] = React.useState<string[]>([])
 
   useEffect(() => {
-    worklet.start('udx.bundle', source)
+    worklet.start('udx.bundle', source, [String(logsEnabled)])
 
     const { IPC } = worklet
     IPC.on('data', (data: string) => {
@@ -85,6 +85,11 @@ export default function UDXTests() {
       if (worklet.terminate) worklet.terminate()
     }
   }, [])
+
+  useEffect(() => {
+    const msg = JSON.stringify({ type: 'setLogsEnabled', enabled: logsEnabled }) + '\n'
+    worklet.IPC.write(b4a.from(msg))
+  }, [logsEnabled])
 
   const runTests = () => {
     const { IPC } = worklet

@@ -10,6 +10,7 @@ import { Asset } from 'expo-asset'
 
 import ThemedText from '../../components/ThemedText'
 import useBareDir from '../../hooks/useBareDir'
+import useLog from '../../hooks/useLog'
 
 const source = require('./videoconverter.bundle')
 
@@ -27,7 +28,7 @@ function parseMessage(data: Uint8Array): { type: string; body: string } | null {
   return null
 }
 
-export default function VideoConverterTest() {
+export default function VideoConverterTest({ logsEnabled }: { logsEnabled: boolean }) {
   if (Platform.OS !== 'ios') {
     return (
       <View style={styles.container}>
@@ -39,6 +40,7 @@ export default function VideoConverterTest() {
     )
   }
 
+  const log = useLog(logsEnabled)
   const worklet = useRef(new Worklet()).current
   const [cpuInfo, setCpuInfo] = useState('')
   const [videoUrl, setVideoUrl] = useState('')
@@ -75,7 +77,7 @@ export default function VideoConverterTest() {
           player.play()
           setStatus('playing')
         } else if (playerStatus === 'error') {
-          console.log('Video error:', playerError)
+          log('Video error:', playerError)
           setError(playerError?.message || 'Video playback error')
           setStatus('error')
         }
@@ -122,7 +124,7 @@ export default function VideoConverterTest() {
         }
       }
 
-      worklet.start('videoconverter.bundle', source, ['false'])
+      worklet.start('videoconverter.bundle', source, ['false', String(logsEnabled)])
 
       stream.current = new FramedStream(worklet.IPC)
 
@@ -146,6 +148,11 @@ export default function VideoConverterTest() {
       worklet.terminate()
     }
   }, [])
+
+  useEffect(() => {
+    if (!stream.current) return
+    stream.current.write(b4a.from(JSON.stringify({ type: 'setLogsEnabled', enabled: logsEnabled })))
+  }, [logsEnabled])
 
   const openVideo = () => {
     if (!bareDir) return

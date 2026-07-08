@@ -6,6 +6,7 @@ import { Worklet } from 'react-native-bare-kit'
 import b4a from 'b4a'
 
 import useBareDir from '../../hooks/useBareDir'
+import useLog from '../../hooks/useLog'
 import ThemedText from '../../components/ThemedText'
 import ExecutionLog from './ExecutionLog'
 import TestResult from './TestResult'
@@ -54,7 +55,8 @@ interface ErrorMessage extends BaseMessage {
 
 type Message = BenchmarkMessage | GenerationMessage | ErrorMessage
 
-export default function RocksDBTests() {
+export default function RocksDBTests({ logsEnabled }: { logsEnabled: boolean }) {
+  const log = useLog(logsEnabled)
   const worklet = React.useRef<any>(null)
   const ipc = useRef<any>(null)
   const colorScheme = useColorScheme()
@@ -99,12 +101,12 @@ export default function RocksDBTests() {
       const bareDir = await useBareDir()
 
       worklet.current = new Worklet()
-      worklet.current.start('rocksdb.bundle', source, [bareDir])
+      worklet.current.start('rocksdb.bundle', source, [bareDir, String(logsEnabled)])
 
       ipc.current = new FramedStream(worklet.current.IPC)
       ipc.current.on('data', (data: string) => {
         const dataString = b4a.toString(data)
-        console.log('Received response:', dataString)
+        log('Received response:', dataString)
 
         try {
           const message = JSON.parse(dataString) as Message
@@ -137,6 +139,11 @@ export default function RocksDBTests() {
       if (worklet.current && worklet.current.terminate) worklet.current.terminate()
     }
   }, [])
+
+  useEffect(() => {
+    if (!ipc.current) return
+    ipc.current.write(b4a.from(JSON.stringify({ type: 'setLogsEnabled', enabled: logsEnabled })))
+  }, [logsEnabled])
 
   const generateDatabases = () => {
     setIsGenerating(true)

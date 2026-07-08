@@ -50,7 +50,7 @@ async function requestAndroidBluetoothPermissions() {
   return permissions.every((permission) => results[permission] === granted)
 }
 
-export default function BluetoothTests() {
+export default function BluetoothTests({ logsEnabled }: { logsEnabled: boolean }) {
   const workletRef = useRef<Worklet | null>(null)
   const streamRef = useRef<any>(null)
   const logScrollRef = useRef<ScrollView | null>(null)
@@ -88,7 +88,7 @@ export default function BluetoothTests() {
 
       const worklet = new Worklet()
       workletRef.current = worklet
-      worklet.start('bluetooth.bundle', source, [name])
+      worklet.start('bluetooth.bundle', source, [name, String(logsEnabled)])
 
       const stream = new FramedStream(worklet.IPC)
       streamRef.current = stream
@@ -195,6 +195,13 @@ export default function BluetoothTests() {
       setTimeout(() => worklet?.terminate(), 150)
     }
   }, [])
+
+  useEffect(() => {
+    if (!streamRef.current) return
+    streamRef.current.write(
+      b4a.from(JSON.stringify({ type: 'setLogsEnabled', enabled: logsEnabled }))
+    )
+  }, [logsEnabled])
 
   const sendToWorklet = (msg: any) => {
     if (!streamRef.current) return

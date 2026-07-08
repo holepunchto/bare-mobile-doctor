@@ -13,7 +13,7 @@ function isSuccessCode(data: Uint8Array) {
   return data[0] === 100 && data[1] === 111 && data[2] === 110 && data[3] === 101
 }
 
-export default function ChecksumTests() {
+export default function ChecksumTests({ logsEnabled }: { logsEnabled: boolean }) {
   const [isRunning, setIsRunning] = useState(false)
   const [hasSucceeded, setHasSucceeded] = useState(false)
   const { start: startTimer, stop: stopTimer, duration } = usePerf()
@@ -23,7 +23,7 @@ export default function ChecksumTests() {
     if (!isRunning) return
 
     const worklet = new Worklet()
-    worklet.start('checksum.bundle', source, [type])
+    worklet.start('checksum.bundle', source, [type, String(logsEnabled)])
 
     const { IPC } = worklet
     const stream = type === 'framed' ? new FramedStream(IPC) : IPC

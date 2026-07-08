@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { View, StyleSheet, Text } from 'react-native'
+import { View, StyleSheet, Switch } from 'react-native'
 
+import ThemedText from './components/ThemedText'
 import TabNavigator from './components/TabNavigator'
 import IPCTests from './views/ipc/IPCTests'
 import UDXTests from './views/udx/UDXTests'
@@ -29,36 +30,41 @@ export type TestModule =
 
 export default function () {
   const [activeModule, setActiveModule] = useState<TestModule>('OS')
+  const [logsEnabled, setLogsEnabled] = useState(false)
 
   const renderContent = () => {
     switch (activeModule) {
       case 'IPC':
-        return <IPCTests />
+        return <IPCTests logsEnabled={logsEnabled} />
       case 'UDX':
-        return <UDXTests />
+        return <UDXTests logsEnabled={logsEnabled} />
       case 'Sodium':
         return <SodiumTests />
       case 'Hyperdb':
-        return <HyperdbTests />
+        return <HyperdbTests logsEnabled={logsEnabled} />
       case 'Hypercore':
-        return <HypercoreTests />
+        return <HypercoreTests logsEnabled={logsEnabled} />
       case 'OS':
-        return <OSTests />
+        return <OSTests logsEnabled={logsEnabled} />
       case 'Checksum':
-        return <ChecksumTests />
+        return <ChecksumTests logsEnabled={logsEnabled} />
       case 'VideoCapture':
-        return <VideoCaptureTests />
+        return <VideoCaptureTests logsEnabled={logsEnabled} />
       case 'VideoConverter':
-        return <VideoConverterTests />
+        return <VideoConverterTests logsEnabled={logsEnabled} />
       case 'RocksDB':
-        return <RocksDBTests />
+        return <RocksDBTests logsEnabled={logsEnabled} />
       case 'Bluetooth':
-        return <BluetoothTests />
+        return <BluetoothTests logsEnabled={logsEnabled} />
     }
   }
 
   return (
     <View style={styles.container}>
+      <View style={styles.logsToggle}>
+        <ThemedText style={styles.logsLabel}>{logsEnabled ? '🟢' : '⚪'} Debug logs</ThemedText>
+        <Switch value={logsEnabled} onValueChange={setLogsEnabled} />
+      </View>
       <TabNavigator
         modules={[
           'IPC',
@@ -85,5 +91,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20
+  },
+  logsToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingBottom: 8
+  },
+  logsLabel: {
+    marginRight: 8,
+    fontSize: 14,
+    fontWeight: '600'
   }
 })

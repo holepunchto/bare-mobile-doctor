@@ -6,6 +6,12 @@ const Buffer = require('bare-buffer')
 const FramedStream = require('framed-stream')
 const top = require('process-top')
 
+let logsEnabled = Bare.argv[1] === 'true'
+
+function log(...args) {
+  if (logsEnabled) console.log(...args)
+}
+
 const processTop = new top()
 const ipc = new FramedStream(BareKit.IPC)
 
@@ -161,7 +167,7 @@ function handleBox(type, box) {
     const index = segments.length
     segments.push(segment)
     segmentDurations.push(1.0)
-    console.log('[transcode] segment', index, ':', segment.length, 'bytes')
+    log('[transcode] segment', index, ':', segment.length, 'bytes')
 
     const waiters = pendingWaiters.get(index)
     if (waiters) {
@@ -183,7 +189,7 @@ async function transcodeNext() {
     const { value, done } = await transcoder.next()
     if (done) {
       transcodeFinished = true
-      console.log('[transcode] finished, total segments:', segments.length)
+      log('[transcode] finished, total segments:', segments.length)
       ipc.write(Buffer.concat([Buffer.from('dur:'), Buffer.from('' + segments.length)]))
       sendStatus('done')
       for (const [, waiters] of pendingWaiters) {
@@ -268,7 +274,7 @@ function startHTTPServer() {
     if (url === '/stream.m3u8') {
       const playlist = generatePlaylist()
       const playlistBuf = Buffer.from(playlist)
-      console.log(
+      log(
         '[http] playlist: pos=' +
           playbackPosition +
           's, visible=' +
@@ -313,7 +319,7 @@ function startHTTPServer() {
         return
       }
 
-      console.log('[http] segment', index, ':', segment.length, 'bytes')
+      log('[http] segment', index, ':', segment.length, 'bytes')
       res.writeHead(200, {
         'Content-Type': 'video/mp4',
         'Content-Length': '' + segment.length
@@ -356,7 +362,7 @@ async function openFile(path) {
     return
   }
 
-  console.log('[transcode] ready: init', initSegment.length, 'bytes,', segments.length, 'segments')
+  log('[transcode] ready: init', initSegment.length, 'bytes,', segments.length, 'segments')
   sendStatus('streaming')
   sendUrl('http://localhost:' + HTTP_PORT + '/stream.m3u8?t=' + Date.now())
 }
@@ -364,6 +370,17 @@ async function openFile(path) {
 ipc.on('data', async (data) => {
   try {
     const message = data.toString()
+
+    if (message.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(message)
+        if (parsed.type === 'setLogsEnabled') {
+          logsEnabled = parsed.enabled
+          return
+        }
+      } catch {}
+    }
+
     const parts = message.split(':')
     const command = parts[0]
 

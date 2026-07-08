@@ -7,14 +7,14 @@ import b4a from 'b4a'
 
 const source = require('./os.bundle')
 
-export default function HypercoreTests() {
+export default function HypercoreTests({ logsEnabled }: { logsEnabled: boolean }) {
   const worklet = React.useRef(new Worklet()).current
   const [isRunning, setIsRunning] = useState(false)
   const [stats, setStats] = useState(null)
   const [type, setType] = useState('cpu')
 
   useEffect(() => {
-    worklet.start('os.bundle', source, [Platform.OS])
+    worklet.start('os.bundle', source, [Platform.OS, String(logsEnabled)])
 
     const { IPC } = worklet
 
@@ -32,6 +32,11 @@ export default function HypercoreTests() {
       if (worklet.terminate) worklet.terminate()
     }
   }, [])
+
+  useEffect(() => {
+    const msg = JSON.stringify({ type: 'setLogsEnabled', enabled: logsEnabled })
+    worklet.IPC.write(b4a.from(msg))
+  }, [logsEnabled])
 
   const runTests = async () => {
     if (isRunning) return

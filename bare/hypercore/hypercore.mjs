@@ -3,11 +3,17 @@ import fs from 'bare-fs'
 import top from 'process-top'
 import RPC from 'bare-rpc'
 import b4a from 'b4a'
-import { RPC_CPU, RPC_WRITE, RPC_READ, RPC_INIT } from './commands.mjs'
+import { RPC_CPU, RPC_WRITE, RPC_READ, RPC_INIT, RPC_SET_LOGS } from './commands.mjs'
 
 const { IPC } = BareKit
 
-console.log('Hypercore Worklet started')
+let logsEnabled = Bare.argv[1] === 'true'
+
+function log(...args) {
+  if (logsEnabled) console.log(...args)
+}
+
+log('Hypercore Worklet started')
 
 let path = Bare.argv[0]
 if (path.includes('file://')) {
@@ -101,8 +107,12 @@ const rpc = new RPC(IPC, async (req) => {
       case RPC_INIT:
         await init(req)
         break
+      case RPC_SET_LOGS:
+        logsEnabled = b4a.toString(req.data) === 'true'
+        req.reply('ok')
+        break
     }
   } catch (e) {
-    console.log('Bare error: ', e)
+    log('Bare error: ', e)
   }
 })

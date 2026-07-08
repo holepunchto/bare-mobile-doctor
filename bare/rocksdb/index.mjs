@@ -6,7 +6,12 @@ import fs from 'bare-fs'
 import spec from './spec/hyperdb/index.js'
 import { generateDatabase, generateRawDatabase } from './generate.mjs'
 
-// Get the base path from argv, similar to other modules
+let logsEnabled = Bare.argv[1] === 'true'
+
+function log(...args) {
+  if (logsEnabled) console.log(...args)
+}
+
 let path = Bare.argv[0]
 if (path.includes('file://')) {
   path = path.replace('file://', '')
@@ -19,9 +24,16 @@ const ipc = new FramedStream(BareKit.IPC)
 ipc.on('data', (data) => {
   try {
     const message = data.toString()
-    console.log('Received message:', message)
-    const { action, payload } = JSON.parse(message)
-    console.log('Parsed action:', action, 'payload:', payload)
+    const parsed = JSON.parse(message)
+
+    if (parsed.type === 'setLogsEnabled') {
+      logsEnabled = parsed.enabled
+      return
+    }
+
+    log('Received message:', message)
+    const { action, payload } = parsed
+    log('Parsed action:', action, 'payload:', payload)
 
     switch (action) {
       case 'generate':
@@ -34,7 +46,7 @@ ipc.on('data', (data) => {
         sendResponse({ error: 'Unknown action' })
     }
   } catch (error) {
-    console.error('Parse error:', error.message, 'for message:', message)
+    console.error('Parse error:', error.message)
     sendResponse({ type: 'error', error: error.message })
   }
 })
@@ -89,7 +101,7 @@ async function handleBench(payload) {
       })
       return
     }
-    console.log('dbsDir', dbsDir)
+    log('dbsDir', dbsDir)
 
     let dbPath
     if (type === 'hyperdb') {
@@ -104,7 +116,7 @@ async function handleBench(payload) {
       return
     }
 
-    console.log('dbPath', dbPath)
+    log('dbPath', dbPath)
 
     // Check if the specific database exists
     if (!fs.existsSync(dbPath)) {
