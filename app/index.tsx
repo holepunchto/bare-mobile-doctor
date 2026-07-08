@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { View, StyleSheet, Text, Switch } from 'react-native'
+import { View, StyleSheet, Switch } from 'react-native'
 
+import ThemedText from './components/ThemedText'
 import TabNavigator from './components/TabNavigator'
 import IPCTests from './views/ipc/IPCTests'
 import UDXTests from './views/udx/UDXTests'
@@ -61,7 +62,7 @@ export default function () {
   return (
     <View style={styles.container}>
       <View style={styles.logsToggle}>
-        <Text style={styles.logsLabel}>Logs</Text>
+        <ThemedText style={styles.logsLabel}>{logsEnabled ? '🟢' : '⚪'} Debug logs</ThemedText>
         <Switch value={logsEnabled} onValueChange={setLogsEnabled} />
       </View>
       <TabNavigator
