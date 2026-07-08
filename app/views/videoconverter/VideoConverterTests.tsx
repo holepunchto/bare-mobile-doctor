@@ -5,7 +5,7 @@ import { useVideoPlayer, VideoView } from 'expo-video'
 import { Worklet } from 'react-native-bare-kit'
 import FramedStream from 'framed-stream'
 import b4a from 'b4a'
-import * as FileSystem from 'expo-file-system'
+import { File, Directory, Paths } from 'expo-file-system'
 import { Asset } from 'expo-asset'
 
 import ThemedText from '../../components/ThemedText'
@@ -111,16 +111,17 @@ export default function VideoConverterTest({ logsEnabled }: { logsEnabled: boole
         }
       ]
 
+      const destDir = new Directory(Paths.document, 'bare-doctor')
       for (const v of videos) {
-        const destPath = `${dir}/${v.name}`
-        const fileInfo = await FileSystem.getInfoAsync(destPath)
-        if (fileInfo.exists) await FileSystem.deleteAsync(destPath)
+        const dest = new File(destDir, v.name)
+        if (dest.exists) dest.delete()
 
         const asset = Asset.fromModule(v.asset)
         await asset.downloadAsync()
 
         if (asset.localUri) {
-          await FileSystem.copyAsync({ from: asset.localUri, to: destPath })
+          const src = new File(asset.localUri)
+          src.copy(dest)
         }
       }
 
