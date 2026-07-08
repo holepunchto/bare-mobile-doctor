@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { View, StyleSheet, Switch } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 import ThemedText from './components/ThemedText'
 import TabNavigator from './components/TabNavigator'
@@ -60,7 +61,7 @@ export default function () {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.logsToggle}>
         <ThemedText style={styles.logsLabel}>{logsEnabled ? '🟢' : '⚪'} Debug logs</ThemedText>
         <Switch value={logsEnabled} onValueChange={setLogsEnabled} />
@@ -83,7 +84,7 @@ export default function () {
         onChangeModule={setActiveModule}
       />
       {renderContent()}
-    </View>
+    </SafeAreaView>
   )
 }
 
