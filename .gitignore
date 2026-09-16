@@ -13,4 +13,6 @@ npm-debug.*
 *.orig.*
 *.bundle
 *.bundle.js
+*.bundle.android.js
+*.bundle.ios.js
 web-build/
