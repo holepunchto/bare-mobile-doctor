@@ -326,7 +326,7 @@ class BLEServer extends EventEmitter {
     })
 
     // A central reads this to discover the PSM before opening the channel. The
-    // PSM is a plain number, so send it as raw text (not JSON) — the central
+    // PSM is a plain number, so send it as raw text (not JSON) - the central
     // parses it with Number().
     this._server.on('readRequest', (req) => {
       dbg('Server: readRequest (PSM) psm=', this._psm)
@@ -354,6 +354,19 @@ class BLEServer extends EventEmitter {
       this._server.addService(new Service(this.serviceUUID, [this.psmChar]))
     }
     if (this._psm == null) this._server.publishChannel()
+  }
+
+  // Apple only. bare-bluetooth leaves the method undefined on other platforms,
+  // so report the deliberate no-op rather than throwing a bare TypeError.
+  removeAllServices() {
+    if (!this._server.removeAllServices) {
+      this.emit('log', 'removeAllServices: no-op on ' + Bare.platform)
+      return
+    }
+
+    this._server.removeAllServices()
+    this.serviceAdded = false
+    this.emit('log', 'removeAllServices: all GATT services removed')
   }
 
   startAdvertising(deviceName) {
@@ -563,6 +576,10 @@ class Session {
     this.server.setAdvertising(enabled, this.deviceName)
   }
 
+  removeAllServices() {
+    this.server.removeAllServices()
+  }
+
   inviteDevice(id) {
     this.log('Invite requested: ' + String(id).slice(0, 16))
 
@@ -683,6 +700,9 @@ ipc.on('data', (data) => {
       case 'setScan':
         session.setScan(msg.enabled)
         break
+      case 'removeAllServices':
+        session.removeAllServices()
+        break
       case 'invite':
         session.inviteDevice(msg.id)
         break
@@ -709,7 +729,7 @@ ipc.on('data', (data) => {
 
 Bare.on('exit', () => {
   // Always on (not DEBUG-gated): a single marker at teardown start tells us
-  // whether the worklet got a clean Bare exit at all — without the hot-path
+  // whether the worklet got a clean Bare exit at all - without the hot-path
   // traces that hide the native teardown race.
   console.log('[bt] === Bare exit: runtime teardown starting ===')
   session.destroy()
