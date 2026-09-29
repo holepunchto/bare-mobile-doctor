@@ -216,6 +216,10 @@ export default function BluetoothTests({ logsEnabled }: { logsEnabled: boolean }
     sendToWorklet({ type: 'setScan', enabled })
   }
 
+  const removeAllServices = () => {
+    sendToWorklet({ type: 'removeAllServices' })
+  }
+
   const inviteDevice = (id: string) => {
     addLog('Invite tapped: ' + id.slice(0, 16))
     sendToWorklet({ type: 'invite', id })
@@ -361,6 +365,18 @@ export default function BluetoothTests({ logsEnabled }: { logsEnabled: boolean }
             }
           />
         </View>
+        {Platform.OS === 'ios' && (
+          <View style={styles.toggleRow}>
+            <ThemedText style={styles.label}>Stop accepting invites</ThemedText>
+            <TouchableOpacity
+              style={styles.removeServicesButton}
+              onPress={removeAllServices}
+              disabled={state === 'init'}
+            >
+              <ThemedText style={styles.removeServicesText}>Stop</ThemedText>
+            </TouchableOpacity>
+          </View>
+        )}
         <ThemedText style={styles.stateText}>
           BLE: {bleState} | State: {state}
         </ThemedText>
@@ -455,6 +471,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
     marginTop: 4
+  },
+  removeServicesButton: {
+    backgroundColor: '#DC3545',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6
+  },
+  removeServicesText: {
+    color: 'white',
+    fontSize: 13,
+    fontWeight: '600'
   },
   emptyText: {
     textAlign: 'center',
