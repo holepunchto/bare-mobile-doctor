@@ -19,6 +19,14 @@ npm install
 > node node_modules/@shopify/react-native-skia/scripts/install-skia.mjs
 > ```
 
+Then link the native addons, which `react-native-bare-kit` no longer does automatically. This uses [`bare-link`](https://github.com/holepunchto/bare-link) to link the addons loaded by the worklets listed in `scripts/link.mjs`, and must be re-run after every reinstall, after adding a worklet, and after changing an addon dependency:
+
+```sh
+npm run link
+```
+
+> On iOS the pod picks up the linked `.xcframework` bundles when CocoaPods reads the podspec, so run `npm run link` before `pod install`.
+
 Then, you can bundle worklets:
 
 ```sh
