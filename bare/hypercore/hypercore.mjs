@@ -26,6 +26,21 @@ function time() {
 
 const processTop = new top()
 
+const BATCH = 10000
+
+// One append per block is ~16x slower than batching
+async function appendRecords(core, records) {
+  let batch = []
+  for (let i = 1; i <= records; i++) {
+    batch.push(Buffer.from(`${i}`))
+    if (batch.length === BATCH) {
+      await core.append(batch)
+      batch = []
+    }
+  }
+  if (batch.length > 0) await core.append(batch)
+}
+
 function cpu(req) {
   req.reply(JSON.stringify(processTop.toString()))
 }
@@ -34,11 +49,7 @@ async function write(req) {
   const records = Number(b4a.toString(req.data))
   const core = new Hypercore(path + `/${time()}`)
   await core.ready()
-  let i = 1
-  do {
-    await core.append(Buffer.from(`${i}`))
-    i++
-  } while (i !== records + 1)
+  await appendRecords(core, records)
 
   const block = await core.get(core.length - 1)
 
@@ -82,11 +93,7 @@ async function init(req) {
   }
   const core = new Hypercore(coreDir)
   await core.ready()
-  let i = 1
-  do {
-    await core.append(Buffer.from(`${i}`))
-    i++
-  } while (i !== records + 1)
+  await appendRecords(core, records)
   const block = await core.get(core.length - 1)
   await core.close()
   req.reply(block.toString())
