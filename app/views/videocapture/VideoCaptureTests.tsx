@@ -19,6 +19,17 @@ function isCpuInfo(data: Uint8Array): boolean {
 }
 
 export default function VideoCaptureTest({ logsEnabled }: { logsEnabled: boolean }) {
+  if (__DEV__) {
+    return (
+      <View style={styles.container}>
+        <ThemedText style={styles.title}>Video Capture</ThemedText>
+        <ThemedText style={{ color: '#999', fontSize: 16 }}>
+          Release builds only - React dev mode caps this at a few frames per minute.
+        </ThemedText>
+      </View>
+    )
+  }
+
   const log = useLog(logsEnabled)
   const [permission, requestPermission] = useCameraPermissions()
   const [data, setData] = useState<Uint8Array | null>(null)
@@ -117,6 +128,8 @@ export default function VideoCaptureTest({ logsEnabled }: { logsEnabled: boolean
 }
 
 const styles = StyleSheet.create({
+  container: { flex: 1 },
+  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 8 },
   controls: {
     flexDirection: 'row',
     justifyContent: 'center',
