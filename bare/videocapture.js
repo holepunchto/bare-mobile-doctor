@@ -166,11 +166,12 @@ setInterval(() => {
       )
       log('4 - create image')
 
-      image.fill(rgbaFrame)
-      log('5 - fill  image')
-
       scaler.scale(rawFrame, rgbaFrame)
-      log('6 - scale to rgba frame')
+      log('5 - scale to rgba frame')
+
+      // read, not fill: sws_scale overruns an exact-sized buffer
+      image.read(rgbaFrame)
+      log('6 - read image from frame')
 
       log('7 - use buffer from image', image.data.byteLength)
 
