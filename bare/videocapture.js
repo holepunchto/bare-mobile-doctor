@@ -6,8 +6,13 @@ const top = require('process-top')
 let debug = Bare.argv[0] === 'true' || Bare.argv[2] === 'true'
 let deviceIndex = Bare.argv[1] === 'front' ? '1' : '0'
 let isDownScaled = false
+let backedUp = false
 const processTop = new top()
 const ipc = new FramedStream(BareKit.IPC)
+
+ipc.on('drain', () => {
+  backedUp = false
+})
 
 function isDownScale(data) {
   return data[0] === 'd'.charCodeAt(0) && data[1] === 'n'.charCodeAt(0)
@@ -132,6 +137,8 @@ setInterval(() => {
 // Main loop
 setInterval(() => {
   try {
+    if (backedUp) return // consumer is behind: drop this frame, live video wants the newest
+
     const packet = new ffmpeg.Packet()
     let ret = inputFormatContext.readFrame(packet)
     log('1 - read frame', ret)
@@ -165,12 +172,12 @@ setInterval(() => {
       scaler.scale(rawFrame, rgbaFrame)
       log('6 - scale to rgba frame')
 
-      log('7 - use buffer from image', image.data)
+      log('7 - use buffer from image', image.data.byteLength)
 
       const buf = b4a.from(image.data.buffer)
       log('8 - buffer size being sent:', buf.length)
 
-      ipc.write(buf)
+      if (ipc.write(buf) === false) backedUp = true
       log('9 - buffer sent successfully via IPC')
     }
   } catch (error) {
