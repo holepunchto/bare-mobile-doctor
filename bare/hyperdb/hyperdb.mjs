@@ -1,5 +1,4 @@
 import HyperDB from 'hyperdb'
-import Hyperswarm from 'hyperswarm'
 import Corestore from 'corestore'
 import db from './spec/db/index.js'
 import b4a from 'b4a'
@@ -48,50 +47,6 @@ async function intensive(records) {
   BareKit.IPC.write(JSON.stringify(result[0]))
 
   await local.close() // close the db
-}
-
-async function bee(records) {
-  const bootstrapKey = b4a.from(
-    '650ad31c618e7d18566477f417468931ad75d0a5cb90882244b6562f1c79cdb3',
-    'hex'
-  )
-  const topic = b4a.from('e4a4fa547d3f715b41eedbbc0bbae5cd3940a5f15a709e1e5c2d2af6ed106835', 'hex')
-  let closed = false
-
-  const remoteCorestore = new Corestore(path + `/${time()}/remote.db`)
-
-  const b = remoteCorestore.get({ key: bootstrapKey })
-
-  const remote = HyperDB.bee(b, db, { autoUpdate: true })
-  await remote.ready()
-
-  const remoteSwarm = new Hyperswarm()
-  remoteSwarm.on('connection', async (conn) => {
-    remoteCorestore.replicate(conn)
-  })
-
-  const swarm2 = remoteSwarm.join(topic)
-
-  // Watch for db updates
-  async function remoteOnChange() {
-    for (let x = 0; x <= records; x++) {
-      let result
-      if (!closed) {
-        result = await remote.get('@hyperdb-example/user', { id: x })
-      }
-      if (result && result.id === records) {
-        remote.unwatch(remoteOnChange)
-
-        BareKit.IPC.write(b4a.from(JSON.stringify(result)))
-
-        await swarm2.destroy()
-        await remote.close()
-        closed = true
-      }
-    }
-  }
-
-  remote.watch(remoteOnChange)
 }
 
 async function localBee(records) {
@@ -154,8 +109,6 @@ BareKit.IPC.on('data', async (data) => {
 
   if (payload.workType === 'intensive') {
     await intensive(payload.recordsAmount)
-  } else if (payload.workType === 'bee') {
-    await bee(payload.recordsAmount)
   } else if (payload.workType === 'bee-local') {
     await localBee(payload.recordsAmount)
   } else if (payload.workType === 'basic') {

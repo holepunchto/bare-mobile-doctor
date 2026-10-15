@@ -60,7 +60,6 @@
     "framed-stream": "^1.0.1",
     "hyperdb": "^5.0.1",
     "hyperschema": "^1.26.2",
-    "hyperswarm": "^4.17.2",
     "process-top": "^1.8.0",
     "quickbit-native": "^2.4.9",
     "react": "19.2.0",
