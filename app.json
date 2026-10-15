@@ -43,6 +43,10 @@
         {
           "android": {
             "minSdkVersion": 31
+          },
+          "ios": {
+            "deploymentTarget": "16.4",
+            "enableSceneSupport": true
           }
         }
       ],
