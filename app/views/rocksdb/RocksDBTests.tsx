@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useColorScheme } from 'react-native'
+import { View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native'
 
 import FramedStream from 'framed-stream'
 import { Worklet } from 'react-native-bare-kit'
@@ -8,92 +8,66 @@ import b4a from 'b4a'
 import useBareDir from '../../hooks/useBareDir'
 import useLog from '../../hooks/useLog'
 import ThemedText from '../../components/ThemedText'
-import ExecutionLog from './ExecutionLog'
-import TestResult from './TestResult'
 
 const source = require('./rocksdb.bundle')
-const dbSizes = [1e4, 1e5, 1e6]
+
+const durations = [2, 5, 10]
 const dbTypes = ['hyperdb', 'raw']
-const expectedDatabases = 6
 
-interface GenerationResults {
-  success: boolean
-  type: string
-  size: number
-}
-
-interface BenchmarkResult {
-  dir: string
-  recordsRead: number
-  duration: number
-  rate: number
-}
-
-// Message type definitions
-type MessageType = 'benchmark' | 'generation' | 'error'
-
-interface BaseMessage {
-  type: MessageType
-}
-
-interface BenchmarkMessage extends BaseMessage {
-  type: 'benchmark'
-  result: BenchmarkResult
-}
-
-interface GenerationMessage extends BaseMessage {
-  type: 'generation'
-  success: boolean
+interface Result {
   dbType: string
-  size: number
+  records: number
+  writeRate: number
+  readRate: number
+  writeMs: number
+  readMs: number
 }
 
-interface ErrorMessage extends BaseMessage {
-  type: 'error'
-  error: string
+interface Progress {
+  dbType: string
+  phase: 'write' | 'read'
+  count: number
 }
 
-type Message = BenchmarkMessage | GenerationMessage | ErrorMessage
+type Message =
+  | ({ type: 'result' } & Result)
+  | ({ type: 'progress' } & Progress)
+  | { type: 'error'; error: string }
+
+function compact(n: number): string {
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`
+  if (n >= 1e3) return `${Math.round(n / 1e3)}k`
+  return `${n}`
+}
+
+function elapsed(ms: number): string {
+  return `in ${(ms / 1000).toFixed(1)}s`
+}
 
 export default function RocksDBTests({ logsEnabled }: { logsEnabled: boolean }) {
   const log = useLog(logsEnabled)
-  const worklet = React.useRef<any>(null)
+  const worklet = useRef<any>(null)
   const ipc = useRef<any>(null)
-  const colorScheme = useColorScheme()
-  const isDark = colorScheme === 'dark'
 
-  const [isGenerating, setIsGenerating] = React.useState(false)
-  const [isRunning, setIsRunning] = React.useState(false)
-  const [generationResults, setGenerationResults] = React.useState<GenerationResults[]>([])
-  const [benchmarkResults, setBenchmarkResults] = React.useState<BenchmarkResult[]>([])
-  const [errors, setErrors] = React.useState<string[]>([])
+  // Benchmarks must not overlap or they measure each other, so the queue is
+  // drained one message at a time as each result comes back.
+  const pending = useRef<string[]>([])
 
-  // Calculate expected total databases (3 sizes × 2 types = 6)
-  const generationProgress = generationResults.length
+  const [seconds, setSeconds] = useState(durations[1])
+  const [types, setTypes] = useState<string[]>([...dbTypes])
+  const [results, setResults] = useState<Result[]>([])
+  const [progress, setProgress] = useState<Progress | null>(null)
+  const [error, setError] = useState('')
+  const [isRunning, setIsRunning] = useState(false)
 
-  // Message handler functions
-  const handleBenchmarkMessage = (message: BenchmarkMessage) => {
-    setBenchmarkResults((prev) => [...prev, message.result])
-    setIsRunning(false)
-  }
-
-  const handleGenerationMessage = (message: GenerationMessage) => {
-    setGenerationResults((prev) => {
-      const newResults = [
-        ...prev,
-        { success: message.success, type: message.dbType, size: message.size }
-      ]
-      if (newResults.length >= expectedDatabases) {
-        setIsGenerating(false)
-      }
-      return newResults
-    })
-  }
-
-  const handleErrorMessage = (message: ErrorMessage) => {
-    setErrors((prev) => [...prev, message.error])
-    setIsGenerating(false)
-    setIsRunning(false)
+  const next = () => {
+    const message = pending.current.shift()
+    if (!message) {
+      setProgress(null)
+      setIsRunning(false)
+      return
+    }
+    ipc.current.write(b4a.from(message))
   }
 
   useEffect(() => {
@@ -104,39 +78,27 @@ export default function RocksDBTests({ logsEnabled }: { logsEnabled: boolean }) 
       worklet.current.start('rocksdb.bundle', source, [bareDir, String(logsEnabled)])
 
       ipc.current = new FramedStream(worklet.current.IPC)
-      ipc.current.on('data', (data: string) => {
-        const dataString = b4a.toString(data)
-        log('Received response:', dataString)
+      ipc.current.on('data', (data: Uint8Array) => {
+        const message = JSON.parse(b4a.toString(data)) as Message
+        log('rocksdb', message)
 
-        try {
-          const message = JSON.parse(dataString) as Message
-
-          // Route message to appropriate handler
-          switch (message.type) {
-            case 'benchmark':
-              handleBenchmarkMessage(message)
-              break
-            case 'generation':
-              handleGenerationMessage(message)
-              break
-            case 'error':
-              handleErrorMessage(message)
-              break
-          }
-        } catch (err) {
-          console.error('Failed to parse response:', err)
-          handleErrorMessage({
-            type: 'error',
-            error: 'Failed to parse response'
-          })
+        if (message.type === 'progress') {
+          setProgress(message)
+          return
         }
+        if (message.type === 'error') {
+          setError(message.error)
+        } else {
+          setResults((prev) => [...prev, message])
+        }
+        next()
       })
     }
 
     setup()
 
     return () => {
-      if (worklet.current && worklet.current.terminate) worklet.current.terminate()
+      if (worklet.current?.terminate) worklet.current.terminate()
     }
   }, [])
 
@@ -145,225 +107,166 @@ export default function RocksDBTests({ logsEnabled }: { logsEnabled: boolean }) 
     ipc.current.write(b4a.from(JSON.stringify({ type: 'setLogsEnabled', enabled: logsEnabled })))
   }, [logsEnabled])
 
-  const generateDatabases = () => {
-    setIsGenerating(true)
-    setErrors([])
-    setGenerationResults([])
-
-    dbSizes.forEach((size) => {
-      dbTypes.forEach((type) => {
-        const message = JSON.stringify({
-          action: 'generate',
-          payload: { type, size }
-        })
-        ipc.current.write(b4a.from(message))
-      })
-    })
+  const toggleType = (type: string) => {
+    setTypes((prev) => (prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]))
   }
 
-  const runBenchmarks = () => {
+  const run = () => {
+    setResults([])
+    setError('')
+    setProgress(null)
+    pending.current = types.map((dbType) =>
+      JSON.stringify({ action: 'bench', payload: { dbType, seconds } })
+    )
     setIsRunning(true)
-    setErrors([])
-    setBenchmarkResults([])
-
-    dbSizes.forEach((size) => {
-      dbTypes.forEach((type) => {
-        const message = JSON.stringify({
-          action: 'bench',
-          payload: { type, size }
-        })
-        ipc.current.write(b4a.from(message))
-      })
-    })
+    next()
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: isDark ? '#000000' : '#f8f9fa' }]}>
-      <View style={[styles.header, { backgroundColor: isDark ? '#1a1a1a' : '#fff' }]}>
-        <ThemedText style={styles.title}>🚀 RocksDB Benchmark</ThemedText>
-        <ThemedText style={styles.subtitle}>
-          Performance testing for HyperDB vs Raw RocksDB
-        </ThemedText>
-      </View>
-
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={[styles.button, styles.generateButton, isGenerating && styles.buttonDisabled]}
-          onPress={generateDatabases}
-          disabled={isGenerating || isRunning}
-        >
-          <ThemedText style={styles.buttonText}>
-            {isGenerating
-              ? `🔄 Generating... (${generationProgress}/${expectedDatabases})`
-              : '📊 Generate Databases'}
-          </ThemedText>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.button, styles.runButton, isRunning && styles.buttonDisabled]}
-          onPress={runBenchmarks}
-          disabled={isGenerating || isRunning}
-        >
-          <ThemedText style={styles.buttonText}>
-            {isRunning ? '⚡ Running...' : '🏃 Run Benchmarks'}
-          </ThemedText>
-        </TouchableOpacity>
-      </View>
-
-      <View
-        style={[
-          styles.tipContainer,
-          {
-            backgroundColor: isDark ? '#1a1a1a' : '#fff3cd',
-            borderColor: isDark ? '#333' : '#ffeaa7'
-          }
-        ]}
-      >
-        <ThemedText style={styles.tipIcon}>💡</ThemedText>
-        <ThemedText style={styles.tipTitle}>Tip: Generate Databases First</ThemedText>
-        <ThemedText style={styles.tipText}>
-          Before running benchmarks, you need to generate the test databases. Click "Generate
-          Databases" to create the required data files.
-        </ThemedText>
-      </View>
-
-      <View style={styles.resultsContainer}>
-        <ThemedText style={styles.sectionTitle}>📈 Benchmark Results</ThemedText>
-        {benchmarkResults.map((result, index) => (
-          <TestResult
-            key={index}
-            testName={`${result.dir}`}
-            hasSucceeded={true}
-            isRunning={false}
-            result={result}
-          />
+    <ScrollView>
+      <ThemedText style={styles.label}>Seconds per phase</ThemedText>
+      <View style={styles.row}>
+        {durations.map((value) => (
+          <TouchableOpacity
+            key={value}
+            style={[styles.option, seconds === value && styles.selected]}
+            onPress={() => setSeconds(value)}
+            disabled={isRunning}
+          >
+            <ThemedText style={styles.optionText}>{value}s</ThemedText>
+          </TouchableOpacity>
         ))}
-        {benchmarkResults.length === 0 && !isRunning && (
-          <View style={[styles.emptyState, { backgroundColor: isDark ? '#1a1a1a' : '#fff' }]}>
-            <ThemedText style={styles.emptyStateIcon}>📊</ThemedText>
-            <ThemedText style={styles.emptyStateText}>No benchmark results yet</ThemedText>
-            <ThemedText style={styles.emptyStateSubtext}>
-              Click "Run Benchmarks" to test the generated databases
-            </ThemedText>
-          </View>
-        )}
       </View>
 
-      <ExecutionLog results={generationResults} errors={errors} />
+      <ThemedText style={styles.label}>Type</ThemedText>
+      <View style={styles.row}>
+        {dbTypes.map((type) => (
+          <TouchableOpacity
+            key={type}
+            style={[styles.option, types.includes(type) && styles.selected]}
+            onPress={() => toggleType(type)}
+            disabled={isRunning}
+          >
+            <ThemedText style={styles.optionText}>{type.toUpperCase()}</ThemedText>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <TouchableOpacity
+        style={[styles.run, (isRunning || types.length === 0) && styles.disabled]}
+        onPress={run}
+        disabled={isRunning || types.length === 0}
+      >
+        <ThemedText style={styles.runText}>{isRunning ? 'Running...' : 'Run'}</ThemedText>
+      </TouchableOpacity>
+
+      {progress && (
+        <ThemedText style={styles.progress}>
+          {progress.dbType} {progress.phase === 'write' ? 'writing' : 'reading'}{' '}
+          {compact(progress.count)}
+        </ThemedText>
+      )}
+
+      {error !== '' && <ThemedText style={styles.error}>{error}</ThemedText>}
+
+      {results.map((result) => (
+        <View key={result.dbType} style={styles.result}>
+          <ThemedText style={styles.resultType}>{result.dbType.toUpperCase()}</ThemedText>
+          <View style={styles.metrics}>
+            <View style={styles.metric}>
+              <ThemedText style={styles.metricValue}>{compact(result.writeRate)}</ThemedText>
+              <ThemedText style={styles.metricLabel}>writes/s</ThemedText>
+              <ThemedText style={styles.metricSub}>{elapsed(result.writeMs)}</ThemedText>
+            </View>
+            <View style={styles.metric}>
+              <ThemedText style={styles.metricValue}>{compact(result.readRate)}</ThemedText>
+              <ThemedText style={styles.metricLabel}>reads/s</ThemedText>
+              <ThemedText style={styles.metricSub}>{elapsed(result.readMs)}</ThemedText>
+            </View>
+            <View style={styles.metric}>
+              <ThemedText style={styles.metricValue}>{compact(result.records)}</ThemedText>
+              <ThemedText style={styles.metricLabel}>records</ThemedText>
+            </View>
+          </View>
+        </View>
+      ))}
     </ScrollView>
   )
 }
 
 const styles = StyleSheet.create({
-  container: {
+  label: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 6
+  },
+  row: {
+    flexDirection: 'row',
+    marginBottom: 14
+  },
+  option: {
+    backgroundColor: '#ccc',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 6,
+    marginRight: 8
+  },
+  selected: {
+    backgroundColor: '#007AFF'
+  },
+  optionText: {
+    color: 'white',
+    fontSize: 13,
+    fontWeight: '600'
+  },
+  run: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 20
+  },
+  disabled: {
+    opacity: 0.5
+  },
+  runText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600'
+  },
+  progress: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 20
+  },
+  error: {
+    fontSize: 14,
+    color: '#d7263d',
+    marginBottom: 20
+  },
+  result: {
+    marginBottom: 16
+  },
+  resultType: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 6
+  },
+  metrics: {
+    flexDirection: 'row'
+  },
+  metric: {
     flex: 1
   },
-  header: {
-    padding: 20,
-    paddingTop: 40,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef'
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 5
-  },
-  subtitle: {
-    fontSize: 16,
-    textAlign: 'center'
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    padding: 20,
-    gap: 15
-  },
-  button: {
-    flex: 1,
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3
-  },
-  generateButton: {
-    backgroundColor: '#007bff',
-    borderWidth: 1,
-    borderColor: '#0056b3'
-  },
-  runButton: {
-    backgroundColor: '#28a745',
-    borderWidth: 1,
-    borderColor: '#1e7e34'
-  },
-  buttonDisabled: {
-    backgroundColor: '#6c757d',
-    borderColor: '#6c757d'
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 16
-  },
-  sectionTitle: {
+  metricValue: {
     fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 15,
-    textAlign: 'center'
+    fontWeight: '700'
   },
-  resultsContainer: {
-    margin: 20,
-    marginBottom: 40
+  metricLabel: {
+    fontSize: 12
   },
-  emptyState: {
-    alignItems: 'center',
-    padding: 40,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3
-  },
-  emptyStateIcon: {
-    fontSize: 48,
-    marginBottom: 15
-  },
-  emptyStateText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 5
-  },
-  emptyStateSubtext: {
-    fontSize: 14,
-    textAlign: 'center'
-  },
-
-  tipContainer: {
-    margin: 20,
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 16,
-    alignItems: 'center'
-  },
-  tipIcon: {
-    fontSize: 24,
-    marginBottom: 8
-  },
-  tipTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    textAlign: 'center'
-  },
-  tipText: {
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 20
+  metricSub: {
+    fontSize: 11,
+    opacity: 0.6
   }
 })

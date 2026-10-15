@@ -1,7 +1,7 @@
 // This code creates a schema for the database and saves it to the disk
 
 import Hyperschema from 'hyperschema'
-import HyperDB from '../../node_modules/hyperdb/builder/index.js'
+import HyperDB from 'hyperdb/builder'
 
 // Try to load from an existing schema, if it does not exist then create a new one
 const schema = Hyperschema.from('./spec/schema')
@@ -28,8 +28,8 @@ ns.register({
   ]
 })
 
-// Save to the disk
-Hyperschema.toDisk(schema)
+// Save to the disk as CommonJS: Bare loads .js as CJS, not ESM
+Hyperschema.toDisk(schema, { esm: false })
 
 // This part registers a collection (similar to mongodb collections) and saves them to the disk.
 const db = HyperDB.from('./spec/schema', './spec/db')
@@ -44,4 +44,4 @@ blobs.collections.register({
 })
 
 // Save to the disk so that it can be reused
-HyperDB.toDisk(db)
+HyperDB.toDisk(db, { esm: false })

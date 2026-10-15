@@ -143,7 +143,7 @@ export default function HyperdbTests({ logsEnabled }: { logsEnabled: boolean }) 
       </View>
 
       <View style={styles.controls}>
-        {['basic', 'intensive', 'bee', 'bee-local'].map((type) => (
+        {['basic', 'intensive', 'bee-local'].map((type) => (
           <TouchableOpacity
             key={type}
             style={[styles.optionButton, modes.includes(type) && styles.selectedOption]}
@@ -163,9 +163,7 @@ export default function HyperdbTests({ logsEnabled }: { logsEnabled: boolean }) 
       </TouchableOpacity>
 
       <ThemedText style={[styles.stats]}>
-        {modes.includes('bee')
-          ? `Records Read: ${recordsReceived}`
-          : `Sent: ${recordsSent} | Records Created: ${recordsReceived}`}
+        {`Sent: ${recordsSent} | Records Created: ${recordsReceived}`}
       </ThemedText>
 
       {Object.entries(timings).map(([mode, time], index) => (
