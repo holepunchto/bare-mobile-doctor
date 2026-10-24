@@ -15,6 +15,7 @@ import VideoCaptureTests from './views/videocapture/VideoCaptureTests'
 import VideoConverterTests from './views/videoconverter/VideoConverterTests'
 import RocksDBTests from './views/rocksdb/RocksDBTests'
 import BluetoothTests from './views/bluetooth/BluetoothTests'
+import LWP3Tests from './views/lwp3/LWP3Tests'
 
 export type TestModule =
   | 'IPC'
@@ -28,6 +29,7 @@ export type TestModule =
   | 'VideoConverter'
   | 'RocksDB'
   | 'Bluetooth'
+  | 'LWP3'
 
 export default function () {
   const [activeModule, setActiveModule] = useState<TestModule>('OS')
@@ -57,6 +59,8 @@ export default function () {
         return <RocksDBTests logsEnabled={logsEnabled} />
       case 'Bluetooth':
         return <BluetoothTests logsEnabled={logsEnabled} />
+      case 'LWP3':
+        return <LWP3Tests logsEnabled={logsEnabled} />
     }
   }
 
@@ -78,7 +82,8 @@ export default function () {
           'VideoCapture',
           'VideoConverter',
           'RocksDB',
-          'Bluetooth'
+          'Bluetooth',
+          'LWP3'
         ]}
         activeModule={activeModule}
         onChangeModule={setActiveModule}
