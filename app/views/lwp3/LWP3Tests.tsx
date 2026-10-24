@@ -24,6 +24,9 @@ const LED_COLORS = [
   { name: 'white', hex: '#f9fafb' }
 ]
 
+const SPEEDS = [0, 25, 50, 75, 100]
+const DEFAULT_SPEED = 50
+
 type HubState = 'idle' | 'scanning' | 'calibrating' | 'ready'
 
 const LABELS: Record<HubState, string> = {
@@ -52,6 +55,7 @@ export default function LWP3Tests({ logsEnabled }: { logsEnabled: boolean }) {
   const logScrollRef = useRef<ScrollView | null>(null)
 
   const [state, setState] = useState<HubState>('idle')
+  const [speed, setSpeed] = useState(DEFAULT_SPEED)
   const [hubName, setHubName] = useState<string | null>(null)
   const [battery, setBattery] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -132,6 +136,12 @@ export default function LWP3Tests({ logsEnabled }: { logsEnabled: boolean }) {
     if (stream) stream.write(b4a.from(JSON.stringify(msg)))
   }
 
+  const changeSpeed = (value: number) => {
+    if (value === speed) return
+    setSpeed(value)
+    send({ type: 'speed', value })
+  }
+
   const ready = state === 'ready'
 
   return (
@@ -146,6 +156,20 @@ export default function LWP3Tests({ logsEnabled }: { logsEnabled: boolean }) {
           <ThemedText style={styles.buttonText}>Connect to hub</ThemedText>
         </TouchableOpacity>
       )}
+
+      <View style={styles.speeds}>
+        {SPEEDS.map((value) => (
+          <TouchableOpacity
+            key={value}
+            style={[styles.speedButton, value === speed && styles.speedSelected]}
+            onPress={() => changeSpeed(value)}
+          >
+            <ThemedText style={[styles.speedText, value === speed && styles.speedTextSelected]}>
+              {value}%
+            </ThemedText>
+          </TouchableOpacity>
+        ))}
+      </View>
 
       <View style={styles.pad}>
         <View style={styles.padRow}>
@@ -250,6 +274,28 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600'
+  },
+  speeds: {
+    flexDirection: 'row',
+    marginTop: 20
+  },
+  speedButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginHorizontal: 4,
+    borderRadius: 8,
+    backgroundColor: '#232936'
+  },
+  speedSelected: {
+    backgroundColor: '#6ee7b7'
+  },
+  speedText: {
+    color: '#e5e7eb',
+    fontSize: 14,
+    fontWeight: '600'
+  },
+  speedTextSelected: {
+    color: '#14171f'
   },
   pad: {
     marginTop: 20,

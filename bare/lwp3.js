@@ -3,7 +3,10 @@ const FramedStream = require('framed-stream')
 const { Central } = require('bare-bluetooth')
 const lwp3 = require('bare-lwp3')
 
-const SPEED = 50
+const DEFAULT_SPEED = 50
+// The car stalls when full speed is commanded in reverse, so reverse is capped
+// here. Forward is unaffected.
+const MAX_REVERSE_SPEED = 75
 const STEER_POWER = 30
 const STEER_SPEED = 40
 const STEER_MARGIN = 0.6
@@ -249,6 +252,16 @@ const colors = {
 let hub = null
 let car = null
 
+// Current throttle (0-100) and which way we are driving, so a speed change
+// while moving takes effect without the user having to press forward again.
+let speed = DEFAULT_SPEED
+let direction = 0
+
+// Signed speed to send for the way we are currently driving.
+function throttle() {
+  return direction * (direction < 0 ? Math.min(speed, MAX_REVERSE_SPEED) : speed)
+}
+
 async function start() {
   if (hub) return
 
@@ -278,11 +291,13 @@ async function start() {
 
 const commands = {
   forward() {
-    car.drive(SPEED)
+    direction = 1
+    car.drive(throttle())
     hub.led(lwp3.LED_BLUE)
   },
   backward() {
-    car.drive(-SPEED)
+    direction = -1
+    car.drive(throttle())
     hub.led(lwp3.LED_BLUE)
   },
   left() {
@@ -292,6 +307,7 @@ const commands = {
     car.steer(1)
   },
   stop() {
+    direction = 0
     car.stop()
     hub.led(lwp3.LED_RED)
   },
@@ -313,6 +329,12 @@ ipc.on('data', (data) => {
 
   if (msg.type === 'setLogsEnabled') {
     DEBUG = msg.enabled
+    return
+  }
+
+  if (msg.type === 'speed') {
+    speed = Math.max(0, Math.min(100, Math.round(msg.value)))
+    if (car && direction) car.drive(throttle())
     return
   }
 
