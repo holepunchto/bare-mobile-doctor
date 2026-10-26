@@ -42,6 +42,7 @@ class Hub extends EventEmitter {
 
     peripheral.on('notify', (c, data) => {
       const message = lwp3.decode(data)
+      dbg('msg', JSON.stringify(message))
       if (message.type === 'attachedIo') {
         if (message.event === 0x00) this._attached.delete(message.port)
         else this._attached.add(message.port)
@@ -130,7 +131,9 @@ function connect() {
 
     central.on('connect', (peripheral) => {
       peripheral.on('servicesDiscover', (services) => {
-        peripheral.discoverCharacteristics(services[0])
+        const service = services.find((s) => s.uuid.toLowerCase() === lwp3.SERVICE_UUID)
+        if (!service) return reject(new Error('lwp3 service not found'))
+        peripheral.discoverCharacteristics(service)
       })
 
       peripheral.on('characteristicsDiscover', (service, characteristics) => {
@@ -251,6 +254,14 @@ const colors = {
 
 let hub = null
 let car = null
+let expectedOff = false
+
+function reset() {
+  hub = null
+  car = null
+  expectedOff = false
+  send({ type: 'status', state: 'idle' })
+}
 
 // Current throttle (0-100) and which way we are driving, so a speed change
 // while moving takes effect without the user having to press forward again.
@@ -273,12 +284,16 @@ async function start() {
     if (message.type === 'battery') send({ type: 'battery', level: message.level })
     if (message.type === 'error') send({ type: 'error', message: message.reason })
   })
-  hub.on('disconnect', () => {
-    hub = null
-    car = null
-    send({ type: 'status', state: 'idle' })
+  hub.on('disconnect', reset)
+  hub.on('error', (err) => {
+    if (err.code === 'DISCONNECT') {
+      if (!expectedOff) send({ type: 'error', message: err.message })
+      reset()
+      return
+    }
+
+    send({ type: 'error', message: err.message })
   })
-  hub.on('error', (err) => send({ type: 'error', message: err.message }))
   hub.subscribeBattery()
 
   car = new Car(hub)
@@ -312,6 +327,7 @@ const commands = {
     hub.led(lwp3.LED_RED)
   },
   off() {
+    expectedOff = true
     hub.off()
   }
 }
@@ -340,9 +356,7 @@ ipc.on('data', (data) => {
 
   if (msg.type === 'connect') {
     start().catch((err) => {
-      hub = null
-      car = null
-      send({ type: 'status', state: 'idle' })
+      reset()
       send({ type: 'error', message: err.message })
     })
     return
