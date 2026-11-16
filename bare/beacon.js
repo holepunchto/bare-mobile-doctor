@@ -1,14 +1,19 @@
 // A LoRa radio as a dead drop for one hypercore key.
 //
 // Walk up to a radio. Either it already holds a key - clone the core over the
-// DHT and read it - or it is empty, and you put yours in. The key lives in a
+// DHT and read it - or it is empty, and you put one there. The key lives in a
 // channel slot in the radio's flash, so it is still there an hour later, and
 // the radio hands it to every phone that connects without being asked.
 //
 // Why a channel slot: ChannelSettings.psk is capped at 32 bytes, which is
 // exactly the size of a hypercore key, and the 12-byte name beside it is room
-// enough for a label. The radio carries what to fetch; the DHT carries the
-// bytes.
+// enough for a label.
+//
+// Every operation holds the radio for as long as it needs and not a moment
+// longer. A Meshtastic radio takes one BLE client at a time, so a phone that
+// stays connected makes the radio invisible to everyone else - which is why
+// nothing here waits for the user while connected. Reading and appending do
+// not touch the radio at all: it only ever carries the key, never the bytes.
 
 const FramedStream = require('framed-stream')
 const Corestore = require('corestore')
@@ -54,8 +59,12 @@ function send(msg) {
 
 let store = null
 let swarm = null
-let radio = null
 let peers = 0
+
+// The radio we last looked at, and what it was holding. Both outlive the BLE
+// connection, which is gone by the time the user picks an action.
+let target = null
+let slot = null
 let serving = null
 
 // Corestore and the DHT are built on first use, never at module load: a
@@ -85,9 +94,34 @@ async function network() {
   return swarm
 }
 
-// What the radio is holding, if anything.
-function held() {
-  const channel = radio && radio.channels.get(SLOT)
+// Hold the radio for exactly one errand, then let go however it ends.
+async function withRadio(id, errand) {
+  let radio = null
+
+  try {
+    send({ type: 'holding', held: true })
+    radio = await connect(id, {
+      log: dbg,
+      onPairing: () => send({ type: 'busy', what: 'pairing' })
+    })
+
+    await new Promise((resolve, reject) => {
+      radio.once('ready', resolve)
+      radio.once('error', reject)
+      radio.sync()
+    })
+
+    return await errand(radio)
+  } finally {
+    if (radio) radio.destroy()
+    destroy()
+    send({ type: 'holding', held: false })
+  }
+}
+
+// What a radio is holding, read straight off the channel slots it streamed in.
+function readSlot(radio) {
+  const channel = radio.channels.get(SLOT)
   if (!channel || channel.name !== LABEL) return null
   if (!channel.psk || channel.psk.length !== meshtastic.CHANNEL_PSK_SIZE) return null
 
@@ -95,7 +129,7 @@ function held() {
 }
 
 // Every admin write must echo the passkey from a read, so a read comes first.
-function passkey() {
+function passkey(radio) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       radio.off('admin', onadmin)
@@ -115,39 +149,9 @@ function passkey() {
   })
 }
 
-// Put our own core in an empty radio.
-async function adopt(text) {
-  await network()
-
-  const core = store.get({ name: 'beacon' })
-  await core.ready()
-  await core.append(Buffer.from(text))
-
-  // Serve it before writing the key anywhere: a key that reaches someone who
-  // then finds nobody holding the core is worse than writing a moment later.
-  const discovery = swarm.join(core.discoveryKey, { server: true, client: false })
-  await discovery.flushed()
-  dbg('serving', core.length, 'blocks on the dht')
-
-  // Serving outlives the radio connection on purpose: let go of the radio so
-  // the next person can reach it, and this phone keeps handing out the bytes.
-  // Only leaving the tab stops it.
-  serving = core.length
-  send({ type: 'serving', blocks: serving })
-
-  send({ type: 'status', state: 'writing' })
-  const key = await passkey()
-  radio.setChannel(SLOT, { name: LABEL, psk: core.key }, key)
-
-  // The radio echoes the slot back once it has stored it, which is the only
-  // honest confirmation that the write survived.
-  await confirm(z32.encode(core.key))
-
-  send({ type: 'owned', key: z32.encode(core.key), blocks: core.length })
-  send({ type: 'status', state: 'owned' })
-}
-
-function confirm(expected) {
+// The radio echoes the slot back once it has stored it, which is the only
+// honest confirmation that a write survived.
+function confirm(radio, expected) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       radio.off('admin', onadmin)
@@ -168,15 +172,43 @@ function confirm(expected) {
   })
 }
 
-// Read what the radio is holding: fetch the core that key names.
-async function read(key) {
-  await network()
+// Connect, see what the radio holds, let go. Whether the core is ours is a
+// question corestore answers for free: it kept the keypair, so reopening our
+// own key hands back a writable session even after a restart.
+async function look(id) {
+  target = id
 
+  const key = await withRadio(id, (radio) => {
+    send({ type: 'connected', name: radio.name })
+    return readSlot(radio)
+  })
+
+  if (!key) {
+    slot = null
+    return send({ type: 'slot', slot: null })
+  }
+
+  await network()
   const core = store.get({ key: b4a.from(z32.decode(key)) })
   await core.ready()
 
-  send({ type: 'status', state: 'cloning' })
-  dbg('cloning', key)
+  slot = { key, mine: core.writable, blocks: core.length }
+  dbg('slot holds', key.slice(0, 8), core.writable ? '(ours)' : '(theirs)')
+  send({ type: 'slot', slot })
+
+  // Our own core goes back on the air the moment we see it again. Without
+  // this, a restart leaves the radio pointing at a core nobody serves until
+  // its owner happens to write something.
+  if (core.writable) await serve(core)
+}
+
+// Fetch the core the radio named. The radio is not involved.
+async function read() {
+  if (!slot) throw new Error('this radio holds nothing')
+
+  await network()
+  const core = store.get({ key: b4a.from(z32.decode(slot.key)) })
+  await core.ready()
 
   // `update` only blocks while something is still looking for peers. Opening
   // that hook before joining is what makes the await below wait for a real
@@ -195,8 +227,59 @@ async function read(key) {
     blocks.push(Buffer.from(await core.get(i)).toString())
   }
 
-  send({ type: 'read', key, blocks })
-  send({ type: 'status', state: 'read' })
+  slot = { ...slot, blocks: core.length }
+  send({ type: 'blocks', blocks })
+  send({ type: 'slot', slot })
+}
+
+// Append to the core already on the radio. Only possible when it is ours, and
+// the key does not change - so the radio is not touched.
+async function append(text) {
+  if (!slot) throw new Error('this radio holds nothing')
+  if (!slot.mine) throw new Error('that core was written by someone else')
+
+  await network()
+  const core = store.get({ key: b4a.from(z32.decode(slot.key)) })
+  await core.ready()
+  await core.append(Buffer.from(text))
+  await serve(core)
+
+  slot = { ...slot, blocks: core.length }
+  send({ type: 'slot', slot })
+}
+
+// Put a brand new core on the radio. A fresh name means a fresh key, so this
+// really does replace rather than quietly append to the same old core.
+async function replace(text) {
+  if (!target) throw new Error('no radio')
+
+  await network()
+  const core = store.get({ name: 'beacon-' + Date.now() })
+  await core.ready()
+  await core.append(Buffer.from(text))
+
+  // Serve it before writing the key anywhere: a key that reaches someone who
+  // then finds nobody holding the core is worse than writing a moment later.
+  await serve(core)
+
+  const key = z32.encode(core.key)
+  await withRadio(target, async (radio) => {
+    send({ type: 'busy', what: 'writing' })
+    radio.setChannel(SLOT, { name: LABEL, psk: core.key }, await passkey(radio))
+    await confirm(radio, key)
+  })
+
+  slot = { key, mine: true, blocks: core.length }
+  send({ type: 'slot', slot })
+}
+
+async function serve(core) {
+  const discovery = swarm.join(core.discoveryKey, { server: true, client: false })
+  await discovery.flushed()
+  dbg('serving', core.length, 'blocks on the dht')
+
+  serving = core.length
+  send({ type: 'serving', blocks: serving })
 }
 
 function waitForBlocks(core) {
@@ -216,60 +299,35 @@ function waitForBlocks(core) {
   })
 }
 
-// Back to idle means the radio is genuinely let go, so it starts advertising
-// again and the next scan can see it.
-function reset() {
-  if (radio) radio.destroy()
-  radio = null
-  destroy()
-  send({ type: 'status', state: 'idle' })
-  if (serving !== null) send({ type: 'serving', blocks: serving })
-}
-
 // Look, and report every radio in range rather than grabbing the first one -
 // a room can hold several, and which one you walk up to is the whole point.
-function look() {
-  if (radio) return
+function lookAround() {
+  target = null
+  slot = null
 
-  send({ type: 'status', state: 'scanning' })
+  send({ type: 'radios', radios: [] })
   scan({
     log: dbg,
     onDiscover: (seen) => send({ type: 'discovered', ...seen }),
-    onError: (err) => {
-      send({ type: 'error', message: err.message })
-      reset()
-    }
+    onError: (err) => send({ type: 'error', message: err.message })
   })
 }
 
-async function open(id) {
-  if (radio) return
+// One errand at a time, and every failure lands in the same place.
+let running = false
 
-  send({ type: 'status', state: 'connecting' })
-  radio = await connect(id, {
-    log: dbg,
-    onPairing: () => send({ type: 'status', state: 'pairing' })
-  })
-  send({ type: 'connected', name: radio.name })
+function run(what, errand) {
+  if (running) return send({ type: 'error', message: 'already busy' })
 
-  // By the time the node database has finished streaming in, every channel
-  // slot is already here - so the radio has answered the only question that
-  // matters, and the choice of what to do about it is the caller's.
-  radio.on('ready', () => {
-    const key = held()
-    send({ type: 'radio', id: radio.id, key })
-    send({ type: 'status', state: key ? 'holding' : 'empty' })
-  })
+  running = true
+  send({ type: 'busy', what })
 
-  radio.on('disconnect', reset)
-
-  radio.on('error', (err) => {
-    send({ type: 'error', message: err.message })
-    if (err.code === 'DISCONNECT' || err.code === 'CONNECTION_FAILED') reset()
-  })
-
-  send({ type: 'status', state: 'syncing' })
-  radio.sync()
+  errand()
+    .catch((err) => send({ type: 'error', message: err.message }))
+    .finally(() => {
+      running = false
+      send({ type: 'busy', what: null })
+    })
 }
 
 ipc.on('data', (data) => {
@@ -288,49 +346,16 @@ ipc.on('data', (data) => {
     return
   }
 
-  if (msg.type === 'scan') {
-    look()
-    return
-  }
-
-  if (msg.type === 'open') {
-    open(msg.id).catch((err) => {
-      reset()
-      send({ type: 'error', message: err.message })
-    })
-    return
-  }
-
-  if (!radio) return send({ type: 'error', message: 'not connected' })
-
-  if (msg.type === 'read') {
-    const key = held()
-    if (!key) return send({ type: 'error', message: 'this radio holds nothing' })
-
-    read(key).catch((err) => {
-      send({ type: 'error', message: err.message })
-      send({ type: 'status', state: 'holding' })
-    })
-    return
-  }
-
-  if (msg.type === 'adopt') {
-    adopt(msg.text).catch((err) => {
-      send({ type: 'error', message: err.message })
-      send({ type: 'status', state: held() ? 'holding' : 'empty' })
-    })
-    return
-  }
-
-  if (msg.type === 'disconnect') {
-    reset()
-  }
+  if (msg.type === 'scan') return lookAround()
+  if (msg.type === 'look') return run('looking', () => look(msg.id))
+  if (msg.type === 'read') return run('reading', () => read())
+  if (msg.type === 'append') return run('writing', () => append(msg.text))
+  if (msg.type === 'replace') return run('writing', () => replace(msg.text))
 })
 
 Bare.on('exit', () => {
   console.log('[beacon] === Bare exit: runtime teardown starting ===')
 
-  if (radio) radio.destroy()
   destroy()
   if (swarm) swarm.destroy()
 })

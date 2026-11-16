@@ -29,6 +29,10 @@ const PAIRING_RETRY_DELAY = 3000
 // is still winding down. Let the radio go quiet first.
 const CONNECT_DELAY = 500
 
+// Letting go of a radio also forgets it, so reconnecting later has to find it
+// again first. It is advertising by then, so this resolves in about a second.
+const FIND_TIMEOUT = 15000
+
 // The node database arrives as one frame per known node. If configComplete
 // never closes it, say so rather than sitting on "syncing" forever.
 const SYNC_TIMEOUT = 15000
@@ -77,16 +81,6 @@ class Radio extends EventEmitter {
 
   get id() {
     return meshtastic.nodeId(this.nodeNum)
-  }
-
-  // Meshtastic leaves the default primary channel unnamed and shows the modem
-  // preset in its place.
-  get channelName() {
-    for (const channel of this.channels.values()) {
-      if (channel.role === meshtastic.CHANNEL_PRIMARY && channel.name) return channel.name
-    }
-
-    return this.lora && this.lora.preset
   }
 
   // Ask for one channel slot. The reply carries the session passkey that any
@@ -294,7 +288,34 @@ function scan({ onDiscover, onError, log = noop } = {}) {
 // Connect to one of the radios `scan` reported, and resolve once FromNum is
 // notifying - at which point the radio can be talked to. `onPairing` fires
 // once, when iOS asks the user for the radio's PIN.
-function connect(id, { onPairing, log = noop } = {}) {
+async function connect(id, options = {}) {
+  if (!found.has(id)) await find(id, options)
+
+  return dial(id, options)
+}
+
+// Scan until this one radio shows up again.
+function find(id, { log = noop } = {}) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('radio is not in range')), FIND_TIMEOUT)
+
+    scan({
+      log,
+      onDiscover: (seen) => {
+        if (seen.id !== id) return
+
+        clearTimeout(timer)
+        resolve()
+      },
+      onError: (err) => {
+        clearTimeout(timer)
+        reject(err)
+      }
+    })
+  })
+}
+
+function dial(id, { onPairing, log = noop } = {}) {
   return new Promise((resolve, reject) => {
     const peripheral = found.get(id)
     if (!peripheral) return reject(new Error('no radio with id ' + id))

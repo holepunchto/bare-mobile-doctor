@@ -5,7 +5,7 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
-    "test": "prettier . --check",
+    "test": "prettier . --check && node test/meshtastic.js",
     "link": "npm run link:ios && npm run link:android",
     "link:ios": "node scripts/link.mjs ios",
     "link:android": "node scripts/link.mjs android",
