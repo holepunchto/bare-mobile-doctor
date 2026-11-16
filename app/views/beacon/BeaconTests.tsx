@@ -20,7 +20,7 @@ const source = require('./beacon.bundle')
 type Radio = { id: string; name: string | null; rssi: number }
 type Slot = { key: string; mine: boolean; blocks: number }
 type Busy = 'looking' | 'reading' | 'writing' | 'pairing' | null
-type Editor = 'append' | 'replace' | null
+type Panel = 'use' | 'append' | 'replace' | null
 
 const BUSY: Record<string, string> = {
   looking: 'Reading the radio...',
@@ -50,13 +50,10 @@ export default function BeaconTests({ logsEnabled }: { logsEnabled: boolean }) {
 
   const [radios, setRadios] = useState<Radio[]>([])
   const [radioName, setRadioName] = useState<string | null>(null)
-  const [looked, setLooked] = useState(false)
-  const [slot, setSlot] = useState<Slot | null>(null)
+  const [slot, setSlot] = useState<Slot | null | undefined>(undefined)
   const [blocks, setBlocks] = useState<string[] | null>(null)
   const [busy, setBusy] = useState<Busy>(null)
-  const [held, setHeld] = useState(false)
-  const [using, setUsing] = useState(false)
-  const [editor, setEditor] = useState<Editor>(null)
+  const [panel, setPanel] = useState<Panel>(null)
   const [peers, setPeers] = useState(0)
   const [serving, setServing] = useState<number | null>(null)
   const [input, setInput] = useState('')
@@ -92,12 +89,10 @@ export default function BeaconTests({ logsEnabled }: { logsEnabled: boolean }) {
           switch (msg.type) {
             case 'radios':
               setRadios([])
-              setLooked(false)
-              setSlot(null)
+              setSlot(undefined)
               setBlocks(null)
               setRadioName(null)
-              setUsing(false)
-              setEditor(null)
+              setPanel(null)
               addLog('Looking for radios...')
               break
             case 'discovered':
@@ -109,10 +104,8 @@ export default function BeaconTests({ logsEnabled }: { logsEnabled: boolean }) {
               setError(null)
               break
             case 'slot':
-              setLooked(true)
               setSlot(msg.slot)
-              setUsing(false)
-              setEditor(null)
+              setPanel(null)
               addLog(msg.slot ? 'Radio holds a key' : 'Radio is empty')
               break
             case 'blocks':
@@ -122,9 +115,6 @@ export default function BeaconTests({ logsEnabled }: { logsEnabled: boolean }) {
             case 'busy':
               setBusy(msg.what)
               if (msg.what) addLog(BUSY[msg.what] || msg.what)
-              break
-            case 'holding':
-              setHeld(msg.held)
               break
             case 'serving':
               setServing(msg.blocks)
@@ -166,10 +156,12 @@ export default function BeaconTests({ logsEnabled }: { logsEnabled: boolean }) {
     const text = input.trim()
     if (!text) return
 
-    send({ type: editor === 'append' ? 'append' : 'replace', text })
+    send({ type: panel === 'append' ? 'append' : 'replace', text })
     setInput('')
-    setEditor(null)
+    setPanel(null)
   }
+
+  const held = busy === 'looking' || busy === 'writing' || busy === 'pairing'
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
@@ -186,7 +178,7 @@ export default function BeaconTests({ logsEnabled }: { logsEnabled: boolean }) {
       )}
       {error && <ThemedText style={styles.error}>{error}</ThemedText>}
 
-      {!looked && (
+      {slot === undefined && (
         <View style={styles.card}>
           <TouchableOpacity
             style={styles.button}
@@ -209,44 +201,44 @@ export default function BeaconTests({ logsEnabled }: { logsEnabled: boolean }) {
         </View>
       )}
 
-      {looked && slot === null && (
+      {slot === null && (
         <View style={styles.card}>
           <ThemedText style={styles.cardLabel}>
             This radio is empty. Put a core on it and the next phone to walk up reads it.
           </ThemedText>
           <Row>
-            <Button label='Put a core on it' onPress={() => setEditor('replace')} busy={busy} />
+            <Button label='Put a core on it' onPress={() => setPanel('replace')} busy={busy} />
           </Row>
         </View>
       )}
 
-      {looked && slot !== null && (
+      {slot && (
         <View style={styles.card}>
           <ThemedText style={styles.cardLabel}>
             {slot.mine ? 'your core' : "someone else's core"} - {slot.blocks} blocks
           </ThemedText>
           <ThemedText style={styles.key}>{slot.key}</ThemedText>
 
-          {!using && (
+          {panel !== 'use' && (
             <Row>
               {slot.mine ? (
-                <Button label='Use the core' onPress={() => setUsing(true)} busy={busy} />
+                <Button label='Use the core' onPress={() => setPanel('use')} busy={busy} />
               ) : (
                 <Button label='Read' onPress={() => send({ type: 'read' })} busy={busy} />
               )}
               <Button
                 label='Replace the core'
                 danger
-                onPress={() => setEditor('replace')}
+                onPress={() => setPanel('replace')}
                 busy={busy}
               />
             </Row>
           )}
 
-          {using && (
+          {panel === 'use' && (
             <Row>
               <Button label='Read' onPress={() => send({ type: 'read' })} busy={busy} />
-              <Button label='Add a block' onPress={() => setEditor('append')} busy={busy} />
+              <Button label='Add a block' onPress={() => setPanel('append')} busy={busy} />
             </Row>
           )}
 
@@ -259,10 +251,10 @@ export default function BeaconTests({ logsEnabled }: { logsEnabled: boolean }) {
         </View>
       )}
 
-      {editor !== null && (
+      {(panel === 'append' || panel === 'replace') && (
         <View style={styles.card}>
           <ThemedText style={styles.cardLabel}>
-            {editor === 'append'
+            {panel === 'append'
               ? 'Adds one block to the core already on this radio. The key does not change.'
               : 'Creates a brand new core and writes its key into the radio. Whatever is there now becomes unreachable from it.'}
           </ThemedText>
@@ -279,14 +271,14 @@ export default function BeaconTests({ logsEnabled }: { logsEnabled: boolean }) {
             />
             <TouchableOpacity style={styles.sendButton} onPress={submit}>
               <ThemedText style={styles.sendButtonText}>
-                {editor === 'append' ? 'Add' : 'Write'}
+                {panel === 'append' ? 'Add' : 'Write'}
               </ThemedText>
             </TouchableOpacity>
           </View>
         </View>
       )}
 
-      {looked && (
+      {slot !== undefined && (
         <TouchableOpacity
           style={styles.back}
           disabled={!!busy}

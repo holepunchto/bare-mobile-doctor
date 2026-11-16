@@ -1,19 +1,11 @@
 // A LoRa radio as a dead drop for one hypercore key.
 //
-// Walk up to a radio. Either it already holds a key - clone the core over the
-// DHT and read it - or it is empty, and you put one there. The key lives in a
-// channel slot in the radio's flash, so it is still there an hour later, and
-// the radio hands it to every phone that connects without being asked.
+// The key lives in a channel slot in the radio's flash: ChannelSettings.psk is
+// capped at 32 bytes, exactly the size of a hypercore key, and every phone that
+// connects is handed the slots without asking.
 //
-// Why a channel slot: ChannelSettings.psk is capped at 32 bytes, which is
-// exactly the size of a hypercore key, and the 12-byte name beside it is room
-// enough for a label.
-//
-// Every operation holds the radio for as long as it needs and not a moment
-// longer. A Meshtastic radio takes one BLE client at a time, so a phone that
-// stays connected makes the radio invisible to everyone else - which is why
-// nothing here waits for the user while connected. Reading and appending do
-// not touch the radio at all: it only ever carries the key, never the bytes.
+// A radio takes one BLE client at a time, so nothing here waits for the user
+// while connected. Reading and appending never touch it at all.
 
 const FramedStream = require('framed-stream')
 const Corestore = require('corestore')
@@ -23,15 +15,12 @@ const b4a = require('b4a')
 const meshtastic = require('./meshtastic')
 const { scan, connect, destroy } = require('./radio')
 
-// Slot 0 is the primary channel the radio actually talks on. Never touch it.
 const SLOT = 1
 const LABEL = 'beacon'
 
-// A write has to echo the passkey from a read, and the radio has 300 seconds
-// to answer before that pairing is meaningless.
+// The passkey from a read expires after 300 seconds.
 const ADMIN_TIMEOUT = 10000
 
-// How long to give the DHT before admitting the core never showed up.
 const CLONE_TIMEOUT = 30000
 
 let DEBUG = Bare.argv[1] === 'true'
@@ -43,8 +32,6 @@ function dbg(...args) {
 let storagePath = Bare.argv[0]
 if (storagePath.includes('file://')) storagePath = storagePath.replace('file://', '')
 
-// An unhandled throw tears the runtime down. Registered before anything else
-// runs, so a failure on the way up is readable instead of silent.
 Bare.on('uncaughtException', (err) => {
   console.log('[beacon] !!! uncaughtException:', (err && err.stack) || err)
 })
@@ -61,15 +48,12 @@ let store = null
 let swarm = null
 let peers = 0
 
-// The radio we last looked at, and what it was holding. Both outlive the BLE
-// connection, which is gone by the time the user picks an action.
 let target = null
 let slot = null
 let serving = null
 
-// Corestore and the DHT are built on first use, never at module load: a
-// worklet entry runs before the runtime is fully up, and native work there
-// dies without a stack.
+// Never at module load: a worklet entry runs before the runtime is up, and
+// native work there dies without a stack.
 async function network() {
   if (swarm) return swarm
 
@@ -86,20 +70,17 @@ async function network() {
 
   swarm.on('error', (err) => send({ type: 'error', message: 'swarm: ' + err.message }))
 
-  // Bootstrapping takes seconds, and a lookup issued before it finishes
-  // resolves against an empty routing table: zero peers, no error.
+  // A lookup before this resolves against an empty routing table: zero peers, no error.
   await swarm.dht.ready()
   dbg('network up, dht bootstrapped=' + swarm.dht.bootstrapped)
 
   return swarm
 }
 
-// Hold the radio for exactly one errand, then let go however it ends.
 async function withRadio(id, errand) {
   let radio = null
 
   try {
-    send({ type: 'holding', held: true })
     radio = await connect(id, {
       log: dbg,
       onPairing: () => send({ type: 'busy', what: 'pairing' })
@@ -115,11 +96,9 @@ async function withRadio(id, errand) {
   } finally {
     if (radio) radio.destroy()
     destroy()
-    send({ type: 'holding', held: false })
   }
 }
 
-// What a radio is holding, read straight off the channel slots it streamed in.
 function readSlot(radio) {
   const channel = radio.channels.get(SLOT)
   if (!channel || channel.name !== LABEL) return null
@@ -128,7 +107,7 @@ function readSlot(radio) {
   return z32.encode(channel.psk)
 }
 
-// Every admin write must echo the passkey from a read, so a read comes first.
+// Every admin write must echo the passkey from a read.
 function passkey(radio) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -149,8 +128,7 @@ function passkey(radio) {
   })
 }
 
-// The radio echoes the slot back once it has stored it, which is the only
-// honest confirmation that a write survived.
+// The echo is the only confirmation that a write survived.
 function confirm(radio, expected) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -172,9 +150,7 @@ function confirm(radio, expected) {
   })
 }
 
-// Connect, see what the radio holds, let go. Whether the core is ours is a
-// question corestore answers for free: it kept the keypair, so reopening our
-// own key hands back a writable session even after a restart.
+// Corestore kept the keypair, so reopening our own key is still writable.
 async function look(id) {
   target = id
 
@@ -196,13 +172,9 @@ async function look(id) {
   dbg('slot holds', key.slice(0, 8), core.writable ? '(ours)' : '(theirs)')
   send({ type: 'slot', slot })
 
-  // Our own core goes back on the air the moment we see it again. Without
-  // this, a restart leaves the radio pointing at a core nobody serves until
-  // its owner happens to write something.
   if (core.writable) await serve(core)
 }
 
-// Fetch the core the radio named. The radio is not involved.
 async function read() {
   if (!slot) throw new Error('this radio holds nothing')
 
@@ -210,9 +182,7 @@ async function read() {
   const core = store.get({ key: b4a.from(z32.decode(slot.key)) })
   await core.ready()
 
-  // `update` only blocks while something is still looking for peers. Opening
-  // that hook before joining is what makes the await below wait for a real
-  // answer instead of returning against an empty peer list.
+  // update() only blocks while something is still looking for peers.
   const done = core.findingPeers()
   swarm.join(core.discoveryKey, { server: false, client: true })
   swarm.flush().then(done, done)
@@ -232,8 +202,6 @@ async function read() {
   send({ type: 'slot', slot })
 }
 
-// Append to the core already on the radio. Only possible when it is ours, and
-// the key does not change - so the radio is not touched.
 async function append(text) {
   if (!slot) throw new Error('this radio holds nothing')
   if (!slot.mine) throw new Error('that core was written by someone else')
@@ -248,8 +216,6 @@ async function append(text) {
   send({ type: 'slot', slot })
 }
 
-// Put a brand new core on the radio. A fresh name means a fresh key, so this
-// really does replace rather than quietly append to the same old core.
 async function replace(text) {
   if (!target) throw new Error('no radio')
 
@@ -258,8 +224,6 @@ async function replace(text) {
   await core.ready()
   await core.append(Buffer.from(text))
 
-  // Serve it before writing the key anywhere: a key that reaches someone who
-  // then finds nobody holding the core is worse than writing a moment later.
   await serve(core)
 
   const key = z32.encode(core.key)
@@ -274,6 +238,7 @@ async function replace(text) {
 }
 
 async function serve(core) {
+  // flushed() means the DHT can route to us; swarm.flush() answers something else.
   const discovery = swarm.join(core.discoveryKey, { server: true, client: false })
   await discovery.flushed()
   dbg('serving', core.length, 'blocks on the dht')
@@ -299,8 +264,6 @@ function waitForBlocks(core) {
   })
 }
 
-// Look, and report every radio in range rather than grabbing the first one -
-// a room can hold several, and which one you walk up to is the whole point.
 function lookAround() {
   target = null
   slot = null
@@ -313,7 +276,6 @@ function lookAround() {
   })
 }
 
-// One errand at a time, and every failure lands in the same place.
 let running = false
 
 function run(what, errand) {

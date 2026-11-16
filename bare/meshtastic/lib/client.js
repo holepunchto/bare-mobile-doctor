@@ -1,27 +1,6 @@
-// A Meshtastic client: the conversation, with no idea what it is talking over.
-//
-// Meshtastic defines its own framing and its own exchanges, and both are the
-// same whether the link is BLE, serial or TCP - only the bytes arrive
-// differently. So this holds the state machine and the caller holds the wire:
-//
-//   const client = new Client({
-//     read: () => peripheral.read(fromRadio),      // ask for the next message
-//     write: (frame) => peripheral.write(toRadio, frame, true)
-//   })
-//
-//   client.notify()        // the radio says it has something
-//   client.push(data)      // here is what a read returned; null or empty
-//                          // means the queue is drained
-//
-// Over BLE one read returns exactly one message, which is what `push` expects.
-// A serial link would reframe its stream on `0x94 0xc3 <len>` first and push
-// whole messages the same way.
-
 const EventEmitter = require('events')
-const meshtastic = require('./index')
+const meshtastic = require('./protocol')
 
-// The node database arrives as one frame per known node. If configComplete
-// never closes it, say so rather than waiting forever.
 const SYNC_TIMEOUT = 15000
 
 function noop() {}
@@ -49,8 +28,6 @@ module.exports = class Client extends EventEmitter {
     return meshtastic.nodeId(this.nodeNum)
   }
 
-  // Ask for the node database. Anything the radio queued while no client was
-  // attached is drained by the same loop.
   sync() {
     this._configId = (Math.random() * 0x100000000) >>> 0 || 1
     this._write(meshtastic.wantConfig(this._configId))
@@ -65,8 +42,6 @@ module.exports = class Client extends EventEmitter {
     this._write(meshtastic.textMessage(text, { wantAck: true }))
   }
 
-  // Ask for one channel slot. The reply carries the session passkey that any
-  // following write has to echo, so a read always comes first.
   getChannel(index) {
     this._write(meshtastic.getChannel(index, this.nodeNum))
   }
@@ -75,8 +50,6 @@ module.exports = class Client extends EventEmitter {
     this._write(meshtastic.setChannel(index, settings, passkey, this.nodeNum))
   }
 
-  // The radio has something waiting. Only one read can be outstanding, so a
-  // notify arriving mid-drain just flags another pass.
   notify() {
     if (this._reading) {
       this._queued = true
@@ -87,8 +60,6 @@ module.exports = class Client extends EventEmitter {
     this._read()
   }
 
-  // One message off the wire. Empty means the queue is drained - and Android
-  // delivers a zero-length characteristic value as null.
   push(data) {
     if (data === null || data.byteLength === 0) {
       this._reading = false
@@ -160,7 +131,6 @@ module.exports = class Client extends EventEmitter {
 
     const packet = frame.packet
 
-    // An encrypted packet has no decoded payload at all.
     if (!packet.data) return
 
     if (packet.data.portnum === meshtastic.PORT_ADMIN) {
@@ -168,11 +138,9 @@ module.exports = class Client extends EventEmitter {
       return
     }
 
-    // Everything else (position, telemetry, routing acks) is not modelled.
     if (packet.data.portnum !== meshtastic.PORT_TEXT_MESSAGE) return
 
-    // The radio echoes our own outgoing packet back to every attached client.
-    // The caller already knows what it sent, so drop the echo.
+    // The radio echoes our own packet back to every attached client.
     if (packet.from === this.nodeNum) return
 
     this.emit('message', {
