@@ -21,7 +21,7 @@ const Hyperswarm = require('hyperswarm')
 const z32 = require('z32')
 const b4a = require('b4a')
 const meshtastic = require('./meshtastic')
-const { scan, connect, destroy } = require('./meshtastic/radio')
+const { scan, connect, destroy } = require('./radio')
 
 // Slot 0 is the primary channel the radio actually talks on. Never touch it.
 const SLOT = 1
