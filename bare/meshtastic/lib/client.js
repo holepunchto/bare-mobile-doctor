@@ -20,7 +20,7 @@ module.exports = class Client extends EventEmitter {
 
     this.nodeNum = 0
     this.nodes = new Map()
-    this.lora = null
+    this.config = null
     this.channels = new Map()
   }
 
@@ -103,7 +103,7 @@ module.exports = class Client extends EventEmitter {
     }
 
     if (frame.type === 'config') {
-      this.lora = frame.lora
+      this.config = frame.lora
       return
     }
 

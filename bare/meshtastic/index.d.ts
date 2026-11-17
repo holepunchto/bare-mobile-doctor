@@ -2,8 +2,7 @@ import { EventEmitter, EventMap } from 'bare-events'
 
 /**
  * The BLE service a Meshtastic radio advertises, and the three
- * characteristics behind it. From the official client API; note that the
- * older ESP32 docs give `8ba2bcc2-...` for FromRadio, which is obsolete.
+ * characteristics behind it.
  *
  * @see https://meshtastic.org/docs/development/device/client-api/
  */
@@ -244,32 +243,16 @@ export interface ClientOptions {
 }
 
 /**
- * The Meshtastic conversation, with no idea what it is talking over.
- *
- * Meshtastic defines its own framing and its own exchanges, and both are the
- * same whether the link is BLE, serial or TCP - only the bytes arrive
- * differently. So this holds the state machine and the caller holds the wire.
- *
- * Over BLE one read returns exactly one message, which is what `push` expects.
- * A serial link would reframe its stream on `0x94 0xc3 <len>` first and push
- * whole messages the same way.
- *
- * ```js
- * const client = new Client({
- *   read: () => peripheral.read(fromRadio),
- *   write: (frame) => peripheral.write(toRadio, frame, true)
- * })
- *
- * client.on('message', (m) => console.log(m.name, m.text))
- * client.sync()
- * ```
+ * The Meshtastic conversation, with no idea what it is talking over. It holds
+ * the state machine - the queue drain, the config sync, the admin passkey -
+ * and the caller holds the wire.
  */
 export class Client extends EventEmitter<ClientEventMap> {
   constructor(opts: ClientOptions)
 
   readonly nodeNum: number
   readonly nodes: Map<number, Node>
-  readonly lora: LoRaConfig | null
+  readonly config: LoRaConfig | null
   readonly channels: Map<number, Channel>
 
   /** This radio's own node number, rendered by {@link nodeId}. */
