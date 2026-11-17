@@ -1,5 +1,5 @@
 const EventEmitter = require('events')
-const meshtastic = require('./protocol')
+const protocol = require('./protocol')
 
 const SYNC_TIMEOUT = 15000
 
@@ -25,12 +25,12 @@ module.exports = class Client extends EventEmitter {
   }
 
   get id() {
-    return meshtastic.nodeId(this.nodeNum)
+    return protocol.nodeId(this.nodeNum)
   }
 
   sync() {
     this._configId = (Math.random() * 0x100000000) >>> 0 || 1
-    this._write(meshtastic.wantConfig(this._configId))
+    this._write(protocol.wantConfig(this._configId))
     this._syncTimer = setTimeout(() => {
       this._syncTimer = null
       this.emit('error', new Error('radio did not finish sending its node database'))
@@ -39,15 +39,15 @@ module.exports = class Client extends EventEmitter {
   }
 
   send(text) {
-    this._write(meshtastic.textMessage(text, { wantAck: true }))
+    this._write(protocol.textMessage(text, { wantAck: true }))
   }
 
   getChannel(index) {
-    this._write(meshtastic.getChannel(index, this.nodeNum))
+    this._write(protocol.getChannel(index, this.nodeNum))
   }
 
   setChannel(index, settings, passkey) {
-    this._write(meshtastic.setChannel(index, settings, passkey, this.nodeNum))
+    this._write(protocol.setChannel(index, settings, passkey, this.nodeNum))
   }
 
   notify() {
@@ -73,7 +73,7 @@ module.exports = class Client extends EventEmitter {
     }
 
     try {
-      this._handle(meshtastic.decode(data))
+      this._handle(protocol.decode(data))
     } catch (err) {
       this.emit('error', err)
     }
@@ -85,7 +85,7 @@ module.exports = class Client extends EventEmitter {
     const node = this.nodes.get(num)
     if (node && node.user && node.user.shortName) return node.user.shortName
 
-    return meshtastic.nodeId(num)
+    return protocol.nodeId(num)
   }
 
   destroy() {
@@ -130,27 +130,56 @@ module.exports = class Client extends EventEmitter {
     if (frame.type !== 'packet') return
 
     const packet = frame.packet
+    const data = packet.data
+    if (!data) return
 
-    if (!packet.data) return
-
-    if (packet.data.portnum === meshtastic.PORT_ADMIN) {
-      this.emit('admin', meshtastic.decodeAdmin(packet.data.payload))
+    if (data.portnum === protocol.PORT_ADMIN) {
+      this.emit('admin', protocol.decodeAdmin(data.payload))
       return
     }
 
-    if (packet.data.portnum !== meshtastic.PORT_TEXT_MESSAGE) return
+    if (data.portnum === protocol.PORT_ROUTING) {
+      this.emit('ack', { id: data.requestId, ...protocol.decodeRouting(data.payload) })
+      return
+    }
 
     // The radio echoes our own packet back to every attached client.
     if (packet.from === this.nodeNum) return
 
+    const from = { from: protocol.nodeId(packet.from), name: this.nameOf(packet.from) }
+
+    if (data.portnum === protocol.PORT_POSITION) {
+      this.emit('position', { ...from, ...protocol.decodePosition(data.payload) })
+      return
+    }
+
+    if (data.portnum === protocol.PORT_TELEMETRY) {
+      this.emit('telemetry', { ...from, ...protocol.decodeTelemetry(data.payload) })
+      return
+    }
+
+    if (data.portnum === protocol.PORT_NODEINFO) {
+      const node = {
+        num: packet.from,
+        user: protocol.decodeUserPayload(data.payload),
+        snr: packet.snr,
+        hopsAway: null
+      }
+
+      this.nodes.set(packet.from, node)
+      this.emit('node', node)
+      return
+    }
+
+    if (data.portnum !== protocol.PORT_TEXT_MESSAGE) return
+
     this.emit('message', {
-      from: meshtastic.nodeId(packet.from),
-      name: this.nameOf(packet.from),
-      text: Buffer.from(packet.data.payload).toString(),
+      ...from,
+      text: Buffer.from(data.payload).toString(),
       snr: packet.snr,
       rssi: packet.rssi,
       hops: packet.hopStart ? packet.hopStart - packet.hopLimit : 0,
-      direct: packet.to !== meshtastic.BROADCAST
+      direct: packet.to !== protocol.BROADCAST
     })
   }
 }

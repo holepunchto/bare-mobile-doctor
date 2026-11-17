@@ -30,7 +30,11 @@ export const CHANNEL_PSK_SIZE: 32
 export const CHANNEL_NAME_SIZE: 12
 
 export const PORT_TEXT_MESSAGE: 1
+export const PORT_POSITION: 3
+export const PORT_NODEINFO: 4
+export const PORT_ROUTING: 5
 export const PORT_ADMIN: 6
+export const PORT_TELEMETRY: 67
 
 /** `Constants.DATA_PAYLOAD_LEN`: the ceiling on one mesh payload. */
 export const MAX_PAYLOAD: 233
@@ -51,6 +55,38 @@ export interface Node {
 export interface Data {
   portnum: number
   payload: Uint8Array | null
+  /** On a reply, the id of the packet it answers. Zero otherwise. */
+  requestId: number
+}
+
+/** The mesh's answer to a packet sent with `wantAck`. */
+export interface Routing {
+  /** `Routing.Error` as a number. */
+  error: number
+  /** `NONE`, `MAX_RETRANSMIT`, ... or `UNKNOWN` for a reason this version does not name. */
+  reason: string
+  /** True when `error` is `NONE`. */
+  delivered: boolean
+}
+
+export interface Position {
+  /** Degrees, already divided out of the fixed-point the wire uses. Null when not sent. */
+  latitude: number | null
+  longitude: number | null
+  /** Metres. */
+  altitude: number | null
+  time: number
+}
+
+/** `Telemetry.device_metrics`. Every field is null when the radio did not send it. */
+export interface Telemetry {
+  time: number
+  /** Percent. */
+  battery: number | null
+  voltage: number | null
+  channelUtilization: number | null
+  airUtilTx: number | null
+  uptime: number | null
 }
 
 export interface Packet {
@@ -126,6 +162,18 @@ export function decode(data: Uint8Array): Frame
 
 export function decodeAdmin(data: Uint8Array): Admin
 
+/** Decodes a {@link PORT_ROUTING} payload. */
+export function decodeRouting(data: Uint8Array): Routing
+
+/** Decodes a {@link PORT_POSITION} payload. */
+export function decodePosition(data: Uint8Array): Position
+
+/** Decodes a {@link PORT_TELEMETRY} payload. */
+export function decodeTelemetry(data: Uint8Array): Telemetry
+
+/** Decodes a {@link PORT_NODEINFO} payload: a node announcing itself over the air. */
+export function decodeUserPayload(data: Uint8Array): User
+
 /**
  * Ask the radio to stream its node database back. It answers with `myInfo`,
  * one `nodeInfo` per known node, then `configComplete` echoing `id`, which is
@@ -162,16 +210,23 @@ export interface ClientEventMap extends EventMap {
   /** The node database has finished streaming in. */
   ready: []
   message: [message: Message]
+  /** The fate of a packet sent with `wantAck`, carrying the id it answers. */
+  ack: [ack: Routing & { id: number }]
+  position: [position: Position & Sender]
+  telemetry: [telemetry: Telemetry & Sender]
   node: [node: Node]
   admin: [admin: Admin]
   disconnect: []
   error: [error: Error]
 }
 
-export interface Message {
+export interface Sender {
   from: string
   /** The sender's short name if known, otherwise its node id. */
   name: string
+}
+
+export interface Message extends Sender {
   text: string
   snr: number
   rssi: number

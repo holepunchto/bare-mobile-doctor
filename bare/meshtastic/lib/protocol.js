@@ -8,7 +8,32 @@ const FROM_NUM_UUID = 'ed9da18c-a800-4f66-a670-aa7547e34453'
 
 const BROADCAST = 0xffffffff
 const PORT_TEXT_MESSAGE = 1
+const PORT_POSITION = 3
+const PORT_NODEINFO = 4
+const PORT_ROUTING = 5
 const PORT_ADMIN = 6
+const PORT_TELEMETRY = 67
+
+const ROUTING_ERRORS = {
+  0: 'NONE',
+  1: 'NO_ROUTE',
+  2: 'GOT_NAK',
+  3: 'TIMEOUT',
+  4: 'NO_INTERFACE',
+  5: 'MAX_RETRANSMIT',
+  6: 'NO_CHANNEL',
+  7: 'TOO_LARGE',
+  8: 'NO_RESPONSE',
+  9: 'DUTY_CYCLE_LIMIT',
+  32: 'BAD_REQUEST',
+  33: 'NOT_AUTHORIZED',
+  34: 'PKI_FAILED',
+  35: 'PKI_UNKNOWN_PUBKEY',
+  36: 'ADMIN_BAD_SESSION_KEY',
+  37: 'ADMIN_PUBLIC_KEY_UNAUTHORIZED',
+  38: 'RATE_LIMIT_EXCEEDED',
+  39: 'PKI_SEND_FAIL_PUBLIC_KEY'
+}
 
 const MAX_PAYLOAD = 233
 
@@ -188,6 +213,14 @@ class Reader {
     return value
   }
 
+  sfixed32() {
+    if (this._pos + 4 > this._end) throw new Error('truncated sfixed32')
+
+    const value = this._view.getInt32(this._pos, true)
+    this._pos += 4
+    return value
+  }
+
   float() {
     if (this._pos + 4 > this._end) throw new Error('truncated float')
 
@@ -266,14 +299,65 @@ function decodeNodeInfo(reader) {
 }
 
 function decodeData(reader) {
-  const data = { portnum: 0, payload: null }
+  const data = { portnum: 0, payload: null, requestId: 0 }
 
   reader.each({
     1: (r) => (data.portnum = r.varint()),
-    2: (r) => (data.payload = r.bytes())
+    2: (r) => (data.payload = r.bytes()),
+    6: (r) => (data.requestId = r.fixed32())
   })
 
   return data
+}
+
+function decodeRouting(data) {
+  let error = 0
+
+  new Reader(data).each({ 3: (r) => (error = r.varint()) })
+
+  return { error, reason: ROUTING_ERRORS[error] || 'UNKNOWN', delivered: error === 0 }
+}
+
+function decodePosition(data) {
+  const position = { latitude: null, longitude: null, altitude: null, time: 0 }
+
+  new Reader(data).each({
+    1: (r) => (position.latitude = r.sfixed32() / 1e7),
+    2: (r) => (position.longitude = r.sfixed32() / 1e7),
+    3: (r) => (position.altitude = r.int32()),
+    4: (r) => (position.time = r.fixed32())
+  })
+
+  return position
+}
+
+function decodeTelemetry(data) {
+  const telemetry = {
+    time: 0,
+    battery: null,
+    voltage: null,
+    channelUtilization: null,
+    airUtilTx: null,
+    uptime: null
+  }
+
+  new Reader(data).each({
+    1: (r) => (telemetry.time = r.fixed32()),
+    2: (r) =>
+      r.message().each({
+        1: (m) => (telemetry.battery = m.varint()),
+        2: (m) => (telemetry.voltage = m.float()),
+        3: (m) => (telemetry.channelUtilization = m.float()),
+        4: (m) => (telemetry.airUtilTx = m.float()),
+        5: (m) => (telemetry.uptime = m.varint())
+      })
+  })
+
+  return telemetry
+}
+
+function decodeUserPayload(data) {
+  return decodeUser(new Reader(data))
 }
 
 function decodePacket(reader) {
@@ -486,10 +570,18 @@ module.exports = {
   CHANNEL_PSK_SIZE,
   CHANNEL_NAME_SIZE,
   PORT_TEXT_MESSAGE,
+  PORT_POSITION,
+  PORT_NODEINFO,
+  PORT_ROUTING,
   PORT_ADMIN,
+  PORT_TELEMETRY,
   MAX_PAYLOAD,
   decode,
   decodeAdmin,
+  decodeRouting,
+  decodePosition,
+  decodeTelemetry,
+  decodeUserPayload,
   wantConfig,
   textMessage,
   getChannel,
