@@ -1,0 +1,590 @@
+const SERVICE_UUID = '6ba1b218-15a8-461f-9fa8-5dcae273eafd'
+
+const TO_RADIO_UUID = 'f75c76d2-129e-4dad-a1dd-7866124401e7'
+
+const FROM_RADIO_UUID = '2c55e69e-4993-11ed-b878-0242ac120002'
+
+const FROM_NUM_UUID = 'ed9da18c-a800-4f66-a670-aa7547e34453'
+
+const BROADCAST = 0xffffffff
+const PORT_TEXT_MESSAGE = 1
+const PORT_POSITION = 3
+const PORT_NODEINFO = 4
+const PORT_ROUTING = 5
+const PORT_ADMIN = 6
+const PORT_TELEMETRY = 67
+
+const ROUTING_ERRORS = {
+  0: 'NONE',
+  1: 'NO_ROUTE',
+  2: 'GOT_NAK',
+  3: 'TIMEOUT',
+  4: 'NO_INTERFACE',
+  5: 'MAX_RETRANSMIT',
+  6: 'NO_CHANNEL',
+  7: 'TOO_LARGE',
+  8: 'NO_RESPONSE',
+  9: 'DUTY_CYCLE_LIMIT',
+  32: 'BAD_REQUEST',
+  33: 'NOT_AUTHORIZED',
+  34: 'PKI_FAILED',
+  35: 'PKI_UNKNOWN_PUBKEY',
+  36: 'ADMIN_BAD_SESSION_KEY',
+  37: 'ADMIN_PUBLIC_KEY_UNAUTHORIZED',
+  38: 'RATE_LIMIT_EXCEEDED',
+  39: 'PKI_SEND_FAIL_PUBLIC_KEY'
+}
+
+const MAX_PAYLOAD = 233
+
+const HOP_LIMIT = 3
+
+const CHANNEL_DISABLED = 0
+const CHANNEL_PRIMARY = 1
+
+// psk is capped at 32 bytes, name at 12.
+const CHANNEL_PSK_SIZE = 32
+const CHANNEL_NAME_SIZE = 12
+
+const REGIONS = [
+  'UNSET',
+  'US',
+  'EU_433',
+  'EU_868',
+  'CN',
+  'JP',
+  'ANZ',
+  'KR',
+  'TW',
+  'RU',
+  'IN',
+  'NZ_865',
+  'TH',
+  'LORA_24',
+  'UA_433',
+  'UA_868',
+  'MY_433',
+  'MY_919',
+  'SG_923',
+  'PH_433',
+  'PH_868',
+  'PH_915',
+  'ANZ_433',
+  'KZ_433',
+  'KZ_863',
+  'NP_865',
+  'BR_902',
+  'ITU1_2M',
+  'ITU2_2M',
+  'EU_866',
+  'EU_874',
+  'EU_917',
+  'EU_N_868',
+  'ITU3_2M',
+  'ITU1_70CM',
+  'ITU2_70CM',
+  'ITU3_70CM',
+  'ITU2_125CM'
+]
+
+const MODEM_PRESETS = [
+  'LONG_FAST',
+  'LONG_SLOW',
+  'VERY_LONG_SLOW',
+  'MEDIUM_SLOW',
+  'MEDIUM_FAST',
+  'SHORT_SLOW',
+  'SHORT_FAST',
+  'LONG_MODERATE',
+  'SHORT_TURBO',
+  'LONG_TURBO',
+  'LITE_FAST',
+  'LITE_SLOW',
+  'NARROW_FAST',
+  'NARROW_SLOW',
+  'TINY_FAST',
+  'TINY_SLOW',
+  'MEDIUM_TURBO'
+]
+
+class Writer {
+  constructor() {
+    this._bytes = []
+  }
+
+  varint(value) {
+    while (value > 0x7f) {
+      this._bytes.push((value & 0x7f) | 0x80)
+      value = Math.floor(value / 128)
+    }
+    this._bytes.push(value)
+    return this
+  }
+
+  tag(field, wire) {
+    return this.varint((field << 3) | wire)
+  }
+
+  uint32(field, value) {
+    if (!value) return this
+    return this.tag(field, 0).varint(value)
+  }
+
+  bool(field, value) {
+    if (!value) return this
+    return this.tag(field, 0).varint(1)
+  }
+
+  fixed32(field, value) {
+    this.tag(field, 5)
+    this._bytes.push(
+      value & 0xff,
+      (value >>> 8) & 0xff,
+      (value >>> 16) & 0xff,
+      (value >>> 24) & 0xff
+    )
+    return this
+  }
+
+  bytes(field, data) {
+    this.tag(field, 2).varint(data.length)
+    for (let i = 0; i < data.length; i++) this._bytes.push(data[i])
+    return this
+  }
+
+  message(field, writer) {
+    return this.bytes(field, writer.toBuffer())
+  }
+
+  toBuffer() {
+    return Buffer.from(this._bytes)
+  }
+}
+
+class Reader {
+  constructor(data) {
+    this._data = data
+    this._view = new DataView(data.buffer, data.byteOffset, data.byteLength)
+    this._end = data.byteLength
+    this._pos = 0
+  }
+
+  get ended() {
+    return this._pos >= this._end
+  }
+
+  varint() {
+    let value = 0
+    let scale = 1
+
+    while (true) {
+      if (this.ended) throw new Error('truncated varint')
+
+      const byte = this._data[this._pos++]
+      value += (byte & 0x7f) * scale
+      if ((byte & 0x80) === 0) return value
+
+      scale *= 128
+      if (scale > 0x100000000000000) throw new Error('varint too long')
+    }
+  }
+
+  // Negatives are a 64-bit two's complement varint, too wide for a JS number.
+  int32() {
+    let value = 0
+    let shift = 0
+
+    while (true) {
+      if (this.ended) throw new Error('truncated varint')
+
+      const byte = this._data[this._pos++]
+      if (shift < 32) value |= (byte & 0x7f) << shift
+      if ((byte & 0x80) === 0) return value | 0
+
+      shift += 7
+    }
+  }
+
+  fixed32() {
+    if (this._pos + 4 > this._end) throw new Error('truncated fixed32')
+
+    const value = this._view.getUint32(this._pos, true)
+    this._pos += 4
+    return value
+  }
+
+  sfixed32() {
+    if (this._pos + 4 > this._end) throw new Error('truncated sfixed32')
+
+    const value = this._view.getInt32(this._pos, true)
+    this._pos += 4
+    return value
+  }
+
+  float() {
+    if (this._pos + 4 > this._end) throw new Error('truncated float')
+
+    const value = this._view.getFloat32(this._pos, true)
+    this._pos += 4
+    return value
+  }
+
+  bytes() {
+    const length = this.varint()
+    if (this._pos + length > this._end) throw new Error('truncated field')
+
+    const value = this._data.subarray(this._pos, this._pos + length)
+    this._pos += length
+    return value
+  }
+
+  string() {
+    return Buffer.from(this.bytes()).toString()
+  }
+
+  message() {
+    return new Reader(this.bytes())
+  }
+
+  skip(wire) {
+    if (wire === 0) this.varint()
+    else if (wire === 1) this._skip(8)
+    else if (wire === 5) this._skip(4)
+    else if (wire === 2) {
+      // `_pos += varint()` would capture the old cursor and lose the length byte.
+      this._skip(this.varint())
+    } else throw new Error('unknown wire type ' + wire)
+  }
+
+  _skip(length) {
+    if (this._pos + length > this._end) throw new Error('truncated field')
+
+    this._pos += length
+  }
+
+  each(fields) {
+    while (!this.ended) {
+      const tag = this.varint()
+      const field = fields[tag >>> 3]
+
+      if (field) field(this)
+      else this.skip(tag & 7)
+    }
+  }
+}
+
+function decodeUser(reader) {
+  const user = { id: null, longName: null, shortName: null }
+
+  reader.each({
+    1: (r) => (user.id = r.string()),
+    2: (r) => (user.longName = r.string()),
+    3: (r) => (user.shortName = r.string())
+  })
+
+  return user
+}
+
+function decodeNodeInfo(reader) {
+  const node = { num: 0, user: null, snr: 0, hopsAway: null }
+
+  reader.each({
+    1: (r) => (node.num = r.varint()),
+    2: (r) => (node.user = decodeUser(r.message())),
+    4: (r) => (node.snr = r.float()),
+    9: (r) => (node.hopsAway = r.varint())
+  })
+
+  return node
+}
+
+function decodeData(reader) {
+  const data = { portnum: 0, payload: null, requestId: 0 }
+
+  reader.each({
+    1: (r) => (data.portnum = r.varint()),
+    2: (r) => (data.payload = r.bytes()),
+    6: (r) => (data.requestId = r.fixed32())
+  })
+
+  return data
+}
+
+function decodeRouting(data) {
+  let error = 0
+
+  new Reader(data).each({ 3: (r) => (error = r.varint()) })
+
+  return { error, reason: ROUTING_ERRORS[error] || 'UNKNOWN', delivered: error === 0 }
+}
+
+function decodePosition(data) {
+  const position = { latitude: null, longitude: null, altitude: null, time: 0 }
+
+  new Reader(data).each({
+    1: (r) => (position.latitude = r.sfixed32() / 1e7),
+    2: (r) => (position.longitude = r.sfixed32() / 1e7),
+    3: (r) => (position.altitude = r.int32()),
+    4: (r) => (position.time = r.fixed32())
+  })
+
+  return position
+}
+
+function decodeTelemetry(data) {
+  const telemetry = {
+    time: 0,
+    battery: null,
+    voltage: null,
+    channelUtilization: null,
+    airUtilTx: null,
+    uptime: null
+  }
+
+  new Reader(data).each({
+    1: (r) => (telemetry.time = r.fixed32()),
+    2: (r) =>
+      r.message().each({
+        1: (m) => (telemetry.battery = m.varint()),
+        2: (m) => (telemetry.voltage = m.float()),
+        3: (m) => (telemetry.channelUtilization = m.float()),
+        4: (m) => (telemetry.airUtilTx = m.float()),
+        5: (m) => (telemetry.uptime = m.varint())
+      })
+  })
+
+  return telemetry
+}
+
+function decodeUserPayload(data) {
+  return decodeUser(new Reader(data))
+}
+
+function decodePacket(reader) {
+  const packet = {
+    from: 0,
+    to: 0,
+    id: 0,
+    data: null,
+    encrypted: false,
+    snr: 0,
+    rssi: 0,
+    hopLimit: 0,
+    hopStart: 0
+  }
+
+  reader.each({
+    1: (r) => (packet.from = r.fixed32()),
+    2: (r) => (packet.to = r.fixed32()),
+    4: (r) => (packet.data = decodeData(r.message())),
+    5: (r) => {
+      r.bytes()
+      packet.encrypted = true
+    },
+    6: (r) => (packet.id = r.fixed32()),
+    8: (r) => (packet.snr = r.float()),
+    9: (r) => (packet.hopLimit = r.varint()),
+    12: (r) => (packet.rssi = r.int32()),
+    15: (r) => (packet.hopStart = r.varint())
+  })
+
+  return packet
+}
+
+function decodeLoRaConfig(reader) {
+  let usePreset = false
+  let preset = 0
+  let region = 0
+  let hopLimit = 0
+
+  reader.each({
+    1: (r) => (usePreset = r.varint() !== 0),
+    2: (r) => (preset = r.varint()),
+    7: (r) => (region = r.varint()),
+    8: (r) => (hopLimit = r.varint())
+  })
+
+  return {
+    region: REGIONS[region] || 'UNKNOWN',
+    preset: usePreset ? MODEM_PRESETS[preset] || 'UNKNOWN' : 'CUSTOM',
+    hopLimit
+  }
+}
+
+function decodeConfig(reader) {
+  let lora = null
+
+  reader.each({ 6: (r) => (lora = decodeLoRaConfig(r.message())) })
+
+  return lora
+}
+
+function decodeChannel(reader) {
+  const channel = { index: 0, name: null, psk: null, role: 0 }
+
+  reader.each({
+    1: (r) => (channel.index = r.varint()),
+    2: (r) =>
+      r.message().each({
+        2: (s) => (channel.psk = s.bytes()),
+        3: (s) => (channel.name = s.string())
+      }),
+    3: (r) => (channel.role = r.varint())
+  })
+
+  return channel
+}
+
+function decodeMyNodeInfo(reader) {
+  let nodeNum = 0
+
+  reader.each({ 1: (r) => (nodeNum = r.varint()) })
+
+  return nodeNum
+}
+
+function decode(data) {
+  const frame = {
+    id: 0,
+    type: null,
+    packet: null,
+    node: null,
+    nodeNum: 0,
+    configId: 0,
+    lora: null,
+    channel: null
+  }
+
+  new Reader(data).each({
+    1: (r) => (frame.id = r.varint()),
+    2: (r) => {
+      frame.type = 'packet'
+      frame.packet = decodePacket(r.message())
+    },
+    3: (r) => {
+      frame.type = 'myInfo'
+      frame.nodeNum = decodeMyNodeInfo(r.message())
+    },
+    4: (r) => {
+      frame.type = 'nodeInfo'
+      frame.node = decodeNodeInfo(r.message())
+    },
+    5: (r) => {
+      const lora = decodeConfig(r.message())
+      if (lora === null) return
+
+      frame.type = 'config'
+      frame.lora = lora
+    },
+    7: (r) => {
+      frame.type = 'configComplete'
+      frame.configId = r.varint()
+    },
+    10: (r) => {
+      frame.type = 'channel'
+      frame.channel = decodeChannel(r.message())
+    }
+  })
+
+  return frame
+}
+
+function wantConfig(id) {
+  return new Writer().uint32(3, id).toBuffer()
+}
+
+function packet(portnum, payload, opts = {}) {
+  if (payload.length > MAX_PAYLOAD) {
+    throw new Error('payload is ' + payload.length + ' bytes, max is ' + MAX_PAYLOAD)
+  }
+
+  const data = new Writer().uint32(1, portnum).bytes(2, payload).bool(3, opts.wantResponse)
+
+  const mesh = new Writer()
+    .fixed32(2, opts.to === undefined ? BROADCAST : opts.to)
+    .uint32(3, opts.channel)
+    .message(4, data)
+    .fixed32(6, opts.id || randomId())
+    .uint32(9, opts.hopLimit || HOP_LIMIT)
+    .bool(10, opts.wantAck)
+
+  return new Writer().message(1, mesh).toBuffer()
+}
+
+function textMessage(text, opts = {}) {
+  return packet(PORT_TEXT_MESSAGE, Buffer.from(text), opts)
+}
+
+function adminMessage(body, to) {
+  return packet(PORT_ADMIN, body.toBuffer(), { to, wantResponse: true, hopLimit: 0 })
+}
+
+function getChannel(index, to) {
+  return adminMessage(new Writer().uint32(1, index + 1), to)
+}
+
+function setChannel(index, { name, psk }, passkey, to) {
+  if (psk.length > CHANNEL_PSK_SIZE) {
+    throw new Error('psk is ' + psk.length + ' bytes, max is ' + CHANNEL_PSK_SIZE)
+  }
+  if (Buffer.from(name).length > CHANNEL_NAME_SIZE) {
+    throw new Error('name is over ' + CHANNEL_NAME_SIZE + ' bytes')
+  }
+
+  const settings = new Writer().bytes(2, psk).bytes(3, Buffer.from(name))
+
+  const channel = new Writer().uint32(1, index).message(2, settings).uint32(3, CHANNEL_DISABLED)
+
+  const body = new Writer().message(33, channel).bytes(101, passkey)
+
+  return adminMessage(body, to)
+}
+
+function decodeAdmin(data) {
+  const admin = { channel: null, passkey: null }
+
+  new Reader(data).each({
+    2: (r) => (admin.channel = decodeChannel(r.message())),
+    101: (r) => (admin.passkey = r.bytes())
+  })
+
+  return admin
+}
+
+function randomId() {
+  return (Math.random() * 0x100000000) >>> 0 || 1
+}
+
+function nodeId(num) {
+  return '!' + (num >>> 0).toString(16).padStart(8, '0')
+}
+
+module.exports = {
+  SERVICE_UUID,
+  TO_RADIO_UUID,
+  FROM_RADIO_UUID,
+  FROM_NUM_UUID,
+  BROADCAST,
+  CHANNEL_DISABLED,
+  CHANNEL_PRIMARY,
+  CHANNEL_PSK_SIZE,
+  CHANNEL_NAME_SIZE,
+  PORT_TEXT_MESSAGE,
+  PORT_POSITION,
+  PORT_NODEINFO,
+  PORT_ROUTING,
+  PORT_ADMIN,
+  PORT_TELEMETRY,
+  MAX_PAYLOAD,
+  decode,
+  decodeAdmin,
+  decodeRouting,
+  decodePosition,
+  decodeTelemetry,
+  decodeUserPayload,
+  wantConfig,
+  textMessage,
+  getChannel,
+  setChannel,
+  nodeId
+}

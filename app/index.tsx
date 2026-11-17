@@ -16,6 +16,7 @@ import VideoConverterTests from './views/videoconverter/VideoConverterTests'
 import RocksDBTests from './views/rocksdb/RocksDBTests'
 import BluetoothTests from './views/bluetooth/BluetoothTests'
 import LWP3Tests from './views/lwp3/LWP3Tests'
+import BeaconTests from './views/beacon/BeaconTests'
 
 export type TestModule =
   | 'IPC'
@@ -30,6 +31,7 @@ export type TestModule =
   | 'RocksDB'
   | 'Bluetooth'
   | 'LWP3'
+  | 'Beacon'
 
 export default function () {
   const [activeModule, setActiveModule] = useState<TestModule>('OS')
@@ -61,6 +63,8 @@ export default function () {
         return <BluetoothTests logsEnabled={logsEnabled} />
       case 'LWP3':
         return <LWP3Tests logsEnabled={logsEnabled} />
+      case 'Beacon':
+        return <BeaconTests logsEnabled={logsEnabled} />
     }
   }
 
@@ -83,7 +87,8 @@ export default function () {
           'VideoConverter',
           'RocksDB',
           'Bluetooth',
-          'LWP3'
+          'LWP3',
+          'Beacon'
         ]}
         activeModule={activeModule}
         onChangeModule={setActiveModule}
