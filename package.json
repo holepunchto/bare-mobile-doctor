@@ -80,7 +80,8 @@
     "rocksdb-native": "^3.19.1",
     "sodium-native": "^5.1.0",
     "test-tmp": "^1.4.0",
-    "udx-native": "^1.21.3"
+    "udx-native": "^1.21.3",
+    "z32": "^1.1.0"
   },
   "devDependencies": {
     "@types/react": "~19.2.10",
