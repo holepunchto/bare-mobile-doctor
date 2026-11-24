@@ -23,6 +23,8 @@ const ADMIN_TIMEOUT = 10000
 
 const CLONE_TIMEOUT = 30000
 
+const RELEASE_TIMEOUT = 2000
+
 let DEBUG = Bare.argv[1] === 'true'
 
 function dbg(...args) {
@@ -94,9 +96,24 @@ async function withRadio(id, errand) {
 
     return await errand(radio)
   } finally {
-    if (radio) radio.destroy()
+    if (radio) await released(radio)
     destroy()
   }
+}
+
+// The stream drops the BLE link asynchronously, and the central cannot be
+// destroyed before that has landed.
+function released(radio) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, RELEASE_TIMEOUT)
+
+    radio.once('close', () => {
+      clearTimeout(timer)
+      resolve()
+    })
+
+    radio.destroy()
+  })
 }
 
 function readSlot(radio) {
