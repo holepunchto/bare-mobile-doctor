@@ -12,7 +12,7 @@ const Corestore = require('corestore')
 const Hyperswarm = require('hyperswarm')
 const z32 = require('z32')
 const b4a = require('b4a')
-const meshtastic = require('./meshtastic')
+const meshtastic = require('bare-meshtastic')
 const { scan, connect, destroy } = require('./radio')
 
 const SLOT = 1

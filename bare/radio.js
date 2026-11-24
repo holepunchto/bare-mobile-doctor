@@ -1,6 +1,6 @@
 const { Central } = require('bare-bluetooth')
-const meshtastic = require('./meshtastic')
-const { Client } = require('./meshtastic')
+const meshtastic = require('bare-meshtastic')
+const { Client, Mailbox } = meshtastic
 
 const isAndroid = Bare.platform === 'android'
 const scanOptions = isAndroid ? { scanMode: Central.SCAN_MODE_LOW_LATENCY } : undefined
@@ -88,7 +88,7 @@ function find(id, { log = noop } = {}) {
   })
 }
 
-function dial(id, { onPairing, log = noop } = {}) {
+function dial(id, { onPairing } = {}) {
   return new Promise((resolve, reject) => {
     const peripheral = found.get(id)
     if (!peripheral) return reject(new Error('no radio with id ' + id))
@@ -136,12 +136,11 @@ function dial(id, { onPairing, log = noop } = {}) {
           if (!isNotifying || client) return
           if (!is(characteristic, meshtastic.FROM_NUM_UUID)) return
 
-          client = new Client({
-            read: () => connected.read(wanted.fromRadio),
-            write: (frame) => connected.write(wanted.toRadio, frame, true),
-            close: () => central.disconnect(connected),
-            log
+          const mailbox = new Mailbox(connected, wanted, {
+            close: () => central.disconnect(connected)
           })
+
+          client = new Client(mailbox)
 
           client.name = connected.name
           central.on('disconnect', () => client.emit('disconnect'))
@@ -150,14 +149,6 @@ function dial(id, { onPairing, log = noop } = {}) {
 
         subscribe = () => connected.subscribe(wanted.fromNum)
         subscribe()
-      })
-
-      connected.on('notify', (characteristic) => {
-        if (client && is(characteristic, meshtastic.FROM_NUM_UUID)) client.notify()
-      })
-
-      connected.on('read', (characteristic, data) => {
-        if (client && is(characteristic, meshtastic.FROM_RADIO_UUID)) client.push(data)
       })
 
       connected.on('error', (err) => {
