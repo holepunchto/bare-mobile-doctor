@@ -88,7 +88,7 @@ function find(id, { log = noop } = {}) {
   })
 }
 
-function dial(id, { onPairing } = {}) {
+function dial(id, { onPairing, log = noop } = {}) {
   return new Promise((resolve, reject) => {
     const peripheral = found.get(id)
     if (!peripheral) return reject(new Error('no radio with id ' + id))
@@ -140,7 +140,9 @@ function dial(id, { onPairing } = {}) {
             close: () => central.disconnect(connected)
           })
 
-          client = new Client(mailbox)
+          // The module logs through a bare-logger interface; the app's logger
+          // is a plain function, so only the level the Client uses is wired.
+          client = new Client(mailbox, { log: { debug: log } })
 
           client.name = connected.name
           central.on('disconnect', () => client.emit('disconnect'))
