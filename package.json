@@ -1,6 +1,7 @@
 {
   "private": true,
   "name": "bare-mobile-doctor",
+  "version": "0.0.0",
   "description": "Doctor application for Bare on mobile",
   "main": "expo-router/entry",
   "scripts": {
