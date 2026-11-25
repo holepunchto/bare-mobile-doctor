@@ -4,9 +4,17 @@ on:
   push:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   android:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        host:
+          - android-arm64
+          - android-x64
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -14,21 +22,19 @@ jobs:
           node-version: lts/*
       - run: npm i --ignore-scripts
 
-      - name: Build the apps
+      - name: Build the app
         run: |
-          for host in android-arm64 android-x64; do
-            npx bare-build \
-              --host "$host" \
-              --runtime bare-native/runtime \
-              --name "Bare Doctor" \
-              --identifier to.holepunch.bare.doctor \
-              --out "build/$host" \
-              native/index.js
+          npx bare-build \
+            --host ${{ matrix.host }} \
+            --runtime bare-native/runtime \
+            --name "Bare Doctor" \
+            --identifier to.holepunch.bare.doctor \
+            --out build \
+            native/index.js
 
-            mv "build/$host/Bare Doctor.apk" "bare-doctor-${GITHUB_SHA::7}-$host.apk"
-          done
+          mv "build/Bare Doctor.apk" "bare-native-doctor-${{ matrix.host }}.apk"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: android
-          path: bare-doctor-*.apk
+          name: bare-native-doctor-${{ matrix.host }}
+          path: bare-native-doctor-${{ matrix.host }}.apk
