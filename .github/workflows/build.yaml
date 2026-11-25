@@ -14,7 +14,9 @@ jobs:
     strategy:
       matrix:
         host:
+          - android-arm
           - android-arm64
+          - android-ia32
           - android-x64
     steps:
       - uses: holepunchto/actions/node-base@v1
