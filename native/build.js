@@ -1,6 +1,5 @@
-// Signing options for `bare-build --config`, read from `ios.mobileprovision`
-// at the root. That file is never committed, so nothing personal lives here.
 const { execFileSync } = require('child_process')
+const { createHash } = require('crypto')
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs')
 
 const PROFILE = 'ios.mobileprovision'
@@ -13,9 +12,8 @@ if (!existsSync(PROFILE)) {
 
 const profile = execFileSync('security', ['cms', '-D', '-i', PROFILE])
 
-const applicationIdentifier = plist(profile, 'Entitlements.application-identifier')
-const team = plist(profile, 'ApplicationIdentifierPrefix.0')
-const identifier = applicationIdentifier.slice(team.length + 1)
+const team = plist('ApplicationIdentifierPrefix.0')
+const identifier = plist('Entitlements.application-identifier').slice(team.length + 1)
 
 if (identifier === '*') {
   throw new Error(`${PROFILE} is for a wildcard App ID, which cannot carry the V8 entitlement.`)
@@ -33,29 +31,36 @@ writeFileSync(
 module.exports = {
   identifier,
   sign: true,
-  identity: signingIdentity(profile),
+  identity: signingIdentity(),
   provisioningProfile: PROFILE,
   entitlements: ENTITLEMENTS
 }
 
-function plist(input, key) {
-  return execFileSync('plutil', ['-extract', key, 'raw', '-o', '-', '-'], { input })
+function plist(key) {
+  return execFileSync('plutil', ['-extract', key, 'raw', '-o', '-', '-'], { input: profile })
     .toString()
     .trim()
 }
 
-// The common name of the first certificate the profile allows, which is the
-// identity `codesign` expects.
-function signingIdentity(profile) {
-  const certificate = Buffer.from(plist(profile, 'DeveloperCertificates.0'), 'base64')
+function signingIdentity() {
+  const identities = execFileSync('security', ['find-identity', '-v', '-p', 'codesigning'])
 
-  const subject = execFileSync('openssl', ['x509', '-inform', 'DER', '-subject', '-noout'], {
-    input: certificate
-  }).toString()
+  for (let i = 0; ; i++) {
+    let certificate
 
-  const name = subject.match(/CN\s*=\s*([^,/\n]+)/)
+    try {
+      certificate = plist(`DeveloperCertificates.${i}`)
+    } catch {
+      throw new Error(`No identity in the keychain matches ${PROFILE}`)
+    }
 
-  if (name === null) throw new Error(`No signing identity in ${PROFILE}`)
+    const fingerprint = createHash('sha1')
+      .update(Buffer.from(certificate, 'base64'))
+      .digest('hex')
+      .toUpperCase()
 
-  return name[1].trim()
+    const found = identities.toString().match(new RegExp(`${fingerprint} "([^"]+)"`))
+
+    if (found !== null) return found[1]
+  }
 }

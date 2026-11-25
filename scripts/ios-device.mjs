@@ -1,4 +1,3 @@
-// The UDID of the connected iPhone. Simulators report `sameMachine`.
 import { execFileSync } from 'child_process'
 import { readFileSync, rmSync } from 'fs'
 

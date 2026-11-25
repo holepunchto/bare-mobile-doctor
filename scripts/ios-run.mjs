@@ -1,4 +1,3 @@
-// Installs the built app on the connected iPhone and streams its console.
 import { execFileSync } from 'child_process'
 import { createRequire } from 'module'
 import device from './ios-device.mjs'
