@@ -54,7 +54,7 @@ function signingIdentity() {
       throw new Error(`No identity in the keychain matches ${PROFILE}`)
     }
 
-    const fingerprint = createHash('sha1')
+    const fingerprint = createHash('sha256')
       .update(Buffer.from(certificate, 'base64'))
       .digest('hex')
       .toUpperCase()
