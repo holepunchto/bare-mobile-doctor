@@ -1,7 +1,6 @@
-name: build
+name: Build
 
 on:
-  push:
   workflow_dispatch:
 
 permissions:
@@ -9,8 +8,6 @@ permissions:
 
 jobs:
   android:
-    runs-on: ubuntu-latest
-    name: Android / ${{ matrix.host }}
     strategy:
       matrix:
         host:
@@ -18,11 +15,11 @@ jobs:
           - android-arm64
           - android-ia32
           - android-x64
+    runs-on: ubuntu-latest
+    name: Build / ${{ matrix.host }}
     steps:
       - uses: holepunchto/actions/node-base@v1
-
-      - name: Build the app
-        run: |
+      - run: |
           npx bare-build \
             --host ${{ matrix.host }} \
             --runtime bare-native/runtime \
@@ -30,10 +27,7 @@ jobs:
             --identifier to.holepunch.bare.doctor \
             --out build \
             native/index.js
-
-          mv "build/Bare Doctor.apk" "bare-native-doctor-${{ matrix.host }}.apk"
-
-      - uses: actions/upload-artifact@v7
+      - uses: holepunchto/actions/upload-artifact@v1
         with:
           name: bare-native-doctor-${{ matrix.host }}
-          path: bare-native-doctor-${{ matrix.host }}.apk
+          path: build/*.apk
