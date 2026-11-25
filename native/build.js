@@ -54,7 +54,9 @@ function signingIdentity() {
       throw new Error(`No identity in the keychain matches ${PROFILE}`)
     }
 
-    const fingerprint = createHash('sha256')
+    // Not a security hash: SHA-1 is the fingerprint format `security
+    // find-identity` prints and `codesign -s` takes.
+    const fingerprint = createHash('sha1')
       .update(Buffer.from(certificate, 'base64'))
       .digest('hex')
       .toUpperCase()
