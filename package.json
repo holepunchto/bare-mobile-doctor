@@ -11,6 +11,7 @@
     "link:android": "node scripts/link.mjs android",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "gen:entitlements": "mkdir -p build && sed -e \"s/__TEAM_ID__/$TEAM_ID/g\" -e \"s/__BUNDLE_ID__/$BUNDLE_ID/g\" native/ios.entitlements.in > build/ios.entitlements",
     "gen:udx": "npx bare-pack --out app/views/udx/udx.bundle.js bare/udx.js --host ios-arm64 --host ios-arm64-simulator --host ios-x64-simulator --host android-arm --host android-arm64 --host android-ia32 --host android-x64 --linked",
     "gen:hyperdb": "npx bare-pack --out app/views/hyperdb/hyperdb.bundle.js bare/hyperdb/hyperdb.mjs --host ios-arm64 --host ios-arm64-simulator --host ios-x64-simulator --host android-arm --host android-arm64 --host android-ia32 --host android-x64 --linked",
     "gen:ipc": "npx bare-pack --out app/views/ipc/ipc.bundle.js bare/ipc.js --host ios-arm64 --host ios-arm64-simulator --host ios-x64-simulator --host android-arm --host android-arm64 --host android-ia32 --host android-x64 --linked",
@@ -85,7 +86,9 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.10",
+    "bare-build": "^1.7.0",
     "bare-link": "^4.0.1",
+    "bare-native": "^0.3.8",
     "bare-pack": "^2.2.4",
     "prettier": "^3.5.3",
     "prettier-config-holepunch": "^2.0.0",
