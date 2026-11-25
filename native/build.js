@@ -16,7 +16,7 @@ const team = plist('ApplicationIdentifierPrefix.0')
 const identifier = plist('Entitlements.application-identifier').slice(team.length + 1)
 
 if (identifier === '*') {
-  throw new Error(`${PROFILE} is for a wildcard App ID, which cannot carry the V8 entitlement.`)
+  throw new Error('Identifier required')
 }
 
 mkdirSync('build', { recursive: true })
