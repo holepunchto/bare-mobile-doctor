@@ -10,17 +10,14 @@ permissions:
 jobs:
   android:
     runs-on: ubuntu-latest
+    name: Android / ${{ matrix.host }}
     strategy:
       matrix:
         host:
           - android-arm64
           - android-x64
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-      - run: npm i --ignore-scripts
+      - uses: holepunchto/actions/node-base@v1
 
       - name: Build the app
         run: |
@@ -34,7 +31,7 @@ jobs:
 
           mv "build/Bare Doctor.apk" "bare-native-doctor-${{ matrix.host }}.apk"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: bare-native-doctor-${{ matrix.host }}
           path: bare-native-doctor-${{ matrix.host }}.apk
