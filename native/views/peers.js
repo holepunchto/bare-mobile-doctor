@@ -1,7 +1,7 @@
 const { Text, View } = require('bare-native')
 const styles = require('./peers.style')
 
-module.exports = function peers() {
+module.exports = function peers(onSelect) {
   const view = new View()
   view.style = styles.peers
 
@@ -25,6 +25,8 @@ module.exports = function peers() {
   function add(id, name) {
     const row = new View()
     row.style = styles.peer
+
+    row.on('pointerup', () => onSelect(id))
 
     const label = new Text(name)
     label.style = styles.name

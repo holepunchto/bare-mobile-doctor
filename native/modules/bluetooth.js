@@ -17,13 +17,14 @@ module.exports = {
 
 function scan(log) {
   const central = new Central()
-  const peers = peersView()
+  const peers = peersView(connect)
 
   let found = 0
   let adverts = 0
   let scanning = false
+  let channel = null
 
-  const seen = new Set()
+  const seen = new Map()
 
   log.mount(peers.view)
 
@@ -37,24 +38,77 @@ function scan(log) {
 
     const name = peer.name || named(peer) || 'unknown'
 
-    if (!seen.has(peer.id)) {
-      seen.add(peer.id)
-      found++
-      log(`found ${name} ${peer.id}`)
-    }
+    if (!seen.has(peer.id)) found++
+
+    seen.set(peer.id, peer)
 
     peers.update(peer.id, name, peer.rssi)
 
     log.stats({ peers: found, adverts })
   })
 
-  central.on('error', (err) => log(`error ${err.code || ''} ${err.message}`))
+  central.on('connect', (peripheral) => {
+    log('connected')
+
+    peripheral.on('servicesDiscover', (services) => {
+      const service = services.find((service) => same(service.uuid, SERVICE_UUID))
+
+      if (service === undefined) return log('service not found')
+
+      peripheral.discoverCharacteristics(service, [PSM_UUID])
+    })
+
+    peripheral.on('characteristicsDiscover', (service, characteristics) => {
+      const psm = characteristics.find((char) => same(char.uuid, PSM_UUID))
+
+      if (psm === undefined) return log('psm characteristic not found')
+
+      peripheral.read(psm)
+    })
+
+    // Android reports an empty read as null, Apple as an empty buffer.
+    peripheral.on('read', (characteristic, data) => {
+      const psm = data === null ? 0 : Number(Buffer.from(data).toString())
+
+      if (!psm) return log('no psm published yet')
+
+      log(`opening channel psm ${psm}`)
+      peripheral.openL2CAPChannel(psm)
+    })
+
+    peripheral.on('channelOpen', (opened) => {
+      channel = opened
+      log('channel open')
+      talk(log, opened, `hello from ${Bare.platform}`)
+    })
+
+    peripheral.discoverServices([SERVICE_UUID])
+  })
+
+  central.on('error', (err) => {
+    log(`error ${err.code || ''} ${err.message}`)
+
+    if (err.code === 'CONNECTION_FAILED' || err.code === 'DISCONNECT') start()
+  })
 
   start()
 
   return () => {
+    if (channel) channel.end()
     central.stopScan()
     central.destroy()
+  }
+
+  function connect(id) {
+    const peer = seen.get(id)
+
+    if (peer === undefined || !scanning) return
+
+    scanning = false
+    central.stopScan()
+
+    log(`connecting to ${peer.name || id}`)
+    central.connect(peer)
   }
 
   function start() {
@@ -64,6 +118,18 @@ function scan(log) {
     log('scanning')
     central.startScan([SERVICE_UUID], scanOptions)
   }
+}
+
+function same(a, b) {
+  return String(a).toLowerCase().replaceAll('-', '') === String(b).toLowerCase().replaceAll('-', '')
+}
+
+function talk(log, channel, greeting) {
+  channel.on('data', (data) => log(`peer says ${Buffer.from(data).toString()}`))
+  channel.on('error', (err) => log(`channel error ${err.message}`))
+  channel.on('close', () => log('channel closed'))
+
+  channel.write(Buffer.from(greeting))
 }
 
 function named(peer) {
@@ -101,6 +167,11 @@ function advertise(log) {
     const value = psm === null ? Buffer.alloc(0) : Buffer.from(String(psm))
 
     server.respondToRequest(req, Server.ATT_SUCCESS, value.subarray(req.offset))
+  })
+
+  server.on('channelOpen', (channel) => {
+    log('channel open')
+    talk(log, channel, `hello from ${Bare.platform}`)
   })
 
   server.on('error', (err) => log(`error ${err.code || ''} ${err.message}`))
