@@ -46,7 +46,7 @@ jobs:
             --out build \
             native/index.js
       - id: archive
-        uses: tony-go/hp-actions/create-ios-package-archive@test/ios-package-archive
+        uses: holepunchto/actions/create-ios-package-archive@v1
         with:
           path: build/Bare Doctor.app
       - uses: holepunchto/actions/upload-artifact@v1
