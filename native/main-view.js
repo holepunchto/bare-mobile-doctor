@@ -12,6 +12,7 @@ module.exports = function mainView(modules) {
   root.style = styles.root
 
   const modes = options(reset)
+  const mounted = new View()
   const values = stats()
   const output = logs()
   const run = button('Run', toggle)
@@ -22,6 +23,7 @@ module.exports = function mainView(modules) {
   root.appendChild(header('Bare Doctor', `${Bare.platform}-${Bare.arch}`))
   root.appendChild(picker(modules, select))
   root.appendChild(modes.view)
+  root.appendChild(mounted)
   root.appendChild(values.view)
   root.appendChild(output.view)
   root.appendChild(run.view)
@@ -31,6 +33,12 @@ module.exports = function mainView(modules) {
   log.replace = function (line) {
     console.log(line)
     output.replace(line)
+  }
+
+  log.mount = function (node) {
+    for (const child of mounted.children) mounted.removeChild(child)
+
+    if (node) mounted.appendChild(node)
   }
 
   log.stats = function (object) {
@@ -57,6 +65,7 @@ module.exports = function mainView(modules) {
 
   function reset() {
     halt()
+    log.mount(null)
     values.clear()
     output.clear()
   }
