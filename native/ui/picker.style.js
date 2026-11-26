@@ -3,7 +3,6 @@ const theme = require('./theme')
 
 module.exports = StyleSheet.create({
   picker: {
-    zIndex: 10,
     marginHorizontal: 16,
     marginBottom: 8
   },
@@ -27,8 +26,7 @@ module.exports = StyleSheet.create({
     fontSize: 12
   },
   menu: {
-    position: 'absolute',
-    zIndex: 10,
+    marginTop: 4,
     maxHeight: 320,
     borderRadius: 10,
     backgroundColor: theme.raised
