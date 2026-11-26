@@ -1,10 +1,8 @@
 const { execFileSync } = require('child_process')
 const { createHash } = require('crypto')
-const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs')
+const { existsSync } = require('fs')
 
 const PROFILE = 'ios.mobileprovision'
-const TEMPLATE = 'native/ios.entitlements.in'
-const ENTITLEMENTS = 'build/ios.entitlements'
 
 if (!existsSync(PROFILE)) {
   throw new Error(`${PROFILE} not found. Download a development profile and copy it there.`)
@@ -19,21 +17,11 @@ if (identifier === '*') {
   throw new Error('Identifier required')
 }
 
-mkdirSync('build', { recursive: true })
-
-writeFileSync(
-  ENTITLEMENTS,
-  readFileSync(TEMPLATE, 'utf8')
-    .replaceAll('__TEAM_ID__', team)
-    .replaceAll('__BUNDLE_ID__', identifier)
-)
-
 module.exports = {
   identifier,
   sign: true,
   identity: signingIdentity(),
-  provisioningProfile: PROFILE,
-  entitlements: ENTITLEMENTS
+  provisioningProfile: PROFILE
 }
 
 function plist(key) {
