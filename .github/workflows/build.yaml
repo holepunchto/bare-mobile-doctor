@@ -45,11 +45,11 @@ jobs:
             --identifier to.holepunch.bare.doctor \
             --out build \
             native/index.js
-
-          mkdir -p Payload
-          mv build/*.app Payload/
-          zip -qry build/Bare-Doctor.ipa Payload
+      - id: archive
+        uses: tony-go/hp-actions/create-ios-package-archive@test/ios-package-archive
+        with:
+          path: build/Bare Doctor.app
       - uses: holepunchto/actions/upload-artifact@v1
         with:
           name: bare-native-doctor-ios-arm64
-          path: build/*.ipa
+          path: ${{ steps.archive.outputs.path }}
