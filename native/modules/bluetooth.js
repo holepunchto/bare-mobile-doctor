@@ -57,7 +57,6 @@ function scan(log) {
   }
 }
 
-// A peer that advertises without a name puts it in the service data instead.
 function named(peer) {
   const data = peer.serviceData && peer.serviceData[SERVICE_UUID]
 
@@ -89,7 +88,6 @@ function advertise(log) {
     start()
   })
 
-  // A central reads this to learn the PSM before opening the L2CAP channel.
   server.on('readRequest', (req) => {
     const value = psm === null ? Buffer.alloc(0) : Buffer.from(String(psm))
 
