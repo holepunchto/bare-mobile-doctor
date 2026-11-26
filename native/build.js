@@ -21,7 +21,8 @@ module.exports = {
   identifier,
   sign: true,
   identity: signingIdentity(),
-  provisioningProfile: PROFILE
+  provisioningProfile: PROFILE,
+  infoPlist: 'native/Info.plist'
 }
 
 function plist(key) {
