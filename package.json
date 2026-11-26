@@ -12,7 +12,7 @@
     "link:android": "node scripts/link.mjs android",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "build:android": "bare-build --host android-arm64 --runtime bare-native/runtime --name \"Doctor Native\" --identifier to.holepunch.bare.doctor.native --out build/android native/index.js",
+    "build:android": "bare-build --host android-arm64 --runtime bare-native/runtime --name \"Doctor Native\" --identifier to.holepunch.bare.doctor.native --android-manifest native/AndroidManifest.xml --out build/android native/index.js",
     "build:ios": "bare-build --host ios-arm64 --runtime bare-native/runtime --name \"Doctor Native\" --config native/build.js --out build/ios native/index.js",
     "native:android": "npm run build:android && bare scripts/run.mjs android \"build/android/Doctor Native.apk\"",
     "native:ios": "npm run build:ios && bare scripts/run.mjs ios \"build/ios/Doctor Native.app\"",
