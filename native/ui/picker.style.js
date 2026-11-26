@@ -3,6 +3,7 @@ const theme = require('./theme')
 
 module.exports = StyleSheet.create({
   picker: {
+    zIndex: 10,
     marginHorizontal: 16,
     marginBottom: 8
   },
