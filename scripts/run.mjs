@@ -8,7 +8,7 @@ const device = (await devices()).find(
 
 if (device === undefined) throw new Error(`No ${platform} device connected`)
 
-await device.install(app)
+await device.install(app, { grant: true })
 
 const running = await device.launch(app, { stdio: 'inherit' })
 
