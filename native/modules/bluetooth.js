@@ -1,4 +1,5 @@
 const { Central, Characteristic, Server, Service } = require('bare-bluetooth')
+const peersView = require('../views/peers')
 
 const SERVICE_UUID = 'B4A3C8A7-0000-1000-8000-00805F9B34FB'
 const PSM_UUID = 'B4A3C8A7-0003-1000-8000-00805F9B34FB'
@@ -16,10 +17,15 @@ module.exports = {
 
 function scan(log) {
   const central = new Central()
-  const peers = new Map()
+  const peers = peersView()
 
+  let found = 0
   let adverts = 0
   let scanning = false
+
+  const seen = new Set()
+
+  log.mount(peers.view)
 
   central.on('stateChange', (state) => {
     log(`state ${state}`)
@@ -30,13 +36,16 @@ function scan(log) {
     adverts++
 
     const name = peer.name || named(peer) || 'unknown'
-    const known = peers.has(peer.id)
 
-    peers.set(peer.id, name)
+    if (!seen.has(peer.id)) {
+      seen.add(peer.id)
+      found++
+      log(`found ${name} ${peer.id}`)
+    }
 
-    if (!known) log(`found ${name} ${peer.id} ${peer.rssi} dBm`)
+    peers.update(peer.id, name, peer.rssi)
 
-    log.stats({ peers: peers.size, adverts })
+    log.stats({ peers: found, adverts })
   })
 
   central.on('error', (err) => log(`error ${err.code || ''} ${err.message}`))
