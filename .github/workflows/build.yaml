@@ -31,3 +31,25 @@ jobs:
         with:
           name: bare-native-doctor-${{ matrix.host }}
           path: build/*.apk
+
+  ios:
+    runs-on: macos-latest
+    name: Build / ios-arm64
+    steps:
+      - uses: holepunchto/actions/node-base@v1
+      - run: |
+          npx bare-build \
+            --host ios-arm64 \
+            --runtime bare-native/runtime \
+            --name "Bare Doctor" \
+            --identifier to.holepunch.bare.doctor \
+            --out build \
+            native/index.js
+
+          mkdir -p Payload
+          mv build/*.app Payload/
+          zip -qry build/Bare-Doctor.ipa Payload
+      - uses: holepunchto/actions/upload-artifact@v1
+        with:
+          name: bare-native-doctor-ios-arm64
+          path: build/*.ipa
