@@ -1,7 +1,7 @@
 const { Window } = require('bare-native')
 const mainView = require('./main-view')
 
-const modules = [require('./modules/bluetooth'), require('./modules/os')]
+const modules = [require('./modules/os'), require('./modules/bluetooth')]
 
 const window = new Window(420, 760)
 

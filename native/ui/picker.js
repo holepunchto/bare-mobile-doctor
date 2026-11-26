@@ -16,7 +16,6 @@ module.exports = function picker(items, onSelect) {
 
   const menu = new ScrollView()
   menu.contentStyle = styles.menuContent
-  menu.anchor = { to: trigger, side: 'bottom', align: 'start', offset: 4, match: 'width' }
 
   const paints = []
 
